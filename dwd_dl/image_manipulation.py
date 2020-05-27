@@ -9,7 +9,6 @@ import os.path
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-
 from bitarray import bitarray
 from bitstring import BitArray
 

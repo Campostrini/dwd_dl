@@ -8,11 +8,15 @@ import datetime
 import tempfile
 import sys
 import tarfile
+import configparser
 
 DOWNLOAD_URL_LIST = []
 DOWNLOAD_FILE_NAMES_LIST = []
 SIZES_LIST = []
 BASE_URL = 'https://opendata.dwd.de/climate_environment/CDC/grids_germany/hourly/radolan/historical/bin/'
+DEFAULT_RADOLAN_PATH = os.path.abspath('./Radolan/')
+DEFAULT_START_DATE = datetime.datetime(2005, 6, 1, 0, 50)
+DEFAULT_END_DATE = datetime.datetime(2019, 12, 31, 23, 50)
 
 
 def radar_download_list_generator(start_year, start_month, end_year, end_month):
@@ -59,8 +63,9 @@ def cfg_handler(*args, path=os.path.abspath('.')):
                  os.path.join(path, 'RADOLAN_SIZES.cfg'),
                  *args)
 
-    # TODO: check if file is present, then output what these tell. Give choice to override.
+    # TODO: check if file is present, then output what's inside. Give choice to override.
     # TODO: revise global variables and cfg handling.
+    # TODO: different cfg handling. Parameters in file.
 
     global DOWNLOAD_URL_LIST, DOWNLOAD_FILE_NAMES_LIST, SIZES_LIST
     DOWNLOAD_URL_LIST = cfg_list(os.path.join(path, 'RADOLAN_DOWNLOADS.cfg'))
@@ -136,3 +141,69 @@ def download_and_extract(radar_data_path='./Radolan', start_datetime=datetime.da
                 print(f'Extracting all in {file}.')
                 tf.extractall(os.path.abspath(radar_data_path))
                 print('All extracted.')
+
+
+def config_initializer():
+    """Cheks if global variables are set and are viable. Otherwise it checks for a .cfg file. It creates one if it
+    doesn't exist.
+
+    """
+
+    globals_to_check = ['RADOLAN_PATH', 'START_DATE', 'END_DATE']
+    config_fname = 'RADOLAN.cfg'
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(config_fname)
+    except TypeError:
+        for var in globals_to_check:
+            config['DEFAULT'][var] = str(globals()['DEFAULT_' + var])
+            globals()[var] = globals()['DEFAULT_' + var]
+
+    for var in globals_to_check:
+        if var not in config['DEFAULT']:
+            config['DEFAULT'][var] = str(globals()['DEFAULT_' + var])
+            globals()[var] = globals()['DEFAULT_' + var]
+
+    if not os.path.isdir(os.path.abspath(config['DEFAULT'][globals_to_check[0]])):
+        error_message = 'Invalid RADOLAN_PATH. Resorting to default path: ' + DEFAULT_RADOLAN_PATH
+        print(error_message)
+        config['DEFAULT'][globals_to_check[0]] = str(globals()['DEFAULT_' + globals_to_check[0]])
+        globals()[globals_to_check[0]] = globals()['DEFAULT_' + globals_to_check[0]]
+    else:
+        globals()['RADOLAN_PATH'] = config['DEFAULT'][globals_to_check[0]]
+
+    for date in globals_to_check[1:]:
+        try:
+            globals()[date] = datetime.datetime.strptime(config['DEFAULT'][date], '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            error_message = 'Wrong date format for {}. Expected format is: %Y-%m-%d %H:%M:%S. ' \
+                            'Resorting to default value for {}: {}'.format(date, date, str(globals()['DEFAULT_' + date]))
+            print(error_message)
+            config['DEFAULT'][date] = str(globals()['DEFAULT_' + date])
+            globals()[date] = globals()['DEFAULT_' + date]
+
+        if not (globals()['DEFAULT_START_DATE'] <= globals()[date] <= globals()['DEFAULT_END_DATE']):
+            error_message = '{} {} should be between {} and {}. Resorting to default value: {}.'.format(
+                date,
+                str(globals()[date]),
+                str(globals()['DEFAULT_START_DATE']),
+                str(globals()['DEFAULT_END_DATE']),
+                str(globals()['DEFAULT_' + date])
+            )
+            print(error_message)
+            config['DEFAULT'][date] = str(globals()['DEFAULT_' + date])
+            globals()[date] = globals()['DEFAULT_' + date]
+
+    if globals()['START_DATE'] > globals()['END_DATE']:
+        error_message = 'START_DATE {} is greater than END_DATE {}. Swapping values.'.format(
+            str(globals()['START_DATE']),
+            str(globals()['END_DATE'])
+        )
+        globals()['START_DATE'], globals()['END_DATE'] = globals()['END_DATE'], globals()['START_DATE']  # Swapping
+
+    for var in globals_to_check:
+        config['DEFAULT'][var] = str(globals()[var])
+
+    with open(os.path.join(os.path.abspath('.'), config_fname), 'w') as configfile:
+        config.write(configfile)

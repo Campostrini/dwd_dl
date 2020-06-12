@@ -2,6 +2,7 @@
 
 It's used to read the header. And save the image in a nice format.
 
+Deprecated 12.06.2020
 """
 
 import os.path

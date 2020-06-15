@@ -19,7 +19,8 @@ DEFAULT_START_DATE = datetime.datetime(2005, 6, 1, 0, 50)
 DEFAULT_END_DATE = datetime.datetime(2019, 12, 31, 23, 50)
 
 
-def radar_download_list_generator(start_year, start_month, end_year, end_month):
+def radar_download_list_generator(start_year=DEFAULT_START_DATE.year, start_month=DEFAULT_START_DATE.month,
+                                  end_year=DEFAULT_END_DATE.year, end_month=DEFAULT_END_DATE.month):
     download_list = []
     file_names_list = []
     sizes_list = []
@@ -32,9 +33,9 @@ def radar_download_list_generator(start_year, start_month, end_year, end_month):
                     url = BASE_URL + f'{year}/' + 'RW{}{:02d}.tar.gz'.format(year, month)
 
                 if file_is_available(url):
-                    download_list.append(url + '\n')
-                    file_names_list.append('RW-{}{:02d}.tar.gz'.format(year, month) + '\n')
-                    sizes_list.append(str(file_is_available(url)) + '\n')
+                    download_list.append(url)
+                    file_names_list.append('RW-{}{:02d}.tar.gz'.format(year, month))
+                    sizes_list.append(file_is_available(url))
 
     return download_list, file_names_list, sizes_list
 
@@ -102,23 +103,21 @@ def interval_is_valid(start_datetime, end_datetime):
         return True
 
 
-def download_and_extract(radar_data_path='./Radolan', start_datetime=datetime.datetime(2005, 6, 1, 0, 50),
-                         end_datetime=datetime.datetime(2019, 12, 31, 23, 50)):
-    if not os.path.isdir(os.path.abspath(radar_data_path)):
-        os.makedirs(os.path.abspath(radar_data_path))
+def download_and_extract():
+    if not config_was_run():
+        config_initializer()
 
-    if not interval_is_valid(start_datetime, end_datetime):
-        raise ValueError('Invalid Time Interval. Allowed time interval: {} - {}'.format(
-            datetime.datetime(2005, 6, 1, 0, 50),
-            datetime.datetime(2019, 12, 31, 23, 50)
-        ))
-    cfg_handler(start_datetime.year, start_datetime.month, end_datetime.year, end_datetime.month)
+    download_list, file_names_list, sizes_list = radar_download_list_generator(
+        start_year=START_DATE.year,
+        start_month=START_DATE.month,
+        end_year=END_DATE.year,
+        end_month=END_DATE.month
+    )
 
-    global SIZES_LIST, DOWNLOAD_FILE_NAMES_LIST, DOWNLOAD_URL_LIST
     total_size = 0
 
-    for element in SIZES_LIST:
-        total_size += int(element)
+    for element in sizes_list:
+        total_size += element
 
 
     while True:
@@ -132,18 +131,18 @@ def download_and_extract(radar_data_path='./Radolan', start_datetime=datetime.da
     with tempfile.TemporaryDirectory() as td:
         print('Creating Temporary Directory')
         print(f'Temporary Directory created: {os.path.isdir(os.path.abspath(td))}')
-        download_files_to_directory(os.path.abspath(td), DOWNLOAD_URL_LIST, DOWNLOAD_FILE_NAMES_LIST)
+        download_files_to_directory(os.path.abspath(td), download_list, file_names_list)
         listdir = os.listdir(td)
         for file in listdir:
             if not file.endswith('.tar.gz'):
                 continue
             with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
                 print(f'Extracting all in {file}.')
-                tf.extractall(os.path.abspath(radar_data_path))
+                tf.extractall(os.path.abspath(RADOLAN_PATH))
                 print('All extracted.')
 
 
-def config_initializer():
+def config_initializer(config_fpath='.'):
     """Cheks if global variables are set and are viable. Otherwise it checks for a .cfg file. It creates one if it
     doesn't exist.
 
@@ -154,7 +153,7 @@ def config_initializer():
 
     config = configparser.ConfigParser()
     try:
-        config.read(config_fname)
+        config.read(os.path.join(os.path.abspath(config_fpath), config_fname))
     except TypeError:
         for var in globals_to_check:
             config['DEFAULT'][var] = str(globals()['DEFAULT_' + var])
@@ -205,5 +204,20 @@ def config_initializer():
     for var in globals_to_check:
         config['DEFAULT'][var] = str(globals()[var])
 
-    with open(os.path.join(os.path.abspath('.'), config_fname), 'w') as configfile:
+    with open(os.path.join(os.path.abspath(config_fpath), config_fname), 'w') as configfile:
         config.write(configfile)
+
+
+def config_was_run():
+    try:
+        assert START_DATE
+        assert END_DATE
+        assert RADOLAN_PATH
+    except AttributeError:
+        return False
+    else:
+        return True
+
+
+def binary_file_name(time_stamp):
+    return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime('%y%m%d%H%M'))

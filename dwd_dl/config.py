@@ -9,6 +9,9 @@ import tempfile
 import sys
 import tarfile
 import configparser
+import numpy as np
+import wradlib as wrl
+from osgeo import osr
 
 DOWNLOAD_URL_LIST = []
 DOWNLOAD_FILE_NAMES_LIST = []
@@ -221,3 +224,29 @@ def config_was_run():
 
 def binary_file_name(time_stamp):
     return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime('%y%m%d%H%M'))
+
+
+def distance(a_tup, b_tup):
+    return np.sqrt((np.subtract(a_tup, b_tup)**2).sum(axis=2))
+
+
+def coords_finder(lat, lon, distances_output=False):
+    """finds x, y coordinates given lon lat for the 900x900 RADOLAN grid
+
+    """
+    proj_stereo = wrl.georef.create_osr("dwd-radolan")
+    print(proj_stereo)
+    proj_wgs = osr.SpatialReference()
+    proj_wgs.ImportFromEPSG(4326)
+    print(proj_wgs)
+    coords_ll = np.array([lat, lon])
+    radolan_grid_xy = wrl.georef.get_radolan_grid(900, 900)
+    coords_xy = wrl.georef.reproject(coords_ll, projection_source=proj_wgs, projection_target=proj_stereo)
+    # TODO: refactor line above using wrl.georef.get_radolan_coords
+
+    distances = distance(coords_xy, radolan_grid_xy)
+
+    if distances_output:
+        return np.unravel_index(distances.argmin(), distances.shape), distances
+    else:
+        return np.unravel_index(distances.argmin(), distances.shape)

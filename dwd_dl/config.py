@@ -21,6 +21,7 @@ DEFAULT_RADOLAN_PATH = os.path.abspath('./Radolan/')
 DEFAULT_START_DATE = datetime.datetime(2005, 6, 1, 0, 50)
 DEFAULT_END_DATE = datetime.datetime(2019, 12, 31, 23, 50)
 
+# TODO: Add download manager for current year
 
 def radar_download_list_generator(start_year=DEFAULT_START_DATE.year, start_month=DEFAULT_START_DATE.month,
                                   end_year=DEFAULT_END_DATE.year, end_month=DEFAULT_END_DATE.month):

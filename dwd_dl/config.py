@@ -23,8 +23,27 @@ DEFAULT_END_DATE = datetime.datetime(2019, 12, 31, 23, 50)
 
 # TODO: Add download manager for current year
 
+
 def radar_download_list_generator(start_year=DEFAULT_START_DATE.year, start_month=DEFAULT_START_DATE.month,
                                   end_year=DEFAULT_END_DATE.year, end_month=DEFAULT_END_DATE.month):
+    """Download lists generator. Outputs urls, names and sizes.
+
+    Parameters
+    ----------
+    start_year, start_month, end_year, end_month : int
+        The start and end year and month of the period to be downloaded. (The default is derived from the module
+        variables `DEFAULT_START_DATE` and `DEFAULT_END_DATE` which are 2005-06-01 00:50 and 2019-12-31 23:50
+        respectively.)
+
+    Returns
+    -------
+    download_list : list of str
+        The list of the urls pointing to the `.tar.gz` files to be downloaded.
+    file_names_list : list of str
+        A list containing the names of the files to be downloaded.
+    sizes_list : list of int
+        A list of the sizes of the files to be donwloaded. Element is 0 if the file wasn't available.
+    """
     download_list = []
     file_names_list = []
     sizes_list = []
@@ -38,19 +57,54 @@ def radar_download_list_generator(start_year=DEFAULT_START_DATE.year, start_mont
 
                 if file_is_available(url):
                     download_list.append(url)
-                    file_names_list.append('RW-{}{:02d}.tar.gz'.format(year, month))
+                    file_names_list.append('RW-{}{:02d}.tar.gz'.format(year, month)) # TODO: Review. Possible confilcts.
                     sizes_list.append(file_is_available(url))
 
     return download_list, file_names_list, sizes_list
 
 
 def cfg_list(path):
+    """Simple file reader.
+
+    Parameters
+    ----------
+    path : str
+        A valid path pointing to the file to be read.
+
+    Returns
+    -------
+    radar_files : list of str
+        A list of the lines read from the file.
+
+    Notes
+    -----
+    Probably useless.
+
+    """
     with open(path, 'r') as f:
         radar_files = f.read().splitlines()
     return radar_files
 
 
 def make_cfg(path_list, path_names, path_sizes, *args):
+    """Creates files containing the output of dwd_dl.config.radar_download_list_generator().
+
+    Parameters
+    ----------
+    path_list, path_names, path_sizes : str
+        Valid paths to save dwd_dl.config.radar_download_list_generator() outputs.
+    args
+        Inputs for dwd_dl.config.radar_download_list_generator().
+
+    Returns
+    -------
+    bool
+        True if operation was successful.
+
+    See Also
+    --------
+    dwd_dl.config.radar_download_list_generator()
+    """
     with open(path_list, 'w+') as f1, open(path_names, 'w+') as f2, open(path_sizes, 'w+') as f3:
         download_list, file_names_list, sizes_list = radar_download_list_generator(*args)
         f1.writelines(download_list)
@@ -60,6 +114,26 @@ def make_cfg(path_list, path_names, path_sizes, *args):
 
 
 def cfg_handler(*args, path=os.path.abspath('.')):
+    """A (not so) intuitive configuration handler. Even deprecated. Too bad.
+
+    The handler saves three different `.CFG` files in the supplied path containing the output of
+    dwd_dl.config.radar_download_list_generator() .
+
+    Parameters
+    ----------
+    args
+        Inputs to dwd_dl.config.make_cfg().
+    path : str
+        Valid path for saving the CFG files. (Defaults to pwd.)
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    Deprecated. Will be removed.
+    """
     if ((not os.path.isfile(os.path.join(path, 'RADOLAN_DOWNLOADS.cfg')))
             and (not os.path.isfile(os.path.join(path, 'RADOLAN_NAMES.cfg')))
             and (not os.path.isfile(os.path.join(path, 'RADOLAN_SIZES.cfg')))):

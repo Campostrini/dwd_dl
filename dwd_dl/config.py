@@ -145,6 +145,31 @@ def download_and_extract():
                 print('All extracted.')
 
 
+def clean_unused():
+    """Cleans unused files from RADOLAN_PATH"""
+
+    listdir = os.listdir(os.path.abspath(RADOLAN_PATH))
+
+    for file in listdir:
+        if not file in used_files(START_DATE, END_DATE):
+            os.remove(os.path.join(os.path.abspath(RADOLAN_PATH), file))
+
+
+def daterange(start_date, end_date, include_end=False):
+    if include_end:
+        end = 1
+    else:
+        end = 0
+    for n in range(int((end_date - start_date).seconds/3600) + end):
+        yield start_date + datetime.timedelta(hours=n)
+
+
+def used_files(start_date, end_date):
+    """Yields the name of the used files"""
+    for date in daterange(start_date, end_date, include_end=True):
+        yield binary_file_name(date)
+
+
 def config_initializer(config_fpath='.'):
     """Cheks if global variables are set and are viable. Otherwise it checks for a .cfg file. It creates one if it
     doesn't exist.

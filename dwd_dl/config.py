@@ -310,7 +310,7 @@ def daterange(start_date, end_date, include_end=False):
         end = 1
     else:
         end = 0
-    for n in range(int((end_date - start_date).seconds/3600) + end):
+    for n in range(int((end_date - start_date).total_seconds()/3600) + end):
         yield start_date + datetime.timedelta(hours=n)
 
 

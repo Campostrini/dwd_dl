@@ -1,4 +1,6 @@
-"""Image manipulation library
+"""Image manipulation library for visualizing the DWD data.
+
+Makes use of wradlib.
 
 """
 import datetime
@@ -12,7 +14,31 @@ from dwd_dl import config
 
 
 def selection(time_stamp, *, center_coords=None, xy_widths=None, bl_coords=None, tr_coords=None, plot=True):
+    """Selection tool for DWD Radolan data.
 
+    Uses wradlib and outputs an xarray.DataSet. Plot functionality included.
+
+    Parameters
+    ----------
+    time_stamp : datetime.datetime
+        Datetime valid timestamp for which DWD Radolan data exists.
+    center_coords : tuple or list of length 2
+        Prefer tuple. The coordinates of the center of a selection. In polar stereographic.
+    xy_widths : tuple or list of length 2
+        Prefer tuple. The widths of the selection. In polar stereographic.
+    bl_coords : tuple or list of length 2
+        Prefer tuple. The bottom left point coordinates of the selection. In polar stereographic.
+    tr_coords : tuple or list of length 2
+        Prefer tuple. The top right point coordinates of the selection. In polar stereographic.
+    plot : bool
+        Whether a plot should be produced or not.
+
+    Returns
+    -------
+    xarray.DataSet
+        An xarray.DataSet copy of the data.
+
+    """
     # Initial checks for time_stamp
     while True:
         try:

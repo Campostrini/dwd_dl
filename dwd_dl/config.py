@@ -153,6 +153,21 @@ def cfg_handler(*args, path=os.path.abspath('.')):
 
 
 def file_is_available(url):
+    """Checks if a DWD file is available by looking at the HTTP header.
+
+    Only the HTTP header is requested. The file is not downloaded. Returns the number of bytes as an integer.
+
+    Parameters
+    ----------
+    url : str
+        Valid url as a string.
+
+    Returns
+    -------
+    int
+        Number of bytes of the requested files. Returns 0 if the file was not reachable.
+
+    """
     r = requests.head(url)
     if not r.headers['Content-Type'] == 'application/octet-stream':
         return 0
@@ -161,10 +176,29 @@ def file_is_available(url):
 
 
 def download_files_to_directory(dirpath, downloadable_list, names_list):
+    """Downloads files to directory.
+
+    Parameters
+    ----------
+    dirpath : str
+        Valid path to a directory.
+    downloadable_list : str or list of str
+        Valid urls pointing to downloadable files.
+    names_list : str or list of str
+        Names to give to the files in downloadable_list.
+
+    Raises
+    ------
+    OSError
+        Error is raised if the given dirpath is invalid according to os.path.isdir().
+
+    """
     if not os.path.isdir(dirpath):
         raise OSError('Invalid Path.')
     if type(downloadable_list) is not list:
         downloadable_list = [downloadable_list]
+    if type(names_list) is not list:
+        names_list = [names_list]
 
     for url, name in zip(downloadable_list, names_list):
         print(f'Downloading file {name}')
@@ -175,6 +209,21 @@ def download_files_to_directory(dirpath, downloadable_list, names_list):
 
 
 def interval_is_valid(start_datetime, end_datetime):
+    """Checks if a given time intervall is valid for DWD operations.
+
+    The permitted intervall is `2005-06-01 00:50` to `2019-12-31 23:50`.
+
+    Parameters
+    ----------
+    start_datetime, end_datetime : datetime.datetime
+        Start and end timestamps.
+
+    Returns
+    -------
+    bool
+        Tells whether the input is valid or not.
+
+    """
     if start_datetime < datetime.datetime(2005, 6, 1, 0, 50) or end_datetime > datetime.datetime(2019, 12, 31, 23, 50):
         return False
     else:
@@ -182,6 +231,13 @@ def interval_is_valid(start_datetime, end_datetime):
 
 
 def download_and_extract():
+    """Downloads and extracts the DWD data.
+
+    Checks if dwd_dl.config.config_initializer() was run. It runs it if that is False. Then generates a list of
+    the files to be downloaded, asks if they should be downloaded, downloads them to a tmp directory and extracts them
+    to the RADOLAN_PATH specified folder.
+
+    """
     if not config_was_run():
         config_initializer()
 
@@ -221,7 +277,9 @@ def download_and_extract():
 
 
 def clean_unused():
-    """Cleans unused files from RADOLAN_PATH"""
+    """Cleans unused files from RADOLAN_PATH
+
+    """
 
     listdir = os.listdir(os.path.abspath(RADOLAN_PATH))
 
@@ -231,6 +289,23 @@ def clean_unused():
 
 
 def daterange(start_date, end_date, include_end=False):
+    """A useful date range generator.
+
+    Parameters
+    ----------
+    start_date : datetime.datetime
+        A start date.
+    end_date : datetime.datetime
+        An end date.
+    include_end : bool
+        Tells if the generator should include the end_date.
+
+    Yields
+    ------
+    A sequence of datetime.datetime objects equally spaced in hours. (Actually not, but for the time being this
+    description is sufficient).
+
+    """
     if include_end:
         end = 1
     else:
@@ -240,7 +315,21 @@ def daterange(start_date, end_date, include_end=False):
 
 
 def used_files(start_date, end_date):
-    """Yields the name of the used files"""
+    """Yields the name of the used files
+
+    Parameters
+    ----------
+    start_date : datetime.datetime
+        A valid start date.
+    end_date : datetime.datetime
+        A valid end date.
+
+    Yields
+    ------
+    str
+        File names of the DWD binaries actually used.
+
+    """
     for date in daterange(start_date, end_date, include_end=True):
         yield binary_file_name(date)
 
@@ -248,6 +337,22 @@ def used_files(start_date, end_date):
 def config_initializer(config_fpath='.'):
     """Cheks if global variables are set and are viable. Otherwise it checks for a .cfg file. It creates one if it
     doesn't exist.
+
+    Globals are set by reading them from the `RADOLAN.cfg` if available. Otherwise it resorts to default values.
+    The `.cfg` file should have this format:
+    `
+    [DEFAULT]
+    radolan_path = /path/to/base/Radolan
+    start_date = YYYY-MM-DD HH:MM:SS
+    end_date = YYYY-MM-DD HH:MM:SS
+    `
+
+    Where the dates are obviously substituted with valid ones.
+
+    Parameters
+    ----------
+    config_fpath : str
+        A valid path to the location of the `RADOLAN.cfg` file. (Defaults to pwd.)
 
     """
 
@@ -312,6 +417,14 @@ def config_initializer(config_fpath='.'):
 
 
 def config_was_run():
+    """Checks if dwd_dl.config.config_initializer() was run by looking at global variables.
+
+    Returns
+    -------
+    bool
+        Straightforward output.
+
+    """
     try:
         assert START_DATE
         assert END_DATE
@@ -323,15 +436,63 @@ def config_was_run():
 
 
 def binary_file_name(time_stamp):
+    """Returns the file name of a DWD binary given a datetime.datetime timestamp.
+
+    Parameters
+    ----------
+    time_stamp : datetime.datetime
+        A valid timestamp.
+
+    Returns
+    -------
+    str
+        The name of the binary corresponding to the given timestamp. `raa01-rw_10000-yymmDDHHMM-dwd---bin`
+
+    """
     return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime('%y%m%d%H%M'))
 
 
 def distance(a_tup, b_tup):
+    """Computes the distance between numpy.ndarray .
+
+    Parameters
+    ----------
+    a_tup : numpy.ndarray
+        Preferably a simple (y,x) coordinate as numpy.ndarray.
+    b_tup : numpy.ndarray
+        A 3D numpy.ndarray with a dimension being 2. Broadcasting rules apply.
+
+    Returns
+    -------
+    numpy.ndarray
+        A 2D array containing the distances of each and every point in b_tup from a_tup.
+
+    """
     return np.sqrt((np.subtract(a_tup, b_tup)**2).sum(axis=2))
 
 
 def coords_finder(lat, lon, distances_output=False):
-    """finds x, y coordinates given lon lat for the 900x900 RADOLAN grid
+    """finds x, y coordinates given lon lat for the 900x900 RADOLAN grid.
+
+    Parameters
+    ----------
+    lat : float
+        A valid latitude.
+    lon : float
+        A valid longitude.
+    distances_output : bool
+        Whether the function shall return the dwd_dl.config.distance() output as well.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the indeces of the DWD Radolan Grid point nearest to the supplied coordinates.
+    numpy.ndarray, optional
+        The output of dwd_dl.config.distances()
+
+    See Also
+    --------
+    dwd_dl.config.distances()
 
     """
     proj_stereo = wrl.georef.create_osr("dwd-radolan")

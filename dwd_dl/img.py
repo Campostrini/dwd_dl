@@ -42,8 +42,8 @@ def selection(time_stamp, *, center_coords=None, xy_widths=None, bl_coords=None,
     # Initial checks for time_stamp
     while True:
         try:
-            assert config.START_DATE < time_stamp < config.END_DATE, 'Wrong input. Time is not ' \
-                                                                     'in the expected interval.'
+            assert config.START_DATE <= time_stamp <= config.END_DATE, 'Wrong input. Time is not ' \
+                                                                       'in the expected interval.'
         except AssertionError:
             print('No selection was produced. Retry with a valid date.')
             return None

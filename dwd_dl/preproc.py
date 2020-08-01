@@ -49,3 +49,7 @@ def square_select(time_stamp, height=256, width=256, plot=False):
         out.plot()
 
     return out.copy()
+
+
+def normalize(array, mean, std):
+    return (array - mean) / std

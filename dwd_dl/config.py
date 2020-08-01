@@ -12,6 +12,7 @@ import configparser
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
+from tqdm import tqdm
 
 DOWNLOAD_URL_LIST = []
 DOWNLOAD_FILE_NAMES_LIST = []
@@ -283,7 +284,7 @@ def clean_unused():
 
     listdir = os.listdir(os.path.abspath(RADOLAN_PATH))
 
-    for file in listdir:
+    for file in tqdm(listdir):
         if not file in used_files(START_DATE, END_DATE):
             os.remove(os.path.join(os.path.abspath(RADOLAN_PATH), file))
 

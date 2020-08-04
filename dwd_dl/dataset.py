@@ -27,10 +27,11 @@ class RadolanDataset(Dataset):
         image_size=256,
         subset="train",
         intrinsic_random_sampling=False,
-        validation_cases=10,  # percentage
+        validation_cases=20,  # percentage
         seed=42,
         in_channels=in_channels,
-        out_channels=out_channels
+        out_channels=out_channels,
+        verbose=False
     ):
         assert subset in ["all", "train", "validation"]
 
@@ -45,9 +46,11 @@ class RadolanDataset(Dataset):
         self.days_containing_nans = {}
         for (dirpath, dirnames, filenames) in os.walk(radolan_dir):
             counter = 0
-            for filename in sorted(
-                filter(lambda f: "dwd---bin" in f and f in config.used_files(*time_period), filenames),
-                key=lambda x: int(x.split("-")[-5]),
+            for filename in tqdm(
+                    sorted(
+                        filter(lambda f: "dwd---bin" in f and f in config.used_files(*time_period), filenames),
+                        key=lambda x: int(x.split("-")[-5])
+                    )
             ):
                 # filepath = os.path.join(dirpath, filename)
                 counter += 1
@@ -58,7 +61,7 @@ class RadolanDataset(Dataset):
                 if np.isnan(file_data).any():
                     self.days_containing_nans[key] = (np.count_nonzero(np.isnan(file_data)),
                                                       np.argwhere(np.isnan(file_data)))
-                if counter % 10 == 0:
+                if counter % 10 == 0 and verbose:
                     print("Loaded data for timestamp: " + key)
 
         self.sequence = sequence

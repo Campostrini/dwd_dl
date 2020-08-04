@@ -13,13 +13,23 @@ import wradlib as wrl
 from dwd_dl import config
 
 
-def selection(time_stamp, *, center_coords=None, xy_widths=None, bl_coords=None, tr_coords=None, plot=True):
+def selection(
+        time_stamp,
+        *,
+        center_coords=None,
+        xy_widths=None,
+        bl_coords=None,
+        tr_coords=None,
+        plot=True,
+        verbose=False
+):
     """Selection tool for DWD Radolan data.
 
     Uses wradlib and outputs an xarray.DataSet. Plot functionality included.
 
     Parameters
     ----------
+    verbose
     time_stamp : datetime.datetime
         Datetime valid timestamp for which DWD Radolan data exists.
     center_coords : tuple or list of length 2
@@ -32,6 +42,8 @@ def selection(time_stamp, *, center_coords=None, xy_widths=None, bl_coords=None,
         Prefer tuple. The top right point coordinates of the selection. In polar stereographic.
     plot : bool
         Whether a plot should be produced or not.
+    verbose : bool
+        Suppresses or enables printing statements.
 
     Returns
     -------
@@ -69,7 +81,8 @@ def selection(time_stamp, *, center_coords=None, xy_widths=None, bl_coords=None,
         x_slice = slice(bl_coords[0], tr_coords[0])
         y_slice = slice(bl_coords[1], tr_coords[1])
     else:
-        print('Will not slice.')
+        if verbose:
+            print('Will not slice.')
         x_slice, y_slice = None, None
 
     # Open the data

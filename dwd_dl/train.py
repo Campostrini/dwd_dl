@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import datetime as dt
 
 import numpy as np
 import torch
@@ -43,7 +44,7 @@ def main(args):
     # logger = Logger(args.logs)
     loss_train = []
     loss_valid = []
-    writer = SummaryWriter(config.RADOLAN_PATH + '/Logs')
+    writer = SummaryWriter(config.RADOLAN_PATH + '/Logs/' + str(dt.datetime.now()))
 
     dataiter = iter(loader_train)
     past_seq, true_next = next(dataiter)
@@ -53,6 +54,8 @@ def main(args):
     step = 0
 
     for epoch in tqdm(range(args.epochs), total=args.epochs):
+        epoch_loss_train = []
+        epoch_loss_valid = []
         for phase in ["train", "valid"]:
             if phase == "train":
                 unet.train()
@@ -78,6 +81,7 @@ def main(args):
 
                     if phase == "valid":
                         loss_valid.append(loss.item())
+                        epoch_loss_valid.append(loss.item())
                         y_pred_np = y_pred.detach().cpu().numpy()
                         validation_pred.extend(
                             [y_pred_np[s] for s in range(y_pred_np.shape[0])]
@@ -86,13 +90,14 @@ def main(args):
                         validation_true.extend(
                             [y_true_np[s] for s in range(y_true_np.shape[0])]
                         )
-                        if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
-                            if i * args.batch_size < args.vis_images:
-                                # TODO : Need to log images.
-                                print('Logging Images needed in validation.')
+                        # if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
+                        #     if i * args.batch_size < args.vis_images:
+                        #         # TODO : Need to log images.
+                        #         print('Logging Images needed in validation.')
 
                     if phase == "train":
                         loss_train.append(loss.item())
+                        epoch_loss_train.append(loss.item())
                         loss.backward()
                         optimizer.step()
 
@@ -112,6 +117,9 @@ def main(args):
                 #     best_validation_dsc = mean_dsc
                 #     torch.save(unet.state_dict(), os.path.join(args.weights, "unet.pt"))
                 loss_valid = []
+        writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
+        writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+        writer.flush()
 
     # print("Best validation mean DSC: {:4f}".format(best_validation_dsc))
 

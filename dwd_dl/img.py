@@ -111,5 +111,7 @@ def selection(
     return selection.copy()
 
 
+def visualizer():
+    return None
 
 # TODO: Compute stats

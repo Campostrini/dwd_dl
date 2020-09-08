@@ -44,7 +44,8 @@ def main(args):
     # logger = Logger(args.logs)
     loss_train = []
     loss_valid = []
-    writer = SummaryWriter(config.RADOLAN_PATH + '/Logs/' + str(dt.datetime.now()))
+    run = str(dt.datetime.now())
+    writer = SummaryWriter(os.path.join(config.RADOLAN_PATH, 'Logs', run))
 
     dataiter = iter(loader_train)
     past_seq, true_next = next(dataiter)
@@ -120,6 +121,9 @@ def main(args):
         writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
         writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
         writer.flush()
+    if args.save:
+        torch.save(unet.state_dict(), os.path.join(os.path.abspath(config.RADOLAN_PATH), 'Models', run))
+        print('Saved Unet state_dict.')
 
     # print("Best validation mean DSC: {:4f}".format(best_validation_dsc))
 
@@ -292,6 +296,12 @@ if __name__ == "__main__":
         type=int,
         default=15,
         help="rotation angle range in degrees for augmentation (default: 15)",
+    )
+    parser.add_argument(
+        "--save",
+        type=bool,
+        default=False,
+        help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
     )
     args = parser.parse_args()
     main(args)

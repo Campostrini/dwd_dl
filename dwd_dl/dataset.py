@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 # from utils import crop_sample, pad_sample, resize_sample, normalize_volume
 from . import config
+from .config import TrainingPeriod
 from . import preproc
 
 
@@ -22,7 +23,7 @@ class RadolanDataset(Dataset):
     def __init__(
         self,
         radolan_dir,
-        time_period,  # datetime.datetime list of 2
+        date_ranges_path,
         # transform=None,
         image_size=256,
         subset="train",
@@ -35,20 +36,16 @@ class RadolanDataset(Dataset):
     ):
         assert subset in ["all", "train", "validation"]
 
-        # check if time period is valid
-        for t in time_period:
-            assert config.START_DATE <= t <= config.END_DATE
-        assert time_period[0] < time_period[1]
-
         # read radolan files
         sequence = {}
         print("reading {} images...".format(subset))
         self.days_containing_nans = {}
+        self.training_period = TrainingPeriod(date_ranges_path)
         for (dirpath, dirnames, filenames) in os.walk(radolan_dir):
             counter = 0
             for filename in tqdm(
                     sorted(
-                        filter(lambda f: "dwd---bin" in f and f in config.used_files(*time_period), filenames),
+                        filter(lambda f: "dwd---bin" in f and f in self.training_period.file_names_list, filenames),
                         key=lambda x: int(x.split("-")[-5])
                     )
             ):
@@ -82,6 +79,17 @@ class RadolanDataset(Dataset):
                     to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
             else:
                 self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
+
+            for _, range_end in self.training_period.ranges_list:
+                dr = config.daterange(
+                    range_end - dt.timedelta(hours=in_channels+out_channels-1),
+                    range_end,
+                    include_end=True
+                )
+
+                for to_remove_ts in dr:
+                    if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
+                        to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
 
             to_remove = list(dict.fromkeys(to_remove))
 

@@ -100,6 +100,32 @@ class DateRange:
         self.start = start
         self.end = end
 
+    def __iter__(self):
+        return iter([self.start, self.end])
+
+
+class TrainingPeriod:
+    def __init__(self, date_ranges_path):
+        self._path = date_ranges_path
+        self.ranges_list = read_ranges(date_ranges_path)
+        self._file_names_list = []
+        for range_element in self.ranges_list:
+            self._file_names_list += list(used_files(range_element.start, range_element.end))
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def file_names_list(self):
+        return self._file_names_list
+
+    def __iter__(self):
+        return iter(self.ranges_list)
+
+    def __len__(self):
+        return len(self.ranges_list)
+
 
 def file_is_available(url):
     """Checks if a DWD file is available by looking at the HTTP header.
@@ -392,6 +418,7 @@ def config_initializer(config_fpath='.'):
 def check_date_ranges_path(fpath, fname=None):
     if not os.path.isfile(os.path.abspath(fpath)) and not os.path.isfile(os.path.join(os.path.abspath(fpath), fname)):
         raise OSError('Invalid location for {}'.format(fname))
+
 
 def config_was_run():
     """Checks if dwd_dl.config.config_initializer() was run by looking at global variables.

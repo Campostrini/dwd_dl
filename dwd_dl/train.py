@@ -161,13 +161,13 @@ def data_loaders(args):
 
 def datasets(args):
     train = Dataset(
-        time_period=[config.START_DATE, config.END_DATE],
+        date_ranges_path=config.DATE_RANGES_PATH,
         radolan_dir=args.images,
         subset="train",
         image_size=args.image_size
     )
     valid = Dataset(
-        time_period=[config.START_DATE, config.END_DATE],
+        date_ranges_path=config.DATE_RANGES_PATH,
         radolan_dir=args.images,
         subset="validation",
         image_size=args.image_size
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         "--batch-size",
         type=int,
         default=12,
-        help="input batch size for training (default: 16)",
+        help="input batch size for training (default: 12)",
     )
     parser.add_argument(
         "--epochs",
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lr",
         type=float,
-        default=0.00001,
+        default=0.001,
         help="initial learning rate (default: 0.001)",
     )
     parser.add_argument(
@@ -256,7 +256,7 @@ if __name__ == "__main__":
         "--workers",
         type=int,
         default=8,
-        help="number of workers for data loading (default: 4)",
+        help="number of workers for data loading (default: 8)",
     )
     parser.add_argument(
         "--vis-images",

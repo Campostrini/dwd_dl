@@ -22,6 +22,7 @@ from dwd_dl.dataset import RadolanDataset as Dataset
 from dwd_dl.unet import UNet
 # from utils import log_images, dsc
 from dwd_dl import config
+from dwd_dl import utils
 import dwd_dl as dl
 
 
@@ -122,10 +123,12 @@ def main(args):
         writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
         writer.flush()
     if args.save:
-        torch.save(unet.state_dict(), os.path.join(os.path.abspath(config.RADOLAN_PATH), 'Models', run))
-        print('Saved Unet state_dict.')
-
-    # print("Best validation mean DSC: {:4f}".format(best_validation_dsc))
+        saved_name_path = utils.unet_saver(
+            unet,
+            path=os.path.join(os.path.abspath(config.RADOLAN_PATH), 'Models', run),
+            timestamp=run
+        )
+        print('Saved Unet state_dict: {}'.format(saved_name_path))
 
 
 def data_loaders(args):

@@ -48,6 +48,7 @@ def network_loader(path_to_saved_model, network_class, *args, **kwargs):
 
 class ModelEvaluator:
     def __init__(self, path_to_saved_model, network_class, radolan_dir, date_ranges_path, device='cuda:0'):
+        self._phases = ['train', 'valid']
         self.model = network_loader(path_to_saved_model, network_class)
         if torch.cuda.is_available():
             self._device = device
@@ -102,7 +103,7 @@ class ModelEvaluator:
         self._device = device
         print('Warning, this way of setting device may be not complete.')
 
-    def on_timestamp(self, timestamp):
+    def _which_dataset(self, timestamp):
         valid = self._valid_dataset.has_timestamp(timestamp)
         train = self._train_dataset.has_timestamp(timestamp)
         if not valid and not train:
@@ -112,9 +113,13 @@ class ModelEvaluator:
             raise ValueError('Current timestamp {} is present in both validation and training dataset.'
                              'This error should never occur. Check code.'.format(timestamp))
         elif valid:
-            return self._evaluate('valid', timestamp)
+            return 'valid'
         else:
-            return self._evaluate('train', timestamp)
+            return 'train'
+
+    def on_timestamp(self, timestamp):
+        phase = self._which_dataset(timestamp)
+        return self._evaluate(phase, timestamp)
 
     def _evaluate(self, phase, timestamp, to_numpy=True):
         assert phase in ['valid', 'train']
@@ -128,3 +133,41 @@ class ModelEvaluator:
         y = model(x)
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
         return x, y, y_true
+
+    def all_timestamps(self):
+        return self._valid_dataset.sorted_sequence
+
+    @property
+    def legal_timestamps(self):
+        legal = []
+        for timestamp in self.all_timestamps():
+            try:
+                self._which_dataset(timestamp)
+                legal.append(timestamp)
+            except ValueError:
+                continue
+
+        return legal
+
+    def all(self, timestamp_list=None):
+        if timestamp_list is None:
+            timestamp_list = self.all_timestamps()
+
+        for timestamp in timestamp_list:
+            try:
+                yield timestamp, self.on_timestamp(timestamp)
+            except ValueError:
+                continue
+
+    def all_split(self):
+        out = {phase: [] for phase in self._phases}
+        for timestamp in self.all_timestamps():
+            try:
+                out[self._which_dataset(timestamp)].append(timestamp)
+            except ValueError:
+                continue
+
+        for phase in self._phases:
+            out[phase] = [event for event in self.all(out[phase])]
+
+        return out

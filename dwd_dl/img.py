@@ -6,11 +6,16 @@ Makes use of wradlib.
 import datetime
 import os
 import warnings
-import matplotlib.pyplot as pl
 
+import matplotlib.pyplot as pl
 import wradlib as wrl
+import numpy as np
+import holoviews as hv
+import panel as pn
 
 from dwd_dl import config
+
+hv.extension('bokeh')
 
 
 def selection(
@@ -111,7 +116,28 @@ def selection(
     return selection.copy()
 
 
-def visualizer():
-    return None
+def visualizer(model_evaluator):
+    renderer = hv.renderer('bokeh')
+    renderer = renderer.instance(mode='server')
+
+    layout = []
+
+    for series in model_evaluator.on_timestamp('1810010050'):
+        for i in range(series[0].shape[0]):
+            layout.append(hv.Image(series[0][i]))
+
+    layout_out = layout[0]
+
+    for img in layout[1:]:
+        layout_out += img
+
+    server = pn.serve(layout_out, start=False, show=False)
+
+    from tornado.ioloop import IOLoop
+    loop = IOLoop.current()
+    loop.start()
+
+    server.start()
+    server.show('/')
 
 # TODO: Compute stats

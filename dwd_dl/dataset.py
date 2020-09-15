@@ -37,8 +37,10 @@ class RadolanDataset(Dataset):
         # read radolan files
         sequence = {}
         print("reading {} images...".format(subset))
+        self._image_size = image_size
         self.days_containing_nans = {}
         self.training_period = TrainingPeriod(date_ranges_path)
+        self._total_prec = {}
         for (dirpath, dirnames, filenames) in os.walk(radolan_dir):
             counter = 0
             for filename in tqdm(
@@ -52,7 +54,8 @@ class RadolanDataset(Dataset):
                 key = filename.split("-")[-5]
                 ts = dt.datetime.strptime(filename.split("-")[-5], '%y%m%d%H%M')
                 file_data = preproc.square_select(ts, height=image_size, width=image_size, plot=False).data
-                sequence[key] = file_data
+                sequence[key] = ts
+                self._total_prec[key] = np.sum(file_data)
                 if np.isnan(file_data).any():
                     self.days_containing_nans[key] = (np.count_nonzero(np.isnan(file_data)),
                                                       np.argwhere(np.isnan(file_data)))
@@ -65,6 +68,7 @@ class RadolanDataset(Dataset):
 
         to_remove = []
         not_for_mean = []
+        nan_to_num = []
         for bad_ts in self.days_containing_nans:
             # TODO: Rewrite in one function
             if self.days_containing_nans[bad_ts][0] > 10:   # max 10 nans, TODO : Remove hard coding.
@@ -79,7 +83,7 @@ class RadolanDataset(Dataset):
                     if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
                         to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
             else:
-                self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
+                nan_to_num.append(bad_ts)  # self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
 
         for _, range_end in self.training_period.ranges_list:
             dr = config.daterange(
@@ -94,25 +98,34 @@ class RadolanDataset(Dataset):
 
         to_remove = list(dict.fromkeys(to_remove))
         self.to_remove = to_remove
-
-        # select cases to subset
-        # if not subset == "all":
-        #     random.seed(seed)
-        #     validation_timestamps = random.sample(
-        #         self._sequence_timestamps,
-        #         k=round((validation_cases/100) * (len(self._sequence_timestamps) - in_channels - out_channels + 1))
-        #     )
-        #     if subset == "validation":
-        #         self._sequence_timestamps = sorted(validation_timestamps)
-        #     else:
-        #         self._sequence_timestamps = sorted(
-        #             list(set(self._sequence_timestamps).difference(validation_timestamps))
-        #         )
+        self.not_for_mean = not_for_mean
+        self.nan_to_num = nan_to_num
 
         print("Normalizing...")
-        self.mean = np.mean(np.stack([self.sequence[x] for x in self.sequence if x not in not_for_mean]))
-        self.std = np.std(np.stack([self.sequence[x] for x in self.sequence if x not in not_for_mean]))
-        self.sequence = {k: preproc.normalize(self.sequence[k], self.mean, self.std) for k in tqdm(self.sequence)}
+        self.mean = 0
+        self.std = 0
+        for n, x in enumerate(self.sequence):
+            n_in_img = self._image_size ** 2
+            if x not in not_for_mean:
+                data = preproc.square_select(
+                    self.sequence[x],
+                    height=image_size,
+                    width=image_size,
+                    plot=False
+                ).data
+                if self.mean > 10:
+                    print('lol')
+                if data in nan_to_num:
+                    data = np.nan_to_num(data)
+                m = np.mean(data)
+                s = np.std(data)
+                self.std = (((n * n_in_img - 1) * (self.std ** 2) + (n_in_img - 1)*(s**2)) / ((n + 1)*n_in_img - 1)) + (
+                    (n * n_in_img * n_in_img) * ((self.mean - m) ** 2) / (((n+1) * n_in_img)*((n+1) * n_in_img - 1))
+                )
+                self.std = np.sqrt(self.std)
+                self.mean = (n * n_in_img * self.mean + (m * n_in_img)) / (
+                    (n+1) * n_in_img
+                )
 
         print("done loading {} dataset".format(subset))
 
@@ -147,24 +160,62 @@ class RadolanDataset(Dataset):
     @property
     def weights(self):
         w = []
-        for i in range(self.__len__()):
-            seq, tru = self.__getitem__(i)
+        print('Computing weights.')
+        for i in tqdm(range(self.__len__())):
+            seq, tru = self.get_total_prec(i)
 
             # Unnormalize and add a constant. Otherwise torch.multinomial complains TODO: is this really true?
             # TODO: revise weights
-            seq, tru = seq * self.std + self.mean + 1, tru * self.std + self.mean + 1
-            w.append(torch.sum(seq) + torch.sum(tru))
-        return torch.stack(w)/torch.sum(torch.tensor(w))
+            seq, tru = np.array(seq), np.array(tru)
+            w.append(np.sum(seq) + np.sum(tru))
+        return torch.tensor(w) + (torch.tensor(w).min() * 1.01)
+
+    def get_total_prec(self, idx):
+        seq, tru = self.indices_tuple[idx]
+        # TODO: remove duplicate
+        tot_seq = []
+        for t in seq:
+            tot_seq.append(self._total_prec[self.sorted_sequence[t]])
+
+        tot_tru = []
+        for t in tru:
+            tot_tru.append(self._total_prec[self.sorted_sequence[t]])
+
+        return tot_seq, tot_tru
 
     def __len__(self):
         return len(self.indices_tuple)
 
     def __getitem__(self, idx):
         seq, tru = self.indices_tuple[idx]
+        # TODO: Remove duplicate code
+        sequence = []
+        for t in seq:
+            data = preproc.square_select(
+                self.sequence[self.sorted_sequence[t]],
+                height=self._image_size,
+                width=self._image_size,
+                plot=False
+            ).data
+            if self.sorted_sequence[t] in self.nan_to_num:
+                data = np.nan_to_num(data)
+            sequence.append(data)
+        sequence = np.stack(sequence)
+        sequence = preproc.normalize(sequence, self.mean, self.std)
 
-        sequence = np.stack([self.sequence[self.sorted_sequence[t]] for t in seq])
-        true_rainfall = np.stack([self.sequence[self.sorted_sequence[t]] for t in tru])
-
+        true_rainfall = []
+        for t in tru:
+            data = preproc.square_select(
+                self.sequence[self.sorted_sequence[t]],
+                height=self._image_size,
+                width=self._image_size,
+                plot=False
+            ).data
+            if self.sorted_sequence[t] in self.nan_to_num:
+                data = np.nan_to_num(data)
+            true_rainfall.append(data)
+        true_rainfall = np.stack(true_rainfall)
+        true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
         sequence_tensor = torch.from_numpy(sequence.astype(np.float32))
         true_rainfall_tensor = torch.from_numpy(true_rainfall.astype(np.float32))
 

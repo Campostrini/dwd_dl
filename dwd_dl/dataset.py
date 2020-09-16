@@ -55,7 +55,7 @@ class RadolanDataset(Dataset):
                 ts = dt.datetime.strptime(filename.split("-")[-5], '%y%m%d%H%M')
                 file_data = preproc.square_select(ts, height=image_size, width=image_size, plot=False).data
                 sequence[key] = ts
-                self._total_prec[key] = np.sum(file_data)
+                self._total_prec[key] = np.nansum(file_data)
                 if np.isnan(file_data).any():
                     self.days_containing_nans[key] = (np.count_nonzero(np.isnan(file_data)),
                                                       np.argwhere(np.isnan(file_data)))
@@ -115,7 +115,7 @@ class RadolanDataset(Dataset):
                 ).data
                 if self.mean > 10:
                     print('lol')
-                if data in nan_to_num:
+                if x in nan_to_num:
                     data = np.nan_to_num(data)
                 m = np.mean(data)
                 s = np.std(data)
@@ -168,7 +168,7 @@ class RadolanDataset(Dataset):
             # TODO: revise weights
             seq, tru = np.array(seq), np.array(tru)
             w.append(np.sum(seq) + np.sum(tru))
-        return torch.tensor(w) + (torch.tensor(w).min() * 1.01)
+        return torch.tensor(w) + 0.01
 
     def get_total_prec(self, idx):
         seq, tru = self.indices_tuple[idx]

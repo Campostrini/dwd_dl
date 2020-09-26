@@ -15,7 +15,7 @@ import matplotlib.gridspec as gridspec
 
 from tqdm import tqdm
 
-from dwd_dl.dataset import RadolanDataset as Dataset
+from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
 # from logger import Logger
 # from loss import DiceLoss
 # from transform import transforms
@@ -163,18 +163,26 @@ def data_loaders(args):
 
 
 def datasets(args):
-    train = Dataset(
+    f = create_h5(args.filename)
+    dataset = Dataset(
+        h5file_handle=f,
         date_ranges_path=config.DATE_RANGES_PATH,
         radolan_dir=args.images,
-        subset="train",
         image_size=args.image_size
     )
-    valid = Dataset(
-        date_ranges_path=config.DATE_RANGES_PATH,
-        radolan_dir=args.images,
-        subset="validation",
-        image_size=args.image_size
+
+    train = Subset(
+        dataset=dataset,
+        subset='train',
+        validation_cases=20,  # Percentage
     )
+
+    valid = Subset(
+        dataset=dataset,
+        subset='validation',
+        validation_cases=20  # Percentage
+    )
+
     return train, valid
 
 
@@ -305,6 +313,12 @@ if __name__ == "__main__":
         type=bool,
         default=False,
         help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
+    )
+    parser.add_argument(
+        "--filename",
+        type=str,
+        default='no_name.h5',
+        help='Name for the h5 file.'
     )
     args = parser.parse_args()
     main(args)

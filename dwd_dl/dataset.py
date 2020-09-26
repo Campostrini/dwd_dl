@@ -5,8 +5,9 @@ import datetime as dt
 import numpy as np
 import torch
 # from skimage.io import imread
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from tqdm import tqdm
+import h5py
 
 # from utils import crop_sample, pad_sample, resize_sample, normalize_volume
 from . import config
@@ -22,57 +23,42 @@ class RadolanDataset(Dataset):
 
     def __init__(
         self,
+        h5file_handle,
         radolan_dir,
         date_ranges_path,
         image_size=256,
-        subset="train",
-        validation_cases=20,  # percentage
-        seed=42,
         in_channels=in_channels,
         out_channels=out_channels,
         verbose=False
     ):
-        assert subset in ["all", "train", "validation"]
 
         # read radolan files
-        sequence = {}
-        print("reading {} images...".format(subset))
+        self.file_handle = h5file_handle
+        print("reading images...")
         self._image_size = image_size
-        self.days_containing_nans = {}
         self.training_period = TrainingPeriod(date_ranges_path)
-        self._total_prec = {}
-        for (dirpath, dirnames, filenames) in os.walk(radolan_dir):
-            counter = 0
-            for filename in tqdm(
-                    sorted(
-                        filter(lambda f: "dwd---bin" in f and f in self.training_period.file_names_list, filenames),
-                        key=lambda x: int(x.split("-")[-5])
-                    )
-            ):
-                # filepath = os.path.join(dirpath, filename)
-                counter += 1
-                key = filename.split("-")[-5]
-                ts = dt.datetime.strptime(filename.split("-")[-5], '%y%m%d%H%M')
-                file_data = preproc.square_select(ts, height=image_size, width=image_size, plot=False).data
-                sequence[key] = ts
-                self._total_prec[key] = np.nansum(file_data)
-                if np.isnan(file_data).any():
-                    self.days_containing_nans[key] = (np.count_nonzero(np.isnan(file_data)),
-                                                      np.argwhere(np.isnan(file_data)))
-                if counter % 10 == 0 and verbose:
-                    print("Loaded data for timestamp: " + key)
+        tot_pre = {}
+        nan_days = {}
+        std = {}
+        mean = {}
+        for date in h5file_handle:
+            tot_pre[date] = h5file_handle[date].attrs['tot_pre']
+            nan_days[date] = h5file_handle[date].attrs['NaN']
+            std[date] = h5file_handle[date].attrs['std']
+            mean[date] = h5file_handle[date].attrs['mean']
 
-        self.sequence = sequence
-        self.sorted_sequence = sorted(sequence)
-        self._sequence_timestamps = sorted(sequence)
+        self._total_prec = tot_pre
+        self.sequence = sorted(h5file_handle)
+        self.sorted_sequence = sorted(self.sequence)
+        self._sequence_timestamps = sorted(self.sequence)
 
         to_remove = []
         not_for_mean = []
         nan_to_num = []
-        for bad_ts in self.days_containing_nans:
+        for date in nan_days:
             # TODO: Rewrite in one function
-            if self.days_containing_nans[bad_ts][0] > 10:   # max 10 nans, TODO : Remove hard coding.
-                time_stamp = dt.datetime.strptime(bad_ts, '%y%m%d%H%M')
+            if nan_days[date] > 10:   # max 10 nans, TODO : Remove hard coding.
+                time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
                 dr = config.daterange(
                     time_stamp - dt.timedelta(hours=in_channels+out_channels-1),
                     time_stamp,
@@ -83,7 +69,7 @@ class RadolanDataset(Dataset):
                     if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
                         to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
             else:
-                nan_to_num.append(bad_ts)  # self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
+                nan_to_num.append(date)  # self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
 
         for _, range_end in self.training_period.ranges_list:
             dr = config.daterange(
@@ -96,7 +82,6 @@ class RadolanDataset(Dataset):
                 if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
                     to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
 
-        to_remove = list(dict.fromkeys(to_remove))
         self.to_remove = to_remove
         self.not_for_mean = not_for_mean
         self.nan_to_num = nan_to_num
@@ -104,21 +89,11 @@ class RadolanDataset(Dataset):
         print("Normalizing...")
         self.mean = 0
         self.std = 0
-        for n, x in enumerate(self.sequence):
+        for n, date in enumerate(self.sequence):
             n_in_img = self._image_size ** 2
-            if x not in not_for_mean:
-                data = preproc.square_select(
-                    self.sequence[x],
-                    height=image_size,
-                    width=image_size,
-                    plot=False
-                ).data
-                if self.mean > 10:
-                    print('lol')
-                if x in nan_to_num:
-                    data = np.nan_to_num(data)
-                m = np.mean(data)
-                s = np.std(data)
+            if date not in not_for_mean:
+                m = mean[date]
+                s = std[date]
                 self.std = (((n * n_in_img - 1) * (self.std ** 2) + (n_in_img - 1)*(s**2)) / ((n + 1)*n_in_img - 1)) + (
                     (n * n_in_img * n_in_img) * ((self.mean - m) ** 2) / (((n+1) * n_in_img)*((n+1) * n_in_img - 1))
                 )
@@ -127,7 +102,7 @@ class RadolanDataset(Dataset):
                     (n+1) * n_in_img
                 )
 
-        print("done loading {} dataset".format(subset))
+        print("done loading dataset")
 
         # create global index for sequence and true_rainfall (idx -> ([s_idxs], [t_idx]))
         # num_slices = [v.shape[0] for v, m in self.volumes]
@@ -139,23 +114,10 @@ class RadolanDataset(Dataset):
         ]
 
         self.indices_tuple = [
-            self.indices_tuple_raw[i] for i, key in enumerate(self.sorted_sequence) if key not in to_remove
+            self.indices_tuple_raw[i] for i, key in enumerate(self.sorted_sequence) if key not in self.to_remove
         ]
 
-        if not subset == "all":
-            random.seed(seed)
-            validation_timestamps_indices = random.sample(
-                [i for i, _ in enumerate(self.indices_tuple)], k=round((validation_cases/100) * len(self.indices_tuple))
-            )
-            if subset == "validation":
-                self.indices_tuple = [
-                    self.indices_tuple[i] for i in sorted(validation_timestamps_indices)
-                ]
-            else:
-                self.indices_tuple = [
-                    x for x in self.indices_tuple
-                    if self.indices_tuple.index(x) not in validation_timestamps_indices
-                ]
+        self._list_of_firsts = [row[0][0] for row in self.indices_tuple]
 
     @property
     def weights(self):
@@ -191,12 +153,7 @@ class RadolanDataset(Dataset):
         # TODO: Remove duplicate code
         sequence = []
         for t in seq:
-            data = preproc.square_select(
-                self.sequence[self.sorted_sequence[t]],
-                height=self._image_size,
-                width=self._image_size,
-                plot=False
-            ).data
+            data = self.file_handle[self.sorted_sequence[t]]
             if self.sorted_sequence[t] in self.nan_to_num:
                 data = np.nan_to_num(data)
             sequence.append(data)
@@ -205,12 +162,7 @@ class RadolanDataset(Dataset):
 
         true_rainfall = []
         for t in tru:
-            data = preproc.square_select(
-                self.sequence[self.sorted_sequence[t]],
-                height=self._image_size,
-                width=self._image_size,
-                plot=False
-            ).data
+            data = self.file_handle[self.sorted_sequence[t]]
             if self.sorted_sequence[t] in self.nan_to_num:
                 data = np.nan_to_num(data)
             true_rainfall.append(data)
@@ -223,10 +175,9 @@ class RadolanDataset(Dataset):
         return sequence_tensor, true_rainfall_tensor
 
     def from_timestamp(self, timestamp):
-        list_of_firsts = [row[0][0] for row in self.indices_tuple]
         try:
             index_in_timestamps_list = self.sorted_sequence.index(timestamp)
-            true_index = list_of_firsts.index(index_in_timestamps_list)
+            true_index = self._list_of_firsts.index(index_in_timestamps_list)
             item = self.__getitem__(true_index)
         except ValueError:
             raise ValueError('The timestamp {} could not be reached'.format(timestamp))
@@ -239,3 +190,79 @@ class RadolanDataset(Dataset):
             return True
         except ValueError:
             return False
+
+
+class RadolanSubset(RadolanDataset):
+    """Radolan Dataset Subset, training, validation or testing
+
+    """
+
+    def __init__(self, dataset, subset, validation_cases=20, seed=42):
+        assert subset in ['train', 'validation', 'all']
+        dataset_len = len(dataset)
+        indices = [i for i in range(dataset_len)]
+        if not subset == "all":
+            random.seed(seed)
+            validation_indices = random.sample(indices, k=round((validation_cases/100) * dataset_len))
+            if subset == "validation":
+                indices = [indices[i] for i in sorted(validation_indices)]
+            else:
+                indices = [x for x in indices if indices.index(x) not in validation_indices]
+        self.dataset = dataset
+        self.indices = indices
+        self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset._list_of_firsts]
+        self.timestamps = [self.timestamps[self.indices[n]] for n, _ in enumerate(self.indices)]
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+    def from_timestamp(self, timestamp):
+        try:
+            timestamp_raw_idx = self.dataset.sorted_sequence.index(timestamp)
+            index = self.dataset._list_of_firsts.index(timestamp_raw_idx)
+            idx = self.indices.index(index)
+            item = self.__getitem__(idx)
+        except ValueError:
+            raise ValueError('The timestamp {} could not be reached'.format(timestamp))
+
+        return item
+
+    @property
+    def weights(self):
+        ds_weights = self.dataset.weights
+        w = [ds_weights[i] for i in self.indices]
+        return torch.tensor(w)
+
+    def get_total_prec(self, idx):
+        return self.dataset.get_total_prex[self.indices[idx]]
+
+
+def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
+    if not config.config_was_run():
+        raise NameError("Config was not run.")
+    if not filename.endswith('.h5'):
+        filename += '.h5'
+
+    f = h5py.File(os.path.join(os.path.abspath(config.RADOLAN_PATH), filename), 'a')
+    training_period = TrainingPeriod(config.DATE_RANGES_PATH)
+    for date_range in training_period:
+        for date in tqdm(config.daterange(*date_range, include_end=True)):
+            date_str = date.strftime('%y%m%d%H%M')
+            if verbose:
+                print('Processing {}'.format(date_str))
+            file = 'raa01-rw_10000-{}-dwd---bin'.format(date_str)
+            data = preproc.square_select(date, height=height, width=width, plot=False).data
+            f[date_str] = data
+            f[date_str].attrs['filename'] = file
+            f[date_str].attrs['NaN'] = np.count_nonzero(np.isnan(data))
+            f[date_str].attrs['img_size'] = height * width
+            f[date_str].attrs['tot_pre'] = np.nansum(data)
+            f[date_str].attrs['mean'] = np.nanmean(data)
+            f[date_str].attrs['std'] = np.nanstd(data)
+    if keep_open:
+        return f
+    else:
+        f.close()

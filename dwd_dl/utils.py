@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 
-from .dataset import RadolanDataset
+from .dataset import RadolanDataset, RadolanSubset
 
 
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
@@ -54,23 +54,10 @@ class ModelEvaluator:
             self._device = device
         else:
             self._device = 'cpu'
-        self._train_dataset = RadolanDataset(
+        self._true_dataset = RadolanDataset(
             radolan_dir=radolan_dir,
             date_ranges_path=date_ranges_path,
             image_size=256,
-            subset='train',
-            validation_cases=20,
-            seed=42,
-            in_channels=6,
-            out_channels=1
-        )
-        self._valid_dataset = RadolanDataset(
-            radolan_dir=radolan_dir,
-            date_ranges_path=date_ranges_path,
-            image_size=256,
-            subset='validation',
-            validation_cases=20,
-            seed=42,
             in_channels=6,
             out_channels=1
         )
@@ -78,6 +65,8 @@ class ModelEvaluator:
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)
 
+        self._train_dataset = RadolanSubset(dataset=self._true_dataset, subset='train')
+        self._valid_dataset = RadolanSubset(dataset=self._true_dataset, subset='validation')
         self._train_loader = DataLoader(
             self._train_dataset,
             batch_size=1,
@@ -135,19 +124,11 @@ class ModelEvaluator:
         return x, y, y_true
 
     def all_timestamps(self):
-        return self._valid_dataset.sorted_sequence
+        return self._true_dataset.sorted_sequence
 
     @property
     def legal_timestamps(self):
-        legal = []
-        for timestamp in self.all_timestamps():
-            try:
-                self._which_dataset(timestamp)
-                legal.append(timestamp)
-            except ValueError:
-                continue
-
-        return legal
+        return sorted(self._valid_dataset.timestamps + self._train_dataset.timestamps)
 
     def all(self, timestamp_list=None):
         if timestamp_list is None:
@@ -160,14 +141,7 @@ class ModelEvaluator:
                 continue
 
     def all_split(self):
-        out = {phase: [] for phase in self._phases}
-        for timestamp in self.all_timestamps():
-            try:
-                out[self._which_dataset(timestamp)].append(timestamp)
-            except ValueError:
-                continue
-
+        out = {}
         for phase in self._phases:
-            out[phase] = [event for event in self.all(out[phase])]
-
+            out[phase] = self._dataset[phase].timestamps
         return out

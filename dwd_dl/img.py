@@ -120,18 +120,24 @@ def visualizer(model_evaluator):
     renderer = hv.renderer('bokeh')
     renderer = renderer.instance(mode='server')
 
-    layout = []
+    def evaluate_on_timestamp(timestamp, **kwargs):
+        layout = []
+        for series in model_evaluator.on_timestamp(timestamp):
+            for i in range(series[0].shape[0]):
+                layout.append(hv.Image(series[0][i]))
 
-    for series in model_evaluator.on_timestamp('1810010050'):
-        for i in range(series[0].shape[0]):
-            layout.append(hv.Image(series[0][i]))
+        which_dataset = model_evaluator._which_dataset(timestamp)
+        layout_out = layout[0].opts(title=which_dataset)
 
-    layout_out = layout[0]
+        for img in layout[1:]:
+            layout_out += img.opts(title=which_dataset)
 
-    for img in layout[1:]:
-        layout_out += img
+        return layout_out
 
-    server = pn.serve(layout_out, start=False, show=False)
+    timestamps = model_evaluator.legal_timestamps
+    dmap = hv.DynamicMap(evaluate_on_timestamp, kdims='Timestamp').redim.values(Timestamp=timestamps)
+    dmap.opts(framewise=True)
+    server = pn.serve(dmap, start=False, show=True)
 
     from tornado.ioloop import IOLoop
     loop = IOLoop.current()

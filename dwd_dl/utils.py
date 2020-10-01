@@ -47,20 +47,22 @@ def network_loader(path_to_saved_model, network_class, *args, **kwargs):
 
 
 class ModelEvaluator:
-    def __init__(self, path_to_saved_model, network_class, radolan_dir, date_ranges_path, device='cuda:0'):
+    def __init__(
+            self,
+            h5file_handle,
+            path_to_saved_model,
+            network_class,
+            date_ranges_path,
+            device='cuda:0'
+    ):
         self._phases = ['train', 'valid']
         self.model = network_loader(path_to_saved_model, network_class)
         if torch.cuda.is_available():
             self._device = device
         else:
             self._device = 'cpu'
-        self._true_dataset = RadolanDataset(
-            radolan_dir=radolan_dir,
-            date_ranges_path=date_ranges_path,
-            image_size=256,
-            in_channels=6,
-            out_channels=1
-        )
+        self._true_dataset = RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path, image_size=256,
+                                            in_channels=6, out_channels=1)
 
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)

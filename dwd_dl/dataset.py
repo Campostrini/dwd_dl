@@ -24,7 +24,6 @@ class RadolanDataset(Dataset):
     def __init__(
         self,
         h5file_handle,
-        radolan_dir,
         date_ranges_path,
         image_size=256,
         in_channels=in_channels,
@@ -266,3 +265,14 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
         return f
     else:
         f.close()
+
+
+def read_h5(filename):
+    if not config.config_was_run():
+        raise NameError("Config was not run.")
+    if not filename.endswith('.h5'):
+        filename += '.h5'
+
+    f = h5py.File(os.path.join(os.path.abspath(config.RADOLAN_PATH), filename), 'r')
+
+    return f

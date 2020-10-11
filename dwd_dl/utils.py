@@ -147,3 +147,25 @@ class ModelEvaluator:
         for phase in self._phases:
             out[phase] = self._dataset[phase].timestamps
         return out
+
+
+def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> torch.tensor:
+    """This function converts a tensor of shape (B,N,C,H,W) to (B,N,H,W) collapsing C into N as class index.
+    It should only contain ones and zeros. The output are indices as torch.long.
+
+    Parameters
+    ----------
+    dtype
+    tensor
+
+    Returns
+    -------
+
+    """
+    assert tensor.ndim == 5
+
+    category_indices = torch.zeros(*tensor.shape[:2], *tensor.shape[-2:], device=tensor.device, dtype=tensor.dtype)
+    for category_number in range(tensor.shape[2]):
+        category_indices += category_number * tensor[:, :, category_number, ...]
+
+    return category_indices.to(dtype=dtype)

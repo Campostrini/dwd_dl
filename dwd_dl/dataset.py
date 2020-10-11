@@ -28,11 +28,13 @@ class RadolanDataset(Dataset):
         image_size=256,
         in_channels=in_channels,
         out_channels=out_channels,
-        verbose=False
+        verbose=False,
+        normalize=False,
     ):
 
         # read radolan files
         self.file_handle = h5file_handle
+        self.normalize = normalize
         print("reading images...")
         self._image_size = image_size
         self.training_period = TrainingPeriod(date_ranges_path)
@@ -157,7 +159,8 @@ class RadolanDataset(Dataset):
                 data = np.nan_to_num(data)
             sequence.append(data)
         sequence = np.stack(sequence)
-        sequence = preproc.normalize(sequence, self.mean, self.std)
+        if self.normalize:
+            sequence = preproc.normalize(sequence, self.mean, self.std)
 
         true_rainfall = []
         for t in tru:
@@ -166,7 +169,8 @@ class RadolanDataset(Dataset):
                 data = np.nan_to_num(data)
             true_rainfall.append(data)
         true_rainfall = np.stack(true_rainfall)
-        true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
+        if self.normalize:
+            true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
         sequence_tensor = torch.from_numpy(sequence.astype(np.float32))
         true_rainfall_tensor = torch.from_numpy(true_rainfall.astype(np.float32))
 
@@ -245,6 +249,8 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
     if not filename.endswith('.h5'):
         filename += '.h5'
 
+    classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+
     f = h5py.File(os.path.join(os.path.abspath(config.RADOLAN_PATH), filename), 'a')
     training_period = TrainingPeriod(config.DATE_RANGES_PATH)
     for date_range in training_period:
@@ -254,7 +260,9 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
                 print('Processing {}'.format(date_str))
             file = 'raa01-rw_10000-{}-dwd---bin'.format(date_str)
             data = preproc.square_select(date, height=height, width=width, plot=False).data
-            f[date_str] = data
+            f[date_str] = np.array(
+                [(classes[class_name][0] <= data) & (data < classes[class_name][1]) for class_name in classes]
+            ).astype(int)
             f[date_str].attrs['filename'] = file
             f[date_str].attrs['NaN'] = np.count_nonzero(np.isnan(data))
             f[date_str].attrs['img_size'] = height * width

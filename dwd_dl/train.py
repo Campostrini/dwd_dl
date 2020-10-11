@@ -38,6 +38,7 @@ def main(args):
     unet.to(device)
 
     mse_loss = torch.nn.MSELoss()
+    cross_entropy_loss = torch.nn.CrossEntropyLoss()
     best_validation_dsc = 0.0
 
     optimizer = optim.Adadelta(unet.parameters(), lr=args.lr)
@@ -79,7 +80,7 @@ def main(args):
                 with torch.set_grad_enabled(phase == "train"):
                     y_pred = unet(x)
 
-                    loss = mse_loss(y_pred, y_true)
+                    loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
 
                     if phase == "valid":
                         loss_valid.append(loss.item())
@@ -167,7 +168,6 @@ def datasets(args):
     dataset = Dataset(
         h5file_handle=f,
         date_ranges_path=config.DATE_RANGES_PATH,
-        radolan_dir=args.images,
         image_size=args.image_size
     )
 
@@ -242,8 +242,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=12,
-        help="input batch size for training (default: 12)",
+        default=6,
+        help="input batch size for training (default: 6)",
     )
     parser.add_argument(
         "--epochs",
@@ -266,8 +266,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--workers",
         type=int,
-        default=8,
-        help="number of workers for data loading (default: 8)",
+        default=4,
+        help="number of workers for data loading (default: 4)",
     )
     parser.add_argument(
         "--vis-images",

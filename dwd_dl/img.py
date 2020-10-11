@@ -123,8 +123,11 @@ def visualizer(model_evaluator):
     def evaluate_on_timestamp(timestamp, **kwargs):
         layout = []
         for series in model_evaluator.on_timestamp(timestamp):
-            for i in range(series[0].shape[0]):
-                layout.append(hv.Image(series[0][i]))
+            for series_element in series[0]:
+                image = np.zeros(shape=series_element.shape[-2:], dtype=int)
+                for category_number, category in enumerate(series_element):
+                    image += category_number * category
+                layout.append(hv.Image(image))
 
         which_dataset = model_evaluator._which_dataset(timestamp)
         layout_out = layout[0].opts(title=which_dataset)

@@ -21,7 +21,7 @@ from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, c
 # from transform import transforms
 from dwd_dl.unet import UNet
 # from utils import log_images, dsc
-from dwd_dl import config
+from dwd_dl import cfg
 from dwd_dl import utils
 import dwd_dl as dl
 
@@ -47,7 +47,7 @@ def main(args):
     loss_train = []
     loss_valid = []
     run = str(dt.datetime.now())
-    writer = SummaryWriter(os.path.join(config.RADOLAN_PATH, 'Logs', run))
+    writer = SummaryWriter(os.path.join(cfg.RADOLAN_PATH, 'Logs', run))
 
     dataiter = iter(loader_train)
     past_seq, true_next = next(dataiter)
@@ -126,7 +126,7 @@ def main(args):
     if args.save:
         saved_name_path = utils.unet_saver(
             unet,
-            path=os.path.join(os.path.abspath(config.RADOLAN_PATH), 'Models', run),
+            path=os.path.join(os.path.abspath(cfg.RADOLAN_PATH), 'Models', run),
             timestamp=run
         )
         print('Saved Unet state_dict: {}'.format(saved_name_path))
@@ -167,7 +167,7 @@ def datasets(args):
     f = create_h5(args.filename)
     dataset = Dataset(
         h5file_handle=f,
-        date_ranges_path=config.DATE_RANGES_PATH,
+        date_ranges_path=cfg.DATE_RANGES_PATH,
         image_size=args.image_size
     )
 
@@ -231,7 +231,7 @@ def matplotlib_imshow(img, mean, std, writer, cols=6, rows=12):
 
 
 if __name__ == "__main__":
-    dl.config.config_initializer('..')
+    dl.cfg.config_initializer('..')
     print('Initializer Run')
 #    dl.config.download_and_extract()
 #    dl.config.clean_unused()

@@ -10,8 +10,8 @@ from tqdm import tqdm
 import h5py
 
 # from utils import crop_sample, pad_sample, resize_sample, normalize_volume
-from . import config
-from .config import TrainingPeriod
+from . import cfg
+from .cfg import TrainingPeriod
 from . import preproc
 
 
@@ -60,7 +60,7 @@ class RadolanDataset(Dataset):
             # TODO: Rewrite in one function
             if nan_days[date] > 10:   # max 10 nans, TODO : Remove hard coding.
                 time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
-                dr = config.daterange(
+                dr = cfg.daterange(
                     time_stamp - dt.timedelta(hours=in_channels+out_channels-1),
                     time_stamp,
                     include_end=True
@@ -73,7 +73,7 @@ class RadolanDataset(Dataset):
                 nan_to_num.append(date)  # self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
 
         for _, range_end in self.training_period.ranges_list:
-            dr = config.daterange(
+            dr = cfg.daterange(
                 range_end - dt.timedelta(hours=in_channels+out_channels-2),
                 range_end,
                 include_end=True
@@ -244,17 +244,17 @@ class RadolanSubset(RadolanDataset):
 
 
 def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
-    if not config.config_was_run():
+    if not cfg.config_was_run():
         raise NameError("Config was not run.")
     if not filename.endswith('.h5'):
         filename += '.h5'
 
     classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
-    f = h5py.File(os.path.join(os.path.abspath(config.RADOLAN_PATH), filename), 'a')
-    training_period = TrainingPeriod(config.DATE_RANGES_PATH)
+    f = h5py.File(os.path.join(os.path.abspath(cfg.RADOLAN_PATH), filename), 'a')
+    training_period = TrainingPeriod(cfg.DATE_RANGES_PATH)
     for date_range in training_period:
-        for date in tqdm(config.daterange(*date_range, include_end=True)):
+        for date in tqdm(cfg.daterange(*date_range, include_end=True)):
             date_str = date.strftime('%y%m%d%H%M')
             if verbose:
                 print('Processing {}'.format(date_str))
@@ -276,11 +276,11 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
 
 
 def read_h5(filename):
-    if not config.config_was_run():
+    if not cfg.config_was_run():
         raise NameError("Config was not run.")
     if not filename.endswith('.h5'):
         filename += '.h5'
 
-    f = h5py.File(os.path.join(os.path.abspath(config.RADOLAN_PATH), filename), 'r')
+    f = h5py.File(os.path.join(os.path.abspath(cfg.RADOLAN_PATH), filename), 'r')
 
     return f

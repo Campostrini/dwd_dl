@@ -4,7 +4,7 @@ Some preprocessing tools for preparing the data for the U-Net phase.
 
 """
 
-from . import config
+from . import cfg
 from . import img
 
 import numpy as np
@@ -14,7 +14,7 @@ NW_CORNER_COORD = np.array([8.6, 53.6])
 
 height = width = 256
 
-nw_corner_indexes = config.coords_finder(*NW_CORNER_COORD, distances_output=False)
+nw_corner_indexes = cfg.coords_finder(*NW_CORNER_COORD, distances_output=False)
 
 
 # img.selection(time_stamp=ts, plot=False)

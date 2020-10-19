@@ -13,7 +13,7 @@ import numpy as np
 import holoviews as hv
 import panel as pn
 
-from dwd_dl import config
+from dwd_dl import cfg
 
 hv.extension('bokeh')
 
@@ -59,14 +59,14 @@ def selection(
     # Initial checks for time_stamp
     while True:
         try:
-            assert config.START_DATE <= time_stamp <= config.END_DATE, 'Wrong input. Time is not ' \
+            assert cfg.START_DATE <= time_stamp <= cfg.END_DATE, 'Wrong input. Time is not ' \
                                                                        'in the expected interval.'
         except AssertionError:
             print('No selection was produced. Retry with a valid date.')
             return None
         except AttributeError:
             print('Configuration was not run yet. Running it now.')
-            config.config_initializer()
+            cfg.config_initializer()
             print('Configuration run.')
         else:
             break
@@ -91,7 +91,7 @@ def selection(
         x_slice, y_slice = None, None
 
     # Open the data
-    file_path = os.path.join(config.RADOLAN_PATH, config.binary_file_name(time_stamp))
+    file_path = os.path.join(cfg.RADOLAN_PATH, cfg.binary_file_name(time_stamp))
     rw_filename = wrl.util.get_wradlib_data_file(file_path)
     ds, rwattrs = wrl.io.read_radolan_composite(rw_filename, loaddata='xarray')
 

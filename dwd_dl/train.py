@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import datetime as dt
+from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -31,107 +32,110 @@ def main(args):
     snapshotargs(args)
     device = torch.device("cpu" if not torch.cuda.is_available() else args.device)
 
-    loader_train, loader_valid = data_loaders(args)
-    loaders = {"train": loader_train, "valid": loader_valid}
+    with data_loaders(args) as loaders_:
+        loader_train, loader_valid = loaders_
+        # loader_train, loader_valid = data_loaders(args)
+        loaders = {"train": loader_train, "valid": loader_valid}
 
-    unet = UNet(in_channels=Dataset.in_channels, out_channels=Dataset.out_channels)
-    unet.to(device)
+        unet = UNet(in_channels=Dataset.in_channels, out_channels=Dataset.out_channels)
+        unet.to(device)
 
-    mse_loss = torch.nn.MSELoss()
-    cross_entropy_loss = torch.nn.CrossEntropyLoss()
-    best_validation_dsc = 0.0
+        mse_loss = torch.nn.MSELoss()
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        best_validation_dsc = 0.0
 
-    optimizer = optim.Adadelta(unet.parameters(), lr=args.lr)
+        optimizer = optim.Adadelta(unet.parameters(), lr=args.lr)
 
-    # logger = Logger(args.logs)
-    loss_train = []
-    loss_valid = []
-    run = str(dt.datetime.now())
-    writer = SummaryWriter(os.path.join(cfg.RADOLAN_PATH, 'Logs', run))
+        # logger = Logger(args.logs)
+        loss_train = []
+        loss_valid = []
+        run = str(dt.datetime.now())
+        writer = SummaryWriter(os.path.join(cfg.CFG.RADOLAN_ROOT, 'Logs', run))
 
-    dataiter = iter(loader_train)
-    past_seq, true_next = next(dataiter)
+        dataiter = iter(loader_train)
+        past_seq, true_next = next(dataiter)
 
-#    matplotlib_imshow(past_seq, loader_train.dataset.mean, loader_train.dataset.std, writer)
+    #    matplotlib_imshow(past_seq, loader_train.dataset.mean, loader_train.dataset.std, writer)
 
-    step = 0
+        step = 0
 
-    for epoch in tqdm(range(args.epochs), total=args.epochs):
-        epoch_loss_train = []
-        epoch_loss_valid = []
-        for phase in ["train", "valid"]:
-            if phase == "train":
-                unet.train()
-            else:
-                unet.eval()
-
-            validation_pred = []
-            validation_true = []
-
-            for i, data in enumerate(loaders[phase]):
+        for epoch in tqdm(range(args.epochs), total=args.epochs):
+            epoch_loss_train = []
+            epoch_loss_valid = []
+            for phase in ["train", "valid"]:
                 if phase == "train":
-                    step += 1
+                    unet.train()
+                else:
+                    unet.eval()
 
-                x, y_true = data
-                x, y_true = x.to(device), y_true.to(device)
+                validation_pred = []
+                validation_true = []
 
-                optimizer.zero_grad()
-
-                with torch.set_grad_enabled(phase == "train"):
-                    y_pred = unet(x)
-
-                    loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
-
-                    if phase == "valid":
-                        loss_valid.append(loss.item())
-                        epoch_loss_valid.append(loss.item())
-                        y_pred_np = y_pred.detach().cpu().numpy()
-                        validation_pred.extend(
-                            [y_pred_np[s] for s in range(y_pred_np.shape[0])]
-                        )
-                        y_true_np = y_true.detach().cpu().numpy()
-                        validation_true.extend(
-                            [y_true_np[s] for s in range(y_true_np.shape[0])]
-                        )
-                        # if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
-                        #     if i * args.batch_size < args.vis_images:
-                        #         # TODO : Need to log images.
-                        #         print('Logging Images needed in validation.')
-
+                for i, data in enumerate(loaders[phase]):
                     if phase == "train":
-                        loss_train.append(loss.item())
-                        epoch_loss_train.append(loss.item())
-                        loss.backward()
-                        optimizer.step()
+                        step += 1
 
-                if phase == "train" and (step + 1) % 10 == 0:
-                    # log_loss_summary(logger, loss_train, step)
-                    print(loss_train, step)
-                    print('In Training.')
-                    loss_train = []
+                    x, y_true = data
+                    x, y_true = x.to(device), y_true.to(device)
 
-            if phase == "valid":
-                print(loss_valid, step)
-                print('In Validation.')
-                # logger.scalar_summary("val_dsc", mean_dsc, step)
+                    optimizer.zero_grad()
 
-                # TODO: Add saving weights
-                # if mean_dsc > best_validation_dsc:
-                #     best_validation_dsc = mean_dsc
-                #     torch.save(unet.state_dict(), os.path.join(args.weights, "unet.pt"))
-                loss_valid = []
-        writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
-        writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
-        writer.flush()
-    if args.save:
-        saved_name_path = utils.unet_saver(
-            unet,
-            path=os.path.join(os.path.abspath(cfg.RADOLAN_PATH), 'Models', run),
-            timestamp=run
-        )
-        print('Saved Unet state_dict: {}'.format(saved_name_path))
+                    with torch.set_grad_enabled(phase == "train"):
+                        y_pred = unet(x)
+
+                        loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
+
+                        if phase == "valid":
+                            loss_valid.append(loss.item())
+                            epoch_loss_valid.append(loss.item())
+                            y_pred_np = y_pred.detach().cpu().numpy()
+                            validation_pred.extend(
+                                [y_pred_np[s] for s in range(y_pred_np.shape[0])]
+                            )
+                            y_true_np = y_true.detach().cpu().numpy()
+                            validation_true.extend(
+                                [y_true_np[s] for s in range(y_true_np.shape[0])]
+                            )
+                            # if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
+                            #     if i * args.batch_size < args.vis_images:
+                            #         # TODO : Need to log images.
+                            #         print('Logging Images needed in validation.')
+
+                        if phase == "train":
+                            loss_train.append(loss.item())
+                            epoch_loss_train.append(loss.item())
+                            loss.backward()
+                            optimizer.step()
+
+                    if phase == "train" and (step + 1) % 10 == 0:
+                        # log_loss_summary(logger, loss_train, step)
+                        print(loss_train, step)
+                        print('In Training.')
+                        loss_train = []
+
+                if phase == "valid":
+                    print(loss_valid, step)
+                    print('In Validation.')
+                    # logger.scalar_summary("val_dsc", mean_dsc, step)
+
+                    # TODO: Add saving weights
+                    # if mean_dsc > best_validation_dsc:
+                    #     best_validation_dsc = mean_dsc
+                    #     torch.save(unet.state_dict(), os.path.join(args.weights, "unet.pt"))
+                    loss_valid = []
+            writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
+            writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+            writer.flush()
+        if args.save:
+            saved_name_path = utils.unet_saver(
+                unet,
+                path=os.path.join(os.path.abspath(cfg.RADOLAN_PATH), 'Models', run),
+                timestamp=run
+            )
+            print('Saved Unet state_dict: {}'.format(saved_name_path))
 
 
+@contextmanager
 def data_loaders(args):
     dataset_train, dataset_valid = datasets(args)
 
@@ -160,14 +164,19 @@ def data_loaders(args):
         worker_init_fn=worker_init
     )
 
-    return loader_train, loader_valid
+    try:
+        yield loader_train, loader_valid
+
+    finally:
+        loader_train.dataset.dataset.file_handle.close()
+        loader_valid.dataset.dataset.file_handle.close()
 
 
 def datasets(args):
     f = create_h5(args.filename)
     dataset = Dataset(
         h5file_handle=f,
-        date_ranges_path=cfg.DATE_RANGES_PATH,
+        date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
         image_size=args.image_size
     )
 
@@ -184,22 +193,6 @@ def datasets(args):
     )
 
     return train, valid
-
-
-# def dsc_per_volume(validation_pred, validation_true, patient_slice_index):
-#     dsc_list = []
-#     num_slices = np.bincount([p[0] for p in patient_slice_index])
-#     index = 0
-#     for p in range(len(num_slices)):
-#         y_pred = np.array(validation_pred[index : index + num_slices[p]])
-#         y_true = np.array(validation_true[index : index + num_slices[p]])
-#         dsc_list.append(dsc(y_pred, y_true))
-#         index += num_slices[p]
-#     return dsc_list
-
-
-# def log_loss_summary(logger, loss, step, prefix=""):
-#     logger.scalar_summary(prefix + "loss", np.mean(loss), step)
 
 
 def makedirs(args):
@@ -231,11 +224,7 @@ def matplotlib_imshow(img, mean, std, writer, cols=6, rows=12):
 
 
 if __name__ == "__main__":
-    dl.cfg.config_initializer('..')
-    print('Initializer Run')
-#    dl.config.download_and_extract()
-#    dl.config.clean_unused()
-    print('Cleaning up unused.')
+    dl.cfg.initialize()
     parser = argparse.ArgumentParser(
         description="Training U-Net model for segmentation of brain MRI"
     )

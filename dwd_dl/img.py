@@ -18,6 +18,7 @@ from dwd_dl import cfg
 hv.extension('bokeh')
 
 
+@cfg.init_safety
 def selection(
         time_stamp,
         *,
@@ -59,15 +60,11 @@ def selection(
     # Initial checks for time_stamp
     while True:
         try:
-            assert cfg.START_DATE <= time_stamp <= cfg.END_DATE, 'Wrong input. Time is not ' \
+            assert cfg.CFG.MIN_START_DATE <= time_stamp <= cfg.CFG.MAX_END_DATE, 'Wrong input. Time is not ' \
                                                                        'in the expected interval.'
         except AssertionError:
             print('No selection was produced. Retry with a valid date.')
             return None
-        except AttributeError:
-            print('Configuration was not run yet. Running it now.')
-            cfg.config_initializer()
-            print('Configuration run.')
         else:
             break
 
@@ -91,7 +88,7 @@ def selection(
         x_slice, y_slice = None, None
 
     # Open the data
-    file_path = os.path.join(cfg.RADOLAN_PATH, cfg.binary_file_name(time_stamp))
+    file_path = os.path.join(cfg.CFG.RADOLAN_ROOT, cfg.binary_file_name(time_stamp))
     rw_filename = wrl.util.get_wradlib_data_file(file_path)
     ds, rwattrs = wrl.io.read_radolan_composite(rw_filename, loaddata='xarray')
 

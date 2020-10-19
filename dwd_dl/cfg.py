@@ -1,7 +1,7 @@
 """Module for checking requirements and downloading the radar data.
 
 """
-
+import hashlib
 import inspect
 import os
 import shutil
@@ -43,14 +43,14 @@ class RadolanConfigFileContent:
             base_url: str,
             radolan_root: str,
             ranges_date_format: str,
-            timestamps_date_format: str,
+            timestamp_date_format: str,
             min_start_date: str,
             max_end_date: str,
     ):
         self._BASE_URL = base_url
         self._RADOLAN_ROOT = radolan_root
         self._RANGES_DATE_FORMAT = ranges_date_format
-        self._TIMESTAMPS_DATE_FORMAT = timestamps_date_format
+        self._TIMESTAMP_DATE_FORMAT = timestamp_date_format
         self._MIN_START_DATE = min_start_date
         self._MAX_END_DATE = max_end_date
 
@@ -67,8 +67,8 @@ class RadolanConfigFileContent:
         return self._RANGES_DATE_FORMAT
 
     @property
-    def TIMESTAMPS_DATE_FORMAT(self):
-        return self._TIMESTAMPS_DATE_FORMAT
+    def TIMESTAMP_DATE_FORMAT(self):
+        return self._TIMESTAMP_DATE_FORMAT
 
     @property
     def MIN_START_DATE(self):
@@ -98,7 +98,7 @@ class Config:
     def __init__(self, cfg_content: RadolanConfigFileContent, inside_initialize: bool = False):
         check_date_format(cfg_content)
         self._RANGES_DATE_FORMAT = cfg_content.RANGES_DATE_FORMAT
-        self._TIMESTAMP_DATE_FORMAT = cfg_content.TIMESTAMPS_DATE_FORMAT
+        self._TIMESTAMP_DATE_FORMAT = cfg_content.TIMESTAMP_DATE_FORMAT
 
         check_connection(cfg_content.BASE_URL)
         self._BASE_URL = cfg_content.BASE_URL
@@ -110,6 +110,10 @@ class Config:
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
+        self._date_ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
+        check_ranges_overlap(self._date_ranges)
+
+        self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
 
         if Config.already_instantiated:
             raise UserWarning('There is already an instance of this class.')
@@ -120,6 +124,10 @@ class Config:
     @property
     def RANGES_DATE_FORMAT(self):
         return self._RANGES_DATE_FORMAT
+
+    @property
+    def TIMESTAMP_DATE_FORMAT(self):
+        return self._TIMESTAMP_DATE_FORMAT
 
     @property
     def RADOLAN_ROOT(self):
@@ -141,6 +149,14 @@ class Config:
     def BASE_URL(self):
         return self._BASE_URL
 
+    @property
+    def date_ranges(self):
+        return self._date_ranges
+
+    @property
+    def files_list(self):
+        return self._files_list
+
     def check_and_make_dir_structures(self):
         if not os.path.isdir(self.RADOLAN_ROOT):
             os.makedirs(self.RADOLAN_ROOT)
@@ -155,15 +171,8 @@ class Config:
             print('{} already exists. Just edit it!'.format(self.DATE_RANGES_FILE_PATH))
 
     def check_downloaded_files(self):
-        # read ranges
-        ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
-        check_ranges_overlap(ranges)
-
-        # compute needed years, months and files
-        files_list = RadolanFilesList(ranges_list=ranges)
-
         # compare with existing
-        missing_files = RadolanFilesList(files_list=[file for file in files_list if not file.exists()])
+        missing_files = RadolanFilesList(files_list=[file for file in self.files_list if not file.exists()])
         if not missing_files:
             print("No missing files!")
         else:
@@ -206,14 +215,20 @@ class Config:
                         continue
                     with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
                         print(f'Extracting all in {file}.')
-                        tf.extractall(CFG.RADOLAN_ROOT)
+                        tf.extractall(self.RADOLAN_ROOT)
                         print('All extracted.')
 
+    def get_timestamps_hash(self):
+        string_for_md5 = ''
+        for file in self.files_list:
+            string_for_md5 += file.date.strftime(self.TIMESTAMP_DATE_FORMAT)
+        return hashlib.md5(string_for_md5.encode()).hexdigest()
+
     def check_h5_file(self):
-        pass
+        raise NotImplementedError
 
     def add_missing_to_h5(self):
-        pass
+        raise NotImplementedError
 
 
 class RadolanFilesList:
@@ -359,8 +374,6 @@ def initialize(inside_initialize=True):
     CFG.check_and_make_dir_structures()
     CFG.make_date_ranges_file()
     CFG.download_missing_files()
-    CFG.check_h5_file()
-    CFG.add_missing_to_h5()
 
     return CFG
 
@@ -429,7 +442,7 @@ def check_date_format(cfg_content: RadolanConfigFileContent):
     assert all(stamp in cfg_content.RANGES_DATE_FORMAT for stamp in stamps_ranges)
 
     stamps_timestamps = ('%y', '%m', '%d', '%H', '%M')
-    assert all(stamp in cfg_content.TIMESTAMPS_DATE_FORMAT for stamp in stamps_timestamps)
+    assert all(stamp in cfg_content.TIMESTAMP_DATE_FORMAT for stamp in stamps_timestamps)
 
 
 def check_connection(url: str):
@@ -888,7 +901,7 @@ def binary_file_name(time_stamp):
         The name of the binary corresponding to the given timestamp. `raa01-rw_10000-yymmDDHHMM-dwd---bin`
 
     """
-    return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime('%y%m%d%H%M'))
+    return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime(CFG.TIMESTAMP_DATE_FORMAT))
 
 
 def distance(a_tup, b_tup):

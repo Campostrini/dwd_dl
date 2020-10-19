@@ -1,6 +1,7 @@
 import os
 import random
 import datetime as dt
+from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -8,6 +9,7 @@ import torch
 from torch.utils.data import Dataset, Subset
 from tqdm import tqdm
 import h5py
+import hashlib
 
 # from utils import crop_sample, pad_sample, resize_sample, normalize_volume
 from . import cfg
@@ -243,32 +245,39 @@ class RadolanSubset(RadolanDataset):
         return self.dataset.get_total_prex[self.indices[idx]]
 
 
+@cfg.init_safety
 def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
-    if not cfg.config_was_run():
-        raise NameError("Config was not run.")
-    if not filename.endswith('.h5'):
-        filename += '.h5'
 
     classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
-    f = h5py.File(os.path.join(os.path.abspath(cfg.RADOLAN_PATH), filename), 'a')
-    training_period = TrainingPeriod(cfg.DATE_RANGES_PATH)
-    for date_range in training_period:
-        for date in tqdm(cfg.daterange(*date_range, include_end=True)):
-            date_str = date.strftime('%y%m%d%H%M')
-            if verbose:
-                print('Processing {}'.format(date_str))
-            file = 'raa01-rw_10000-{}-dwd---bin'.format(date_str)
-            data = preproc.square_select(date, height=height, width=width, plot=False).data
-            f[date_str] = np.array(
-                [(classes[class_name][0] <= data) & (data < classes[class_name][1]) for class_name in classes]
-            ).astype(int)
-            f[date_str].attrs['filename'] = file
-            f[date_str].attrs['NaN'] = np.count_nonzero(np.isnan(data))
-            f[date_str].attrs['img_size'] = height * width
-            f[date_str].attrs['tot_pre'] = np.nansum(data)
-            f[date_str].attrs['mean'] = np.nanmean(data)
-            f[date_str].attrs['std'] = np.nanstd(data)
+    f = read_h5(filename)
+    try:
+        hash_check = (f.attrs['hash'] == cfg.CFG.get_timestamps_hash())
+    except KeyError:
+        hash_check = False
+
+    if not hash_check:
+        string_for_md5 = ''
+        training_period = cfg.CFG.date_ranges
+        for date_range in training_period:
+            for date in tqdm(date_range.date_range()):
+                date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+                if verbose:
+                    print('Processing {}'.format(date_str))
+                if date_str not in f.keys():
+                    file_name = cfg.binary_file_name(time_stamp=date)
+                    data = preproc.square_select(date, height=height, width=width, plot=False).data
+                    f[date_str] = np.array(
+                        [(classes[class_name][0] <= data) & (data < classes[class_name][1]) for class_name in classes]
+                    ).astype(int)
+                    f[date_str].attrs['filename'] = file_name
+                    f[date_str].attrs['NaN'] = np.count_nonzero(np.isnan(data))
+                    f[date_str].attrs['img_size'] = height * width
+                    f[date_str].attrs['tot_pre'] = np.nansum(data)
+                    f[date_str].attrs['mean'] = np.nanmean(data)
+                    f[date_str].attrs['std'] = np.nanstd(data)
+                string_for_md5 += date_str
+        f.attrs['hash'] = hashlib.md5(string_for_md5.encode()).hexdigest()
     if keep_open:
         return f
     else:
@@ -276,11 +285,20 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
 
 
 def read_h5(filename):
-    if not cfg.config_was_run():
-        raise NameError("Config was not run.")
     if not filename.endswith('.h5'):
         filename += '.h5'
 
-    f = h5py.File(os.path.join(os.path.abspath(cfg.RADOLAN_PATH), filename), 'r')
+    f = h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), filename), 'a')
 
     return f
+
+
+@contextmanager
+def h5_handler(*args, **kwargs):
+
+    file = create_h5(*args, **kwargs)
+
+    try:
+        yield file
+    finally:
+        file.close()

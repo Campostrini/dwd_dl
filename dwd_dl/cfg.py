@@ -111,8 +111,7 @@ class Config:
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
         self._date_ranges = None
-
-        self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
+        self._files_list = None
 
         if Config.already_instantiated:
             raise UserWarning('There is already an instance of this class.')
@@ -156,6 +155,8 @@ class Config:
 
     @property
     def files_list(self):
+        if self._files_list is None:
+            self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
         return self._files_list
 
     def check_and_make_dir_structures(self):

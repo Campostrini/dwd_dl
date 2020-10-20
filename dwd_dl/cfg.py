@@ -110,8 +110,7 @@ class Config:
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
-        self.make_date_ranges_file()
-        self._date_ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
+        self._date_ranges = None
         check_ranges_overlap(self._date_ranges)
 
         self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
@@ -152,6 +151,8 @@ class Config:
 
     @property
     def date_ranges(self):
+        if self._date_ranges is None:
+            self._date_ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
         return self._date_ranges
 
     @property
@@ -166,7 +167,7 @@ class Config:
         if not os.path.isfile(self.DATE_RANGES_FILE_PATH):
             date_ranges_template_file_name = 'DATE_RANGES_TEMPLATE_DONT_MODIFY.cfg'
             date_ranges_template_file_path = path_to_resources_folder(date_ranges_template_file_name)
-            shutil.copy2(date_ranges_template_file_path, self.DATE_RANGES_FILE_PATH)
+            shutil.copy2(date_ranges_template_file_path, self.DATE_RANGES_FILE_PATH, follow_symlinks=False)
             print(f"Created DATE_RANGES.cfg in {date_ranges_template_file_path}.")
         else:
             print('{} already exists. Just edit it!'.format(self.DATE_RANGES_FILE_PATH))

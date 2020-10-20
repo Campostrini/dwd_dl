@@ -31,6 +31,7 @@ def main(args):
     makedirs(args)
     snapshotargs(args)
     device = torch.device("cpu" if not torch.cuda.is_available() else args.device)
+    verbose = args.verbose
 
     with data_loaders(args) as loaders_:
         loader_train, loader_valid = loaders_
@@ -51,6 +52,10 @@ def main(args):
         loss_valid = []
         run = str(dt.datetime.now())
         writer = SummaryWriter(os.path.join(cfg.CFG.RADOLAN_ROOT, 'Logs', run))
+        if os.path.isdir('/content/drive'):
+            writer_drive = SummaryWriter(os.path.join('/content/drive', 'Logs', run))
+        else:
+            writer_drive = None
 
         dataiter = iter(loader_train)
         past_seq, true_next = next(dataiter)
@@ -107,13 +112,15 @@ def main(args):
 
                     if phase == "train" and (step + 1) % 10 == 0:
                         # log_loss_summary(logger, loss_train, step)
-                        print(loss_train, step)
-                        print('In Training.')
+                        if verbose:
+                            print(loss_train, step)
+                            print('In Training.')
                         loss_train = []
 
                 if phase == "valid":
-                    print(loss_valid, step)
-                    print('In Validation.')
+                    if verbose:
+                        print(loss_valid, step)
+                        print('In Validation.')
                     # logger.scalar_summary("val_dsc", mean_dsc, step)
 
                     # TODO: Add saving weights
@@ -124,12 +131,24 @@ def main(args):
             writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
             writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
             writer.flush()
+            if writer_drive is not None:
+                writer_drive.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
+                writer_drive.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+                writer_drive.flush()
         if args.save:
             saved_name_path = utils.unet_saver(
                 unet,
-                path=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), 'Models', run),
+                path=os.path.join(cfg.CFG.RADOLAN_ROOT, 'Models', run),
                 timestamp=run
             )
+            if os.path.isdir('/content/drive'):
+                os.makedirs(os.path.join('/content/drive', 'Models', run))
+                drive_path = utils.unet_saver(
+                    unet,
+                    path=os.path.join('/content/drive', 'Models', run),
+                    timestamp=run
+                )
+                saved_name_path += f'and {drive_path}'
             print('Saved Unet state_dict: {}'.format(saved_name_path))
 
 
@@ -300,6 +319,12 @@ if __name__ == "__main__":
         type=bool,
         default=False,
         help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
+    )
+    parser.add_argument(
+        "--verbose",
+        type=bool,
+        default=False,
+        help="Verbose setting. Either true or false."
     )
     parser.add_argument(
         "--filename",

@@ -110,6 +110,7 @@ class Config:
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
+        self.make_date_ranges_file()
         self._date_ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
         check_ranges_overlap(self._date_ranges)
 

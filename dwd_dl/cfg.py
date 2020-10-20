@@ -192,7 +192,10 @@ class Config:
             input_message = f'Total size is {total_size} bytes. '
 
         while True:
-            x = input(input_message + 'Proceed? y/[n] ')
+            try:
+                x = input(input_message + 'Proceed? y/[n] ')
+            except EOFError:
+                x = 'y'
             if x in ('y', 'Y'):
                 break
             sys.exit()

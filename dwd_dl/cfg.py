@@ -111,7 +111,6 @@ class Config:
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
         self._date_ranges = None
-        check_ranges_overlap(self._date_ranges)
 
         self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
 
@@ -375,6 +374,7 @@ def initialize(inside_initialize=True, skip_download=False):
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
     CFG.make_date_ranges_file()
+    check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
         CFG.download_missing_files()
 

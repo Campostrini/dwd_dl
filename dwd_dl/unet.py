@@ -50,7 +50,7 @@ class UNet(nn.Module):
         self.up1 = UNet._upsample_block(in_channels=(features * 1) * 3, out_channels=out_channels * 4, name="up1")
         self.up_skip1 = UNet._upskip(in_channels=(features * 1) * 3, out_channels=out_channels * 4, name="up_skip1")
 
-        self.softmax = nn.Softmax(dim=1)  # probably not right!
+        self.softmax = nn.Softmax(dim=2)  # probably not right!
 
     def forward(self, x):
 

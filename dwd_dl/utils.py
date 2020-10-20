@@ -10,6 +10,9 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from .dataset import RadolanDataset, RadolanSubset
+from dwd_dl import cfg
+from dwd_dl.dataset import h5_handler
+from dwd_dl import unet, img
 
 
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
@@ -56,7 +59,7 @@ class ModelEvaluator:
             device='cuda:0'
     ):
         self._phases = ['train', 'valid']
-        self.model = network_loader(path_to_saved_model, network_class)
+        self.model = network_loader(path_to_saved_model, network_class, permute_output=False, softmax_output=True)
         if torch.cuda.is_available():
             self._device = device
         else:
@@ -94,7 +97,7 @@ class ModelEvaluator:
         self._device = device
         print('Warning, this way of setting device may be not complete.')
 
-    def _which_dataset(self, timestamp):
+    def which_dataset(self, timestamp):
         valid = self._valid_dataset.has_timestamp(timestamp)
         train = self._train_dataset.has_timestamp(timestamp)
         if not valid and not train:
@@ -109,7 +112,7 @@ class ModelEvaluator:
             return 'train'
 
     def on_timestamp(self, timestamp):
-        phase = self._which_dataset(timestamp)
+        phase = self.which_dataset(timestamp)
         return self._evaluate(phase, timestamp)
 
     def _evaluate(self, phase, timestamp, to_numpy=True):
@@ -122,7 +125,10 @@ class ModelEvaluator:
         x, y_true = torch.unsqueeze(x, 0), torch.unsqueeze(y_true, 0)
         x, y_true = x.to(device), y_true.to(device)
         y = model(x)
+
+        x, y, y_true = to_class_index(x), torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), to_class_index(y_true)
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
+
         return x, y, y_true
 
     def all_timestamps(self):
@@ -169,3 +175,15 @@ def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> tor
         category_indices += category_number * tensor[:, :, category_number, ...]
 
     return category_indices.to(dtype=dtype)
+
+
+@cfg.init_safety
+def visualize(h5_filename, path_to_saved_model):
+    with h5_handler(h5_filename) as f:
+        evaluator = ModelEvaluator(
+            h5file_handle=f,
+            path_to_saved_model=path_to_saved_model,
+            network_class=unet.UNet,
+            date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
+        )
+        img.visualizer(evaluator)

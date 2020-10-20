@@ -55,8 +55,6 @@ def main(args):
         dataiter = iter(loader_train)
         past_seq, true_next = next(dataiter)
 
-    #    matplotlib_imshow(past_seq, loader_train.dataset.mean, loader_train.dataset.std, writer)
-
         step = 0
 
         for epoch in tqdm(range(args.epochs), total=args.epochs):
@@ -129,7 +127,7 @@ def main(args):
         if args.save:
             saved_name_path = utils.unet_saver(
                 unet,
-                path=os.path.join(os.path.abspath(cfg.RADOLAN_PATH), 'Models', run),
+                path=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), 'Models', run),
                 timestamp=run
             )
             print('Saved Unet state_dict: {}'.format(saved_name_path))

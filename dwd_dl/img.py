@@ -121,12 +121,10 @@ def visualizer(model_evaluator):
         layout = []
         for series in model_evaluator.on_timestamp(timestamp):
             for series_element in series[0]:
-                image = np.zeros(shape=series_element.shape[-2:], dtype=int)
-                for category_number, category in enumerate(series_element):
-                    image += category_number * category
+                image = series_element
                 layout.append(hv.Image(image))
 
-        which_dataset = model_evaluator._which_dataset(timestamp)
+        which_dataset = model_evaluator.which_dataset(timestamp)
         layout_out = layout[0].opts(title=which_dataset)
 
         for img in layout[1:]:
@@ -145,5 +143,3 @@ def visualizer(model_evaluator):
 
     server.start()
     server.show('/')
-
-# TODO: Compute stats

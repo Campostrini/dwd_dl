@@ -358,7 +358,7 @@ def init_safety(func):  # Nice decorator in case it is needed.
     return wrapper
 
 
-def initialize(inside_initialize=True):
+def initialize(inside_initialize=True, skip_download=False):
     global CFG
     if isinstance(CFG, Config):
         print('Already initialized. Useless initialization call. Will not re-initialize.')
@@ -373,7 +373,8 @@ def initialize(inside_initialize=True):
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
     CFG.make_date_ranges_file()
-    CFG.download_missing_files()
+    if not skip_download:
+        CFG.download_missing_files()
 
     return CFG
 

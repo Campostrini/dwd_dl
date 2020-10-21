@@ -382,7 +382,6 @@ def initialize(inside_initialize=True, skip_download=False):
     if not skip_download:
         CFG.download_missing_files(
     os.environ['WRADLIB_DATA']
-
     return CFG
 
 

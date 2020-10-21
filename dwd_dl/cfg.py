@@ -380,7 +380,7 @@ def initialize(inside_initialize=True, skip_download=False):
     CFG.make_date_ranges_file()
     check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
-        CFG.download_missing_files(
+        CFG.download_missing_files()
     os.environ['WRADLIB_DATA']
     return CFG
 

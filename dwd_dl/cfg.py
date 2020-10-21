@@ -381,9 +381,8 @@ def initialize(inside_initialize=True, skip_download=False):
     check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
         CFG.download_missing_files()
-    os.environ['WRADLIB_DATA']
+    os.environ['WRADLIB_DATA'] = CFG.RADOLAN_ROOT
     return CFG
-
 
 def read_or_make_cfg_content():
     try:

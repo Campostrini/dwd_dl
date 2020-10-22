@@ -384,6 +384,7 @@ def initialize(inside_initialize=True, skip_download=False):
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_ROOT
     return CFG
 
+
 def read_or_make_cfg_content():
     try:
         cfg_content = read_radolan_cfg()

@@ -53,7 +53,7 @@ def main(args):
         run = str(dt.datetime.now())
         writer = SummaryWriter(os.path.join(cfg.CFG.RADOLAN_ROOT, 'Logs', run))
         if os.path.isdir('/content/drive'):
-            writer_drive = SummaryWriter(os.path.join('/content/drive', 'Logs', run))
+            writer_drive = SummaryWriter(os.path.join('/content/drive/My Drive', 'Logs', run))
         else:
             writer_drive = None
 
@@ -142,10 +142,10 @@ def main(args):
                 timestamp=run
             )
             if os.path.isdir('/content/drive'):
-                os.makedirs(os.path.join('/content/drive', 'Models', run))
+                os.makedirs(os.path.join('/content/drive/My Drive', 'Models', run))
                 drive_path = utils.unet_saver(
                     unet,
-                    path=os.path.join('/content/drive', 'Models', run),
+                    path=os.path.join('/content/drive/My Drive', 'Models', run),
                     timestamp=run
                 )
                 saved_name_path += f'and {drive_path}'

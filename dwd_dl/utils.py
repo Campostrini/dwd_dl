@@ -41,10 +41,13 @@ def network_name_timestamp(timestamp=None):
     return name
 
 
-def network_loader(path_to_saved_model, network_class, *args, **kwargs):
+def network_loader(path_to_saved_model, network_class, eval_or_train, *args, **kwargs):
     model = network_class(*args, **kwargs)
     model.load_state_dict(torch.load(path_to_saved_model))
-    model.eval()
+    if eval_or_train == 'eval':
+        model.eval()
+    elif eval_or_train == 'train':
+        model.train()
 
     return model
 
@@ -56,10 +59,12 @@ class ModelEvaluator:
             path_to_saved_model,
             network_class,
             date_ranges_path,
+            eval_or_train='eval',
             device='cuda:0'
     ):
         self._phases = ['train', 'valid']
-        self.model = network_loader(path_to_saved_model, network_class, permute_output=False, softmax_output=True)
+        self.model = network_loader(path_to_saved_model, network_class, eval_or_train,
+                                    permute_output=False, softmax_output=False)
         if torch.cuda.is_available():
             self._device = device
         else:
@@ -178,12 +183,14 @@ def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> tor
 
 
 @cfg.init_safety
-def visualize(h5_filename, path_to_saved_model):
+def visualize(h5_filename, path_to_saved_model, eval_or_train='eval'):
     with h5_handler(h5_filename) as f:
         evaluator = ModelEvaluator(
             h5file_handle=f,
             path_to_saved_model=path_to_saved_model,
             network_class=unet.UNet,
             date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
+            eval_or_train=eval_or_train
         )
-        img.visualizer(evaluator)
+        with torch.no_grad():
+            img.visualizer(evaluator)

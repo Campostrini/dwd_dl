@@ -129,7 +129,7 @@ class RadolanDataset(Dataset):
         for i in tqdm(range(self.__len__())):
             seq, tru = self.get_total_prec(i)
 
-            # Unnormalize and add a constant. Otherwise torch.multinomial complains TODO: is this really true?
+            # Add a constant. Otherwise torch.multinomial complains TODO: is this really true?
             # TODO: revise weights
             seq, tru = np.array(seq), np.array(tru)
             w.append(np.sum(seq) + np.sum(tru))
@@ -157,22 +157,22 @@ class RadolanDataset(Dataset):
         sequence = []
         for t in seq:
             data = self.file_handle[self.sorted_sequence[t]]
-            if self.sorted_sequence[t] in self.nan_to_num:
-                data = np.nan_to_num(data)
+            # if self.sorted_sequence[t] in self.nan_to_num:
+            #     data = np.nan_to_num(data)
             sequence.append(data)
         sequence = np.stack(sequence)
-        if self.normalize:
-            sequence = preproc.normalize(sequence, self.mean, self.std)
+        # if self.normalize:
+        #     sequence = preproc.normalize(sequence, self.mean, self.std)
 
         true_rainfall = []
         for t in tru:
             data = self.file_handle[self.sorted_sequence[t]]
-            if self.sorted_sequence[t] in self.nan_to_num:
-                data = np.nan_to_num(data)
+            # if self.sorted_sequence[t] in self.nan_to_num:
+            #     data = np.nan_to_num(data)
             true_rainfall.append(data)
         true_rainfall = np.stack(true_rainfall)
-        if self.normalize:
-            true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
+        # if self.normalize:
+        #     true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
         sequence_tensor = torch.from_numpy(sequence.astype(np.float32))
         true_rainfall_tensor = torch.from_numpy(true_rainfall.astype(np.float32))
 
@@ -267,11 +267,13 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
                 if date_str not in f.keys():
                     file_name = cfg.binary_file_name(time_stamp=date)
                     data = preproc.square_select(date, height=height, width=width, plot=False).data
+                    tot_nans = np.count_nonzero(np.isnan(data))
+                    data = np.nan_to_num(data)
                     f[date_str] = np.array(
                         [(classes[class_name][0] <= data) & (data < classes[class_name][1]) for class_name in classes]
                     ).astype(int)
                     f[date_str].attrs['filename'] = file_name
-                    f[date_str].attrs['NaN'] = np.count_nonzero(np.isnan(data))
+                    f[date_str].attrs['NaN'] = tot_nans
                     f[date_str].attrs['img_size'] = height * width
                     f[date_str].attrs['tot_pre'] = np.nansum(data)
                     f[date_str].attrs['mean'] = np.nanmean(data)

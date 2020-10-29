@@ -8,7 +8,7 @@ from . import utils
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels=6, out_channels=1, init_features=16, permute_output=True, softmax_output=False,
+    def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
                  conv_bias=False):
         super(UNet, self).__init__()
 

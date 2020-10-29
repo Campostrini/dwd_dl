@@ -65,6 +65,10 @@ def main(args):
         for epoch in tqdm(range(args.epochs), total=args.epochs):
             epoch_loss_train = []
             epoch_loss_valid = []
+            epoch_accuracy_train = 0
+            total_elements_train = 0
+            epoch_accuracy_valid = 0
+            total_elements_valid = 0
             for phase in ["train", "valid"]:
                 if phase == "train":
                     unet.train()
@@ -88,27 +92,38 @@ def main(args):
 
                         loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
 
+                        batch_elements = 1
+                        for dim_ in y_true.shape:
+                            batch_elements *= dim_
+                        batch_elements /= 4  # number of classes
+
                         if phase == "valid":
                             loss_valid.append(loss.item())
                             epoch_loss_valid.append(loss.item())
-                            y_pred_np = y_pred.detach().cpu().numpy()
-                            validation_pred.extend(
-                                [y_pred_np[s] for s in range(y_pred_np.shape[0])]
-                            )
-                            y_true_np = y_true.detach().cpu().numpy()
-                            validation_true.extend(
-                                [y_true_np[s] for s in range(y_true_np.shape[0])]
-                            )
+                            y_pred = torch.topk(y_pred, 1, dim=1).indices
+                            # validation_pred.extend(
+                            #     [y_pred_np[s] for s in range(y_pred_np.shape[0])]
+                            # )
+                            # validation_true.extend(
+                            #     [y_true_np[s] for s in range(y_true_np.shape[0])]
+                            # )
                             # if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
                             #     if i * args.batch_size < args.vis_images:
                             #         # TODO : Need to log images.
                             #         print('Logging Images needed in validation.')
+                            correct = (y_pred == y_true).float().sum()
+                            epoch_accuracy_valid += correct
+                            total_elements_valid += batch_elements
 
                         if phase == "train":
                             loss_train.append(loss.item())
                             epoch_loss_train.append(loss.item())
                             loss.backward()
                             optimizer.step()
+                            total_elements_train += batch_elements
+                            y_pred = torch.topk(y_pred, 1, dim=1).indices
+                            correct = (y_pred == y_true).float().sum()
+                            epoch_accuracy_train += correct
 
                     if phase == "train" and (step + 1) % 10 == 0:
                         # log_loss_summary(logger, loss_train, step)
@@ -128,12 +143,14 @@ def main(args):
                     #     best_validation_dsc = mean_dsc
                     #     torch.save(unet.state_dict(), os.path.join(args.weights, "unet.pt"))
                     loss_valid = []
-            writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
-            writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+            writer.add_scalars('Loss', {'train': np.array(epoch_loss_train).mean(),
+                                        'valid': np.array(epoch_loss_valid).mean()}, epoch)
+            writer.add_scalars('Accuracy', {'train': epoch_accuracy_train/total_elements_train,
+                                            'valid': epoch_accuracy_valid/total_elements_valid}, epoch)
             writer.flush()
             if writer_drive is not None:
-                writer_drive.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
-                writer_drive.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+                writer_drive.add_scalars('Loss', {'train': np.array(epoch_loss_train).mean(),
+                                                  'valid': np.array(epoch_loss_valid).mean()}, epoch)
                 writer_drive.flush()
         if args.save:
             saved_name_path = utils.unet_saver(

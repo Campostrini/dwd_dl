@@ -202,17 +202,17 @@ class RadolanSubset(RadolanDataset):
 
     """
 
-    def __init__(self, dataset, subset, validation_cases=20, seed=42):
-        assert subset in ['train', 'validation', 'all']
+    def __init__(self, dataset, subset, valid_cases=20, seed=42):
+        assert subset in ['train', 'valid', 'all']
         dataset_len = len(dataset)
         indices = [i for i in range(dataset_len)]
         if not subset == "all":
             random.seed(seed)
-            validation_indices = random.sample(indices, k=round((validation_cases/100) * dataset_len))
-            if subset == "validation":
-                indices = [indices[i] for i in sorted(validation_indices)]
+            valid_indices = random.sample(indices, k=round((valid_cases / 100) * dataset_len))
+            if subset == "valid":
+                indices = [indices[i] for i in sorted(valid_indices)]
             else:
-                indices = [x for x in indices if indices.index(x) not in validation_indices]
+                indices = [x for x in indices if indices.index(x) not in valid_indices]
         self.dataset = dataset
         self.indices = indices
         self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset._list_of_firsts]

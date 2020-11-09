@@ -17,9 +17,6 @@ height = width = 256
 nw_corner_indexes = cfg.coords_finder(*NW_CORNER_COORD, distances_output=False)
 
 
-# img.selection(time_stamp=ts, plot=False)
-
-
 def square_select(time_stamp, height=256, width=256, plot=False):
     """Returns the square selection of an area with NW_CORNER set
 

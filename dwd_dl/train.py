@@ -10,18 +10,12 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
-import torchvision
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-
 from tqdm import tqdm
 
 from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
-# from logger import Logger
-# from loss import DiceLoss
-# from transform import transforms
 from dwd_dl.unet import UNet
-# from utils import log_images, dsc
 from dwd_dl import cfg
 from dwd_dl import utils
 import dwd_dl as dl
@@ -35,30 +29,19 @@ def main(args):
 
     with data_loaders(args) as loaders_:
         loader_train, loader_valid = loaders_
-        # loader_train, loader_valid = data_loaders(args)
         loaders = {"train": loader_train, "valid": loader_valid}
 
         unet = UNet(in_channels=Dataset.in_channels, out_channels=Dataset.out_channels)
         unet.to(device)
 
-        mse_loss = torch.nn.MSELoss()
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
-        best_validation_dsc = 0.0
 
         optimizer = optim.Adadelta(unet.parameters(), lr=args.lr)
 
-        # logger = Logger(args.logs)
         loss_train = []
         loss_valid = []
         run = str(dt.datetime.now())
         writer = SummaryWriter(os.path.join(cfg.CFG.RADOLAN_ROOT, 'Logs', run))
-        if os.path.isdir('/content/drive'):
-            writer_drive = SummaryWriter(os.path.join('/content/drive/My Drive', 'Logs', run))
-        else:
-            writer_drive = None
-
-        dataiter = iter(loader_train)
-        past_seq, true_next = next(dataiter)
 
         step = 0
 
@@ -74,9 +57,6 @@ def main(args):
                     unet.train()
                 else:
                     unet.eval()
-
-                validation_pred = []
-                validation_true = []
 
                 for i, data in enumerate(loaders[phase]):
                     if phase == "train":
@@ -101,16 +81,6 @@ def main(args):
                             loss_valid.append(loss.item())
                             epoch_loss_valid.append(loss.item())
                             y_pred = torch.topk(y_pred, 1, dim=1).indices
-                            # validation_pred.extend(
-                            #     [y_pred_np[s] for s in range(y_pred_np.shape[0])]
-                            # )
-                            # validation_true.extend(
-                            #     [y_true_np[s] for s in range(y_true_np.shape[0])]
-                            # )
-                            # if (epoch % args.vis_freq == 0) or (epoch == args.epochs - 1):
-                            #     if i * args.batch_size < args.vis_images:
-                            #         # TODO : Need to log images.
-                            #         print('Logging Images needed in validation.')
                             correct = (y_pred == y_true).float().sum()
                             epoch_accuracy_valid += correct
                             total_elements_valid += batch_elements
@@ -126,7 +96,6 @@ def main(args):
                             epoch_accuracy_train += correct
 
                     if phase == "train" and (step + 1) % 10 == 0:
-                        # log_loss_summary(logger, loss_train, step)
                         if verbose:
                             print(loss_train, step)
                             print('In Training.')
@@ -136,36 +105,20 @@ def main(args):
                     if verbose:
                         print(loss_valid, step)
                         print('In Validation.')
-                    # logger.scalar_summary("val_dsc", mean_dsc, step)
-
-                    # TODO: Add saving weights
-                    # if mean_dsc > best_validation_dsc:
-                    #     best_validation_dsc = mean_dsc
-                    #     torch.save(unet.state_dict(), os.path.join(args.weights, "unet.pt"))
                     loss_valid = []
-            writer.add_scalars('Loss', {'train': np.array(epoch_loss_train).mean(),
-                                        'valid': np.array(epoch_loss_valid).mean()}, epoch)
-            writer.add_scalars('Accuracy', {'train': epoch_accuracy_train/total_elements_train,
-                                            'valid': epoch_accuracy_valid/total_elements_valid}, epoch)
+            writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
+            writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
+            writer.add_scalar('Accuracy/train', epoch_accuracy_train/total_elements_train, epoch)
+            writer.add_scalar('Accuracy/valid', epoch_accuracy_valid/total_elements_valid, epoch)
+            # writer.add_pr_curve('Precision & Recall', )
             writer.flush()
-            if writer_drive is not None:
-                writer_drive.add_scalars('Loss', {'train': np.array(epoch_loss_train).mean(),
-                                                  'valid': np.array(epoch_loss_valid).mean()}, epoch)
-                writer_drive.flush()
+
         if args.save:
             saved_name_path = utils.unet_saver(
                 unet,
                 path=os.path.join(cfg.CFG.RADOLAN_ROOT, 'Models', run),
                 timestamp=run
             )
-            if os.path.isdir('/content/drive'):
-                os.makedirs(os.path.join('/content/drive/My Drive', 'Models', run))
-                drive_path = utils.unet_saver(
-                    unet,
-                    path=os.path.join('/content/drive/My Drive', 'Models', run),
-                    timestamp=run
-                )
-                saved_name_path += f'and {drive_path}'
             print('Saved Unet state_dict: {}'.format(saved_name_path))
 
 
@@ -217,13 +170,13 @@ def datasets(args):
     train = Subset(
         dataset=dataset,
         subset='train',
-        validation_cases=20,  # Percentage
+        valid_cases=20,  # Percentage
     )
 
     valid = Subset(
         dataset=dataset,
-        subset='validation',
-        validation_cases=20  # Percentage
+        subset='valid',
+        valid_cases=20  # Percentage
     )
 
     return train, valid

@@ -57,9 +57,7 @@ def main(device, verbose, weights, logs, batch_size, workers, filename, image_si
                 else:
                     unet.eval()
 
-                for i, data in enumerate(loaders[phase]):
-                    if phase == "train":
-                        step += 1
+                for step, data in enumerate(loaders[phase]):
 
                     x, y_true = data
                     x, y_true = x.to(device), y_true.to(device)
@@ -71,6 +69,7 @@ def main(device, verbose, weights, logs, batch_size, workers, filename, image_si
 
                         loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
 
+                        # Needed to compute stats
                         batch_elements = 1
                         for dim_ in y_true.shape:
                             batch_elements *= dim_
@@ -100,11 +99,12 @@ def main(device, verbose, weights, logs, batch_size, workers, filename, image_si
                             print('In Training.')
                         loss_train = []
 
-                if phase == "valid":
-                    if verbose:
-                        print(loss_valid, step)
-                        print('In Validation.')
-                    loss_valid = []
+                    if phase == "valid" and (step + 1) % 10 == 0:
+                        if verbose:
+                            print(loss_valid, step)
+                            print('In Validation.')
+                        loss_valid = []
+
             writer.add_scalar('Loss/train', np.array(epoch_loss_train).mean(), epoch)
             writer.add_scalar('Loss/valid', np.array(epoch_loss_valid).mean(), epoch)
             writer.add_scalar('Accuracy/train', epoch_accuracy_train/total_elements_train, epoch)

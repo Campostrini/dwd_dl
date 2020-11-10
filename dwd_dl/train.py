@@ -22,13 +22,11 @@ from dwd_dl.cli import RadolanParser
 import dwd_dl as dl
 
 
-def main(args):
-    makedirs(args)
-    snapshotargs(args)
-    device = torch.device("cpu" if not torch.cuda.is_available() else args.device)
-    verbose = args.verbose
+def main(device, verbose, weights, logs, batch_size, workers, filename, image_size, lr, epochs, save):
+    makedirs(weights=weights, logs=logs)
+    device = torch.device("cpu" if not torch.cuda.is_available() else device)
 
-    with data_loaders(args) as loaders_:
+    with data_loaders(batch_size=batch_size, workers=workers, filename=filename, image_size=image_size) as loaders_:
         loader_train, loader_valid = loaders_
         loaders = {"train": loader_train, "valid": loader_valid}
 
@@ -37,7 +35,7 @@ def main(args):
 
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
 
-        optimizer = optim.Adadelta(unet.parameters(), lr=args.lr)
+        optimizer = optim.Adadelta(unet.parameters(), lr=lr)
 
         loss_train = []
         loss_valid = []
@@ -46,7 +44,7 @@ def main(args):
 
         step = 0
 
-        for epoch in tqdm(range(args.epochs), total=args.epochs):
+        for epoch in tqdm(range(epochs), total=epochs):
             epoch_loss_train = []
             epoch_loss_valid = []
             epoch_accuracy_train = 0
@@ -114,7 +112,7 @@ def main(args):
             # writer.add_pr_curve('Precision & Recall', )
             writer.flush()
 
-        if args.save:
+        if save:
             saved_name_path = utils.unet_saver(
                 unet,
                 path=os.path.join(cfg.CFG.RADOLAN_ROOT, 'Models', run),
@@ -124,8 +122,8 @@ def main(args):
 
 
 @contextmanager
-def data_loaders(args):
-    dataset_train, dataset_valid = datasets(args)
+def data_loaders(batch_size, workers, **kwargs):
+    dataset_train, dataset_valid = datasets(**kwargs)
 
     def worker_init(worker_id):
         np.random.seed(42 + worker_id)
@@ -138,17 +136,17 @@ def data_loaders(args):
 
     loader_train = DataLoader(
         dataset_train,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         drop_last=True,
-        num_workers=args.workers,
+        num_workers=workers,
         worker_init_fn=worker_init,
         sampler=weighted_rand_sampler
     )
     loader_valid = DataLoader(
         dataset_valid,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         drop_last=False,
-        num_workers=args.workers,
+        num_workers=workers,
         worker_init_fn=worker_init
     )
 
@@ -160,12 +158,12 @@ def data_loaders(args):
         loader_valid.dataset.dataset.file_handle.close()
 
 
-def datasets(args):
-    f = create_h5(args.filename)
+def datasets(filename, image_size):
+    f = create_h5(filename)
     dataset = Dataset(
         h5file_handle=f,
         date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
-        image_size=args.image_size
+        image_size=image_size
     )
 
     train = Subset(
@@ -183,36 +181,20 @@ def datasets(args):
     return train, valid
 
 
-def makedirs(args):
-    os.makedirs(args.weights, exist_ok=True)
-    os.makedirs(args.logs, exist_ok=True)
+def makedirs(weights, logs):
+    os.makedirs(weights, exist_ok=True)
+    os.makedirs(logs, exist_ok=True)
 
 
-def snapshotargs(args):
-    args_file = os.path.join(args.logs, "args.json")
+def snapshotargs(kwargs):
+    args_file = os.path.join(kwargs['logs'], "args.json")
     with open(args_file, "w") as fp:
-        json.dump(vars(args), fp)
-
-
-def matplotlib_imshow(img, mean, std, writer, cols=6, rows=12):
-    img = img * std + mean  # unnormalize
-    npimg = img.numpy()
-    axes = []
-    plt.figure(figsize=(rows, cols))
-    gs1 = gridspec.GridSpec(rows, cols)
-    gs1.update(wspace=0.025, hspace=0.025)
-    for i in range(rows):
-        for j in range(cols):
-            ax1 = plt.subplot(gs1[i*j])
-            # axes.append(fig.add_subplot(rows, cols, (i * j) + 1))
-            ax1.imshow(npimg[i, j])
-            writer.add_image('Batch {}, seq {}'.format(i+1, j+1), npimg[i, j], dataformats='HW')
-
-    plt.show()
+        json.dump(kwargs, fp)
 
 
 if __name__ == "__main__":
     dl.cfg.initialize()
     parser = RadolanParser()
-    args = parser.parse_args()
-    main(args)
+    kwargs_ = vars(parser.parse_args())
+    snapshotargs(kwargs_)
+    main(**kwargs_)

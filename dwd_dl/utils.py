@@ -24,8 +24,7 @@ def unet_saver(trained_network, path=None, fname=None, timestamp=None):
 
     path_to_file = os.path.join(os.path.abspath(path), fname)
     basedir = os.path.dirname(path_to_file)
-    if not os.path.exists(basedir):
-        os.makedirs(basedir)
+    os.makedirs(basedir, exist_ok=True)
     torch.save(trained_network.state_dict(), path_to_file)
 
     return path_to_file

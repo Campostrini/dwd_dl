@@ -21,18 +21,37 @@ class UNet(nn.Module):
         self._depth = depth
         self._classes = classes
         sizes = [init_features * 2**n for n in range(depth)]
-        sizes_down = sizes.copy()
-        sizes_up = sizes.copy()
-        sizes_down.insert(0, in_channels)
-        sizes_up.insert(0, out_channels * classes)
-        self._sizes_down = sizes_down
-        self._sizes_up = sizes_up
+        if not cat:
+            sizes_in_down = sizes.copy()
+            sizes_in_down.insert(0, in_channels)
+            del sizes_in_down[-1]
+            sizes_out_down = sizes.copy()
+
+            sizes_in_up = sizes.copy()
+            sizes_out_up = sizes.copy()
+            sizes_out_up.insert(0, out_channels * classes)
+            del sizes_out_up[-1]
+        else:
+            sizes_in_down = [2 * i for i in sizes]
+            sizes_in_down.insert(0, in_channels * 2)
+            del sizes_in_down[-1]
+            sizes_out_down = sizes.copy()
+
+            sizes_in_up = [3 * i for i in sizes]
+            sizes_out_up = sizes.copy()
+            sizes_out_up.insert(0, out_channels * classes)
+            del sizes_out_up[-1]
+
+        self._sizes_in_down = sizes_in_down
+        self._sizes_out_down = sizes_out_down
+        self._sizes_in_up = sizes_in_up
+        self._sizes_out_up = sizes_out_up
         self._sizes = sizes
         self._cat = cat
 
         self.basic1 = UNet._basic_block(
-            in_channels=sizes_down[0],
-            out_channels=sizes_down[0],
+            in_channels=in_channels,
+            out_channels=in_channels,
             name="basic1",
             conv_bias=self._conv_bias,
         )
@@ -44,19 +63,19 @@ class UNet(nn.Module):
                 name=name_,
                 conv_bias=conv_bias,
             ) for in_channels_, out_channels_, name_ in zip(
-                sizes_down[:-1], sizes_down[1:], (f"down{i+1}" for i in range(self._depth))
+                sizes_in_down, sizes_out_down, (f"down{i+1}" for i in range(self._depth))
             )
         ])
 
         self.down_skips = nn.ModuleList([
             UNet._downskip(in_channels=in_channels_, out_channels=out_channels_, name=name_, conv_bias=conv_bias) for in_channels_, out_channels_, name_ in zip(
-                sizes_down[:-1], sizes_down[1:], (f"down_skip{i+1}" for i in range(self._depth))
+                sizes_in_down, sizes_out_down, (f"down_skip{i+1}" for i in range(self._depth))
             )
         ])
 
         self.bottleneck = UNet._basic_block(
-            in_channels=sizes_down[-1],
-            out_channels=sizes_up[-1],
+            in_channels=sizes[-1] * 2**self._cat,  # avoids extra logic. Doubles in_channels if cat.
+            out_channels=sizes[-1],
             name="bottleneck",
             conv_bias=self._conv_bias,
         )
@@ -68,7 +87,7 @@ class UNet(nn.Module):
                 name=name_,
                 conv_bias=conv_bias,
             ) for in_channels_, out_channels_, name_ in zip(
-                sizes_up[1:], sizes_up[:-1], (f"up{i+1}" for i in range(self._depth))
+                sizes_in_up, sizes_out_up, (f"up{i+1}" for i in range(self._depth))
             )
         ])
 
@@ -79,7 +98,7 @@ class UNet(nn.Module):
                 name=name_,
                 conv_bias=conv_bias,
             ) for in_channels_, out_channels_, name_ in zip(
-                sizes_up[1:], sizes_up[:-1], (f"up_skip{i+1}" for i in range(self._depth))
+                sizes_in_up, sizes_out_up, (f"up_skip{i+1}" for i in range(self._depth))
             )
         ])
 
@@ -90,22 +109,28 @@ class UNet(nn.Module):
         x = utils.to_class_index(x, dtype=torch.float)
 
         basic1 = self.basic1(x)
-        x = basic1 + x  # TODO: add torch.cat option
+        x = self.sum_or_cat(basic1, x)
 
         trace = []
 
         for encoding_layer, down_skip_layer in zip(self.encoder, self.down_skips):
             x_encoded = encoding_layer(x)
             trace.append(x_encoded)
-            x = x_encoded + down_skip_layer(x)
+            x = self.sum_or_cat(x_encoded, down_skip_layer(x))
 
-        x = x + self.bottleneck(x)
+        trace[-1] = x
+        x = self.bottleneck(x)
 
         for decoding_layer, up_skip_layer, trace_ in zip(
                 reversed(self.decoder), reversed(self.up_skips), reversed(trace)
         ):
-            x = x + trace_
-            x = decoding_layer(x) + up_skip_layer(x)
+            x = self.sum_or_cat(x, trace_)
+            x = self.sum_or_cat(decoding_layer(x), up_skip_layer(x))
+
+        # sum at the end is always needed otherwise we have too many channels.
+        if self._cat:
+            x_1, x_2 = torch.split(x, x.size()[1]//2, dim=1)
+            x = x_1 + x_2
             
         x = x.reshape(x.shape[0], self._out_channels, 4, *x.shape[-2:])
         
@@ -295,3 +320,9 @@ class UNet(nn.Module):
                 ]
             )
         )
+
+    def sum_or_cat(self, *args, dim=1, **kwargs):
+        if self._cat:
+            return torch.cat(args, dim=dim, **kwargs)
+        else:
+            return torch.stack(args, dim=0).sum(dim=0)

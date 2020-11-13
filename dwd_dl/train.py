@@ -20,7 +20,7 @@ import dwd_dl as dl
 
 
 def main(device, verbose, weights, logs, batch_size, workers,
-         filename, image_size, lr, epochs, save, **kwargs):
+         filename, image_size, lr, epochs, save, cat, **kwargs):
     makedirs(weights=weights, logs=logs)
     device = torch.device("cpu" if not torch.cuda.is_available() else device)
 
@@ -28,7 +28,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
         loader_train, loader_valid = loaders_
         loaders = {"train": loader_train, "valid": loader_valid}
 
-        unet = UNet(in_channels=Dataset.in_channels, out_channels=Dataset.out_channels)
+        unet = UNet(in_channels=Dataset.in_channels, out_channels=Dataset.out_channels, cat=cat)
         unet.to(device)
 
         cross_entropy_loss = torch.nn.CrossEntropyLoss()

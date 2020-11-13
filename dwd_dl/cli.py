@@ -89,6 +89,13 @@ class RadolanParser(argparse.ArgumentParser):
             help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
         )
         self.add_argument(
+            "--cat",
+            type=bool,
+            default=False,
+            help="Whether the skips should be implemented with torch.cat or with a simple sum. "
+                 "False (default) means sum."
+        )
+        self.add_argument(
             "--verbose",
             type=bool,
             default=False,

@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import datetime as dt
@@ -10,8 +9,6 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from tqdm import tqdm
 
 from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
@@ -22,7 +19,8 @@ from dwd_dl.cli import RadolanParser
 import dwd_dl as dl
 
 
-def main(device, verbose, weights, logs, batch_size, workers, filename, image_size, lr, epochs, save):
+def main(device, verbose, weights, logs, batch_size, workers,
+         filename, image_size, lr, epochs, save, **kwargs):
     makedirs(weights=weights, logs=logs)
     device = torch.device("cpu" if not torch.cuda.is_available() else device)
 

@@ -134,6 +134,10 @@ class RadolanDataset(Dataset):
         self._list_of_firsts = [row[0][0] for row in self.indices_tuple]
 
     @property
+    def list_of_firsts(self):
+        return self._list_of_firsts
+
+    @property
     def weights(self):
         w = []
         print('Computing weights.')
@@ -205,7 +209,7 @@ class RadolanSubset(RadolanDataset):
                 indices = [x for x in indices if indices.index(x) not in valid_indices]
         self.dataset = dataset
         self.indices = indices
-        self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset._list_of_firsts]
+        self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
         self.timestamps = [self.timestamps[self.indices[n]] for n, _ in enumerate(self.indices)]
 
     def __getitem__(self, idx):
@@ -217,7 +221,7 @@ class RadolanSubset(RadolanDataset):
     def from_timestamp(self, timestamp):
         try:
             timestamp_raw_idx = self.dataset.sorted_sequence.index(timestamp)
-            index = self.dataset._list_of_firsts.index(timestamp_raw_idx)
+            index = self.dataset.list_of_firsts.index(timestamp_raw_idx)
             idx = self.indices.index(index)
             item = self.__getitem__(idx)
         except ValueError:

@@ -138,49 +138,36 @@ class RadolanDataset(Dataset):
         w = []
         print('Computing weights.')
         for i in tqdm(range(self.__len__())):
-            seq, tru = self.get_total_prec(i)
+            seq, tru = self.get_total_pre(i)
 
-            # Add a constant. Otherwise torch.multinomial complains TODO: is this really true?
-            # TODO: revise weights
             seq, tru = np.array(seq), np.array(tru)
             w.append(np.sum(seq) + np.sum(tru))
         w = torch.tensor(w)
+        # Add a constant. Otherwise torch.multinomial complains TODO: is this really true?
         return w + self.min_weights_factor_of_max*torch.max(w)
 
-    def get_total_prec(self, idx):
+    def get_total_pre(self, idx):
         seq, tru = self.indices_tuple[idx]
-        # TODO: remove duplicate
-        tot_seq = []
-        for t in seq:
-            tot_seq.append(self._tot_pre[self.sorted_sequence[t]])
+        tot = {'seq': [], 'tru': []}
+        for sub_period, indices in zip(tot, (seq, tru)):
+            for t in indices:
+                tot[sub_period].append(self._tot_pre[self.sorted_sequence[t]])
 
-        tot_tru = []
-        for t in tru:
-            tot_tru.append(self._tot_pre[self.sorted_sequence[t]])
-
-        return tot_seq, tot_tru
+        return tot['seq'], tot['tru']
 
     def __len__(self):
         return len(self.indices_tuple)
 
     def __getitem__(self, idx):
         seq, tru = self.indices_tuple[idx]
-        # TODO: Remove duplicate code
-        sequence = []
-        for t in seq:
-            data = self.file_handle[self.sorted_sequence[t]]
-            sequence.append(data)
-        sequence = np.stack(sequence)
+        item_tensors = {'seq': [], 'tru': []}
+        for sub_period, indices in zip(item_tensors, (seq, tru)):
+            for t in indices:
+                data = self.file_handle[self.sorted_sequence[t]]
+                item_tensors[sub_period].append(data)
+            item_tensors[sub_period] = torch.from_numpy(np.stack(item_tensors[sub_period]).astype(np.float32))
 
-        true_rainfall = []
-        for t in tru:
-            data = self.file_handle[self.sorted_sequence[t]]
-            true_rainfall.append(data)
-        true_rainfall = np.stack(true_rainfall)
-        sequence_tensor = torch.from_numpy(sequence.astype(np.float32))
-        true_rainfall_tensor = torch.from_numpy(true_rainfall.astype(np.float32))
-
-        return sequence_tensor, true_rainfall_tensor
+        return item_tensors['seq'], item_tensors['tru']
 
     def from_timestamp(self, timestamp):
         try:
@@ -244,7 +231,7 @@ class RadolanSubset(RadolanDataset):
         w = [ds_weights[i] for i in self.indices]
         return torch.tensor(w)
 
-    def get_total_prec(self, idx):
+    def get_total_pre(self, idx):
         return self.dataset.get_total_prex[self.indices[idx]]
 
 

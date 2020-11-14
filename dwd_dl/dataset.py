@@ -69,8 +69,10 @@ class RadolanDataset(Dataset):
         verbose=False,
         normalize=False,
         max_nans=10,
+        min_weights_factor_of_max=0.0001,
     ):
 
+        self.min_weights_factor_of_max = min_weights_factor_of_max
         # read radolan files
         self.file_handle = h5file_handle
         self.normalize = normalize
@@ -142,7 +144,8 @@ class RadolanDataset(Dataset):
             # TODO: revise weights
             seq, tru = np.array(seq), np.array(tru)
             w.append(np.sum(seq) + np.sum(tru))
-        return torch.tensor(w) + 0.01
+        w = torch.tensor(w)
+        return w + self.min_weights_factor_of_max*torch.max(w)
 
     def get_total_prec(self, idx):
         seq, tru = self.indices_tuple[idx]

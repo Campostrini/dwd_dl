@@ -9,9 +9,8 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 
-from .dataset import RadolanDataset, RadolanSubset
+import dwd_dl.dataset as ds
 from dwd_dl import cfg
-from dwd_dl.dataset import h5_handler
 from dwd_dl import unet, img
 
 
@@ -68,14 +67,14 @@ class ModelEvaluator:
             self._device = device
         else:
             self._device = 'cpu'
-        self._true_dataset = RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path,
-                                            image_size=256, in_channels=6, out_channels=1)
+        self._true_dataset = ds.RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path,
+                                               image_size=256, in_channels=6, out_channels=1)
 
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)
 
-        self._train_dataset = RadolanSubset(dataset=self._true_dataset, subset='train')
-        self._valid_dataset = RadolanSubset(dataset=self._true_dataset, subset='validation')
+        self._train_dataset = ds.RadolanSubset(dataset=self._true_dataset, subset='train')
+        self._valid_dataset = ds.RadolanSubset(dataset=self._true_dataset, subset='validation')
         self._train_loader = DataLoader(
             self._train_dataset,
             batch_size=1,
@@ -183,7 +182,7 @@ def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> tor
 
 @cfg.init_safety
 def visualize(h5_filename, path_to_saved_model, eval_or_train='eval'):
-    with h5_handler(h5_filename) as f:
+    with ds.h5_handler(h5_filename) as f:
         evaluator = ModelEvaluator(
             h5file_handle=f,
             path_to_saved_model=path_to_saved_model,

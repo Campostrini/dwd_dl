@@ -77,12 +77,6 @@ class RadolanParser(argparse.ArgumentParser):
             help="scale factor range for augmentation (default: 0.05)",
         )
         self.add_argument(
-            "--aug-angle",
-            type=int,
-            default=15,
-            help="rotation angle range in degrees for augmentation (default: 15)",
-        )
-        self.add_argument(
             "--save",
             type=bool,
             default=False,

@@ -5,13 +5,11 @@ from contextlib import contextmanager
 
 import numpy as np
 import torch
-# from skimage.io import imread
-from torch.utils.data import Dataset, Subset
+from torch.utils.data import Dataset
 from tqdm import tqdm
 import h5py
 import hashlib
 
-# from utils import crop_sample, pad_sample, resize_sample, normalize_volume
 from . import cfg
 from .cfg import TrainingPeriod
 from . import preproc
@@ -50,7 +48,7 @@ class RadolanDataset(Dataset):
             std[date] = h5file_handle[date].attrs['std']
             mean[date] = h5file_handle[date].attrs['mean']
 
-        self._total_prec = tot_pre
+        self._tot_pre = tot_pre
         self.sequence = sorted(h5file_handle)
         self.sorted_sequence = sorted(self.sequence)
         self._sequence_timestamps = sorted(self.sequence)
@@ -72,7 +70,7 @@ class RadolanDataset(Dataset):
                     if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
                         to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
             else:
-                nan_to_num.append(date)  # self.sequence[bad_ts] = np.nan_to_num(self.sequence[bad_ts])
+                nan_to_num.append(date)
 
         for _, range_end in self.training_period.ranges_list:
             dr = cfg.daterange(
@@ -108,7 +106,6 @@ class RadolanDataset(Dataset):
         print("done loading dataset")
 
         # create global index for sequence and true_rainfall (idx -> ([s_idxs], [t_idx]))
-        # num_slices = [v.shape[0] for v, m in self.volumes]
         self.indices_tuple_raw = [
             [
                 [i + n for n in range(in_channels)],
@@ -140,11 +137,11 @@ class RadolanDataset(Dataset):
         # TODO: remove duplicate
         tot_seq = []
         for t in seq:
-            tot_seq.append(self._total_prec[self.sorted_sequence[t]])
+            tot_seq.append(self._tot_pre[self.sorted_sequence[t]])
 
         tot_tru = []
         for t in tru:
-            tot_tru.append(self._total_prec[self.sorted_sequence[t]])
+            tot_tru.append(self._tot_pre[self.sorted_sequence[t]])
 
         return tot_seq, tot_tru
 
@@ -157,26 +154,17 @@ class RadolanDataset(Dataset):
         sequence = []
         for t in seq:
             data = self.file_handle[self.sorted_sequence[t]]
-            # if self.sorted_sequence[t] in self.nan_to_num:
-            #     data = np.nan_to_num(data)
             sequence.append(data)
         sequence = np.stack(sequence)
-        # if self.normalize:
-        #     sequence = preproc.normalize(sequence, self.mean, self.std)
 
         true_rainfall = []
         for t in tru:
             data = self.file_handle[self.sorted_sequence[t]]
-            # if self.sorted_sequence[t] in self.nan_to_num:
-            #     data = np.nan_to_num(data)
             true_rainfall.append(data)
         true_rainfall = np.stack(true_rainfall)
-        # if self.normalize:
-        #     true_rainfall = preproc.normalize(true_rainfall, self.mean, self.std)
         sequence_tensor = torch.from_numpy(sequence.astype(np.float32))
         true_rainfall_tensor = torch.from_numpy(true_rainfall.astype(np.float32))
 
-        # return tensors
         return sequence_tensor, true_rainfall_tensor
 
     def from_timestamp(self, timestamp):

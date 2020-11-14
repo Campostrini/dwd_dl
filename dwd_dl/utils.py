@@ -68,8 +68,8 @@ class ModelEvaluator:
             self._device = device
         else:
             self._device = 'cpu'
-        self._true_dataset = RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path, image_size=256,
-                                            in_channels=6, out_channels=1)
+        self._true_dataset = RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path,
+                                            image_size=256, in_channels=6, out_channels=1)
 
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)
@@ -193,3 +193,17 @@ def visualize(h5_filename, path_to_saved_model, eval_or_train='eval'):
         )
         with torch.no_grad():
             img.visualizer(evaluator)
+
+
+def incremental_std(std, mean, sequence_n, elements_in_image, std_at_timestamp, mean_at_timestamp):
+    return np.sqrt(((sequence_n * elements_in_image - 1) * (std ** 2) + (elements_in_image - 1)*(std_at_timestamp**2))/(
+            (sequence_n + 1)*elements_in_image - 1)) + ((sequence_n * elements_in_image * elements_in_image) * (
+                (mean - mean_at_timestamp) ** 2) / (((sequence_n+1) * elements_in_image)*(
+                    (sequence_n+1) * elements_in_image - 1))
+            )
+
+
+def incremental_mean(mean, sequence_n, elements_in_image, mean_at_timestamp):
+    return (sequence_n * elements_in_image * mean + (mean_at_timestamp * elements_in_image)) / (
+            (sequence_n + 1) * elements_in_image
+    )

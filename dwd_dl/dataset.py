@@ -10,9 +10,47 @@ from tqdm import tqdm
 import h5py
 import hashlib
 
-from . import cfg
-from .cfg import TrainingPeriod
-from . import preproc
+from dwd_dl import cfg
+from dwd_dl.cfg import TrainingPeriod
+from dwd_dl import preproc
+from dwd_dl.utils import incremental_std, incremental_mean
+
+
+def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
+    not_for_mean = []
+    to_remove = []
+    nan_to_num = []
+    for date in nan_days:
+        if nan_days[date] > max_nans:
+            time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
+            dr = cfg.daterange(
+                time_stamp - dt.timedelta(hours=in_channels + out_channels - 1),
+                time_stamp,
+                include_end=True
+            )
+            not_for_mean.append(time_stamp.strftime('%y%m%d%H%M'))
+            for to_remove_ts in dr:
+                if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
+                    to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
+        else:
+            nan_to_num.append(date)
+
+    return to_remove, not_for_mean, nan_to_num
+
+
+def timestamps_at_training_period_end_handler(ranges_list, to_remove, in_channels, out_channels):
+    for _, range_end in ranges_list:
+        dr = cfg.daterange(
+            range_end - dt.timedelta(hours=in_channels + out_channels - 2),
+            range_end,
+            include_end=True
+        )
+
+        for to_remove_ts in dr:
+            if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
+                to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
+
+    return to_remove
 
 
 class RadolanDataset(Dataset):
@@ -30,6 +68,7 @@ class RadolanDataset(Dataset):
         out_channels=out_channels,
         verbose=False,
         normalize=False,
+        max_nans=10,
     ):
 
         # read radolan files
@@ -53,35 +92,13 @@ class RadolanDataset(Dataset):
         self.sorted_sequence = sorted(self.sequence)
         self._sequence_timestamps = sorted(self.sequence)
 
-        to_remove = []
-        not_for_mean = []
-        nan_to_num = []
-        for date in nan_days:
-            # TODO: Rewrite in one function
-            if nan_days[date] > 10:   # max 10 nans, TODO : Remove hard coding.
-                time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
-                dr = cfg.daterange(
-                    time_stamp - dt.timedelta(hours=in_channels+out_channels-1),
-                    time_stamp,
-                    include_end=True
-                )
-                not_for_mean.append(time_stamp.strftime('%y%m%d%H%M'))
-                for to_remove_ts in dr:
-                    if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
-                        to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
-            else:
-                nan_to_num.append(date)
+        to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
+            nan_days, max_nans, in_channels, out_channels
+        )
 
-        for _, range_end in self.training_period.ranges_list:
-            dr = cfg.daterange(
-                range_end - dt.timedelta(hours=in_channels+out_channels-2),
-                range_end,
-                include_end=True
-            )
-
-            for to_remove_ts in dr:
-                if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
-                    to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
+        to_remove = timestamps_at_training_period_end_handler(
+            self.training_period.ranges_list, to_remove, in_channels, out_channels
+        )
 
         self.to_remove = to_remove
         self.not_for_mean = not_for_mean
@@ -95,13 +112,8 @@ class RadolanDataset(Dataset):
             if date not in not_for_mean:
                 m = mean[date]
                 s = std[date]
-                self.std = (((n * n_in_img - 1) * (self.std ** 2) + (n_in_img - 1)*(s**2)) / ((n + 1)*n_in_img - 1)) + (
-                    (n * n_in_img * n_in_img) * ((self.mean - m) ** 2) / (((n+1) * n_in_img)*((n+1) * n_in_img - 1))
-                )
-                self.std = np.sqrt(self.std)
-                self.mean = (n * n_in_img * self.mean + (m * n_in_img)) / (
-                    (n+1) * n_in_img
-                )
+                self.std = incremental_std(self.std, self.mean, n, n_in_img, s, m)
+                self.mean = incremental_mean(self.mean, n, n_in_img, m)
 
         print("done loading dataset")
 

@@ -9,7 +9,6 @@ import warnings
 
 import matplotlib.pyplot as pl
 import wradlib as wrl
-import numpy as np
 import holoviews as hv
 import panel as pn
 
@@ -70,13 +69,7 @@ def selection(
 
     # Initial checks for coordinates.
     if center_coords is not None and xy_widths is not None and (bl_coords, tr_coords) == (None, None):
-        # assert isinstance(center_coords, tuple), 'center_coords should be a tuple.'
-        # assert isinstance(xy_widths, tuple), 'xy_widths should be a tuple.'
-        # assert len(center_coords) == 2, 'The length of center_coords should be 2.'
-        # assert len(xy_widths) == 2, 'The length of xy_widths should be 2.'
-        # assert 0 <= center_coords[0] <= 900 and 0 <= center_coords[1] <= 900
-        # # TODO: Add other checks. Really need all those?
-        # assert 0 <= xy_widths[0] <= 900 and 0 <= xy_widths[1] <= 900
+        # TODO: Do I need some checks here?
         x_slice = slice(center_coords[0]-0.5*xy_widths[0], center_coords[0]+0.5*xy_widths[0])
         y_slice = slice(center_coords[1]-0.5*xy_widths[1], center_coords[1]+0.5*xy_widths[1])
     elif bl_coords is not None and tr_coords is not None and (center_coords, xy_widths) == (None, None):

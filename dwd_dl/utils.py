@@ -14,13 +14,6 @@ from dwd_dl import cfg
 from dwd_dl import unet, img
 
 
-NW_CORNER_COORD = np.array([8.6, 53.6])
-
-height = width = 256
-
-nw_corner_indexes = cfg.coords_finder(*NW_CORNER_COORD, distances_output=False)
-
-
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
     if path is None:
         path = input('Enter a path for saving the trained model. ')
@@ -215,7 +208,7 @@ def incremental_mean(mean, sequence_n, elements_in_image, mean_at_timestamp):
     )
 
 
-def square_select(time_stamp, height=256, width=256, plot=False):
+def square_select(time_stamp, height=None, width=None, plot=False):
     """Returns the square selection of an area with NW_CORNER set
 
     Parameters
@@ -238,8 +231,15 @@ def square_select(time_stamp, height=256, width=256, plot=False):
 
     """
 
-    out = img.selection(time_stamp, plot=False).RW[nw_corner_indexes[0] - height:nw_corner_indexes[0],
-                                                   nw_corner_indexes[1]:nw_corner_indexes[1] + width]
+    if not height:
+        height = cfg.CFG.HEIGHT
+    if not width:
+        width = cfg.CFG.WIDTH
+
+    out = img.selection(time_stamp, plot=False).RW[
+          cfg.CFG.NW_CORNER_INDICES[0] - height:cfg.CFG.NW_CORNER_INDICES[0],
+          cfg.CFG.NW_CORNER_INDICES[1]:cfg.CFG.NW_CORNER_INDICES[1] + width
+          ]
     if plot:
         out.plot()
 

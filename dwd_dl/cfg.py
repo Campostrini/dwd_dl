@@ -46,6 +46,9 @@ class RadolanConfigFileContent:
             timestamp_date_format: str,
             min_start_date: str,
             max_end_date: str,
+            nw_corner_lon_lat: str,
+            height: str,
+            width: str,
     ):
         self._BASE_URL = base_url
         self._RADOLAN_ROOT = radolan_root
@@ -53,6 +56,9 @@ class RadolanConfigFileContent:
         self._TIMESTAMP_DATE_FORMAT = timestamp_date_format
         self._MIN_START_DATE = min_start_date
         self._MAX_END_DATE = max_end_date
+        self._NW_CORNER_LON_LAT = nw_corner_lon_lat
+        self._HEIGHT = height
+        self._WIDTH = width
 
     @property
     def BASE_URL(self):
@@ -78,6 +84,18 @@ class RadolanConfigFileContent:
     def MAX_END_DATE(self):
         return self._MAX_END_DATE
 
+    @property
+    def NW_CORNER_LON_LAT(self):
+        return self._NW_CORNER_LON_LAT
+
+    @property
+    def HEIGHT(self):
+        return self._HEIGHT
+
+    @property
+    def WIDTH(self):
+        return self._WIDTH
+
 
 def check_config_min_max_dates(min_start_date, max_end_date):
     assert min_start_date < max_end_date
@@ -90,6 +108,13 @@ def check_config_min_max_dates(min_start_date, max_end_date):
         warnings.warn(f"Max and Min dates are outside the expected default "
                       f"range {expected_min_start_date} - {expected_max_start_date}. "
                       f"I got {min_start_date} - {max_end_date} instead.")
+
+
+def convert_coordinates_from_str(NW_CORNER_LON_LAT: str) -> np.ndarray:
+    separator = ', '
+    assert isinstance(NW_CORNER_LON_LAT, str)
+    assert separator in NW_CORNER_LON_LAT
+    return np.array([float(coord) for coord in NW_CORNER_LON_LAT.split(sep=separator)])
 
 
 class Config:
@@ -112,6 +137,11 @@ class Config:
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
         self._date_ranges = None
         self._files_list = None
+
+        self._NW_CORNER_LON_LAT = convert_coordinates_from_str(cfg_content.NW_CORNER_LON_LAT)
+
+        self._height = int(cfg_content.HEIGHT)
+        self._width = int(cfg_content.WIDTH)
 
         if Config.already_instantiated:
             raise UserWarning('There is already an instance of this class.')
@@ -146,6 +176,22 @@ class Config:
     @property
     def BASE_URL(self):
         return self._BASE_URL
+
+    @property
+    def NW_CORNER_LAT_LON(self):
+        return self._NW_CORNER_LON_LAT
+
+    @property
+    def NW_CORNER_INDICES(self):
+        return coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
+
+    @property
+    def HEIGHT(self):
+        return self._height
+
+    @property
+    def WIDTH(self):
+        return self._width
 
     @property
     def date_ranges(self):

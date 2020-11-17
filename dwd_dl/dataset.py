@@ -12,8 +12,7 @@ import hashlib
 
 from dwd_dl import cfg
 from dwd_dl.cfg import TrainingPeriod
-from dwd_dl import preproc
-from dwd_dl.utils import incremental_std, incremental_mean
+from dwd_dl.utils import incremental_std, incremental_mean, square_select
 
 
 def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
@@ -260,7 +259,7 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
                     print('Processing {}'.format(date_str))
                 if date_str not in f.keys():
                     file_name = cfg.binary_file_name(time_stamp=date)
-                    data = preproc.square_select(date, height=height, width=width, plot=False).data
+                    data = square_select(date, height=height, width=width, plot=False).data
                     tot_nans = np.count_nonzero(np.isnan(data))
                     data = np.nan_to_num(data)
                     f[date_str] = np.array(

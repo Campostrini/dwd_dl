@@ -76,8 +76,10 @@ def main(device, verbose, weights, logs, batch_size, workers,
                         if phase == "valid":
                             loss_valid.append(loss.item())
                             epoch_loss_valid.append(loss.item())
-                            y_pred = torch.topk(y_pred, 1, dim=1).indices
-                            correct = (y_pred == y_true).float().sum()
+                            y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
+                            correct = (
+                                    y_pred_class_indices == torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                            ).float().sum()
                             epoch_accuracy_valid += correct
                             total_elements_valid += batch_elements
 
@@ -87,8 +89,10 @@ def main(device, verbose, weights, logs, batch_size, workers,
                             loss.backward()
                             optimizer.step()
                             total_elements_train += batch_elements
-                            y_pred = torch.topk(y_pred, 1, dim=1).indices
-                            correct = (y_pred == y_true).float().sum()
+                            y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
+                            correct = (
+                                    y_pred_class_indices == torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                            ).float().sum()
                             epoch_accuracy_train += correct
 
                     if phase == "train" and (step + 1) % 10 == 0:

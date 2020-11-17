@@ -14,6 +14,7 @@ import tempfile
 import sys
 import tarfile
 import configparser
+
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
@@ -22,17 +23,7 @@ from tqdm import tqdm
 import dwd_dl as dl
 
 CFG = None
-DOWNLOAD_URL_LIST = []
-DOWNLOAD_FILE_NAMES_LIST = []
-SIZES_LIST = []
-BASE_URL = 'https://opendata.dwd.de/climate_environment/CDC/grids_germany/hourly/radolan/historical/bin/'
-DEFAULT_RADOLAN_PATH = os.path.abspath('./Radolan/')
-DATE_RANGES_PATH = None
-RADOLAN_PATH = None
-DEFAULT_START_DATE = dt.datetime(2005, 6, 1, 0, 50)
-DEFAULT_END_DATE = dt.datetime(2019, 12, 31, 23, 50)
 CONFIG_WAS_RUN = False
-DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 # TODO: Add download manager for current year
 
@@ -521,43 +512,6 @@ def check_date_ranges():
     return None
 
 
-def radar_download_list_generator(date_ranges_path):
-    """Download lists generator. Outputs urls, names and sizes.
-
-    Parameters
-    ----------
-    start_year, start_month, end_year, end_month : int
-        The start and end year and month of the period to be downloaded. (The default is derived from the module
-        variables `DEFAULT_START_DATE` and `DEFAULT_END_DATE` which are 2005-06-01 00:50 and 2019-12-31 23:50
-        respectively.)
-
-    Returns
-    -------
-    download_list : list of str
-        The list of the urls pointing to the `.tar.gz` files to be downloaded.
-    file_names_list : list of str
-        A list containing the names of the files to be downloaded.
-    sizes_list : list of int
-        A list of the sizes of the files to be donwloaded. Element is 0 if the file wasn't available.
-    """
-    download_list = []
-    file_names_list = []
-    sizes_list = []
-    date_ranges = read_ranges(date_ranges_path)
-    for date_range in tqdm(date_ranges):
-        for year in range(date_range.start.year, date_range.end.year + 1):
-            for month in range(1, 13):
-                if not (year == date_range.start.year and month < date_range.start.month) \
-                        and not (year == date_range.end.year and month > date_range.end.month):
-                    url = get_download_url(year, month, base_url=BASE_URL)
-                    if file_is_available(url) and get_file_name(year, month) not in file_names_list:
-                        download_list.append(url)
-                        file_names_list.append(get_file_name(year, month))  # TODO: Review. Possible confilcts.
-                        sizes_list.append(file_is_available(url))
-
-    return download_list, file_names_list, sizes_list
-
-
 def get_file_name(year, month, with_name_discrepancy=False):
     if year == 2005 or not with_name_discrepancy:
         return 'RW-{}{:02d}.tar.gz'.format(year, month)
@@ -596,7 +550,9 @@ def check_ranges_overlap(ranges_list):
 
 
 class DateRange:
-    def __init__(self, start_date, end_date, date_format=DATE_FORMAT):
+    def __init__(self, start_date, end_date, date_format=None):
+        if not date_format:
+            date_format = CFG.RANGES_DATE_FORMAT
         start = dt.datetime.strptime(start_date, date_format)
         end = dt.datetime.strptime(end_date, date_format)
         if start > end:
@@ -712,65 +668,15 @@ def interval_is_valid(start_datetime, end_datetime):
         return True
 
 
-def download_and_extract():
-    """Downloads and extracts the DWD data.
-
-    Checks if dwd_dl.config.config_initializer() was run. It runs it if that is False. Then generates a list of
-    the files to be downloaded, asks if they should be downloaded, downloads them to a tmp directory and extracts them
-    to the RADOLAN_PATH specified folder.
-
-    """
-    warnings.warn("Deprecated.", category=DeprecationWarning)
-
-    print('Checking if configuration function was run.')
-    global DATE_RANGES_PATH
-    if DATE_RANGES_PATH is None:
-        print("It was not, I'm running it now!")
-        config_initializer()
-
-    download_list, file_names_list, sizes_list = radar_download_list_generator(
-        date_ranges_path=DATE_RANGES_PATH
-    )
-
-    total_size = 0
-
-    print('Computing total size.')
-    for element in sizes_list:
-        total_size += element
-
-    while True:
-        x = input(f'Total size is {total_size} bytes. Proceed? y/[n] ')
-        if x in ('y', 'Y'):
-            break
-        sys.exit()
-
-    # TODO: Better comparison between dates. Remove not needed files.
-
-    with tempfile.TemporaryDirectory() as td:
-        print('Creating Temporary Directory')
-        print(f'Temporary Directory created: {os.path.isdir(os.path.abspath(td))}')
-        download_files_to_directory(os.path.abspath(td), download_list, file_names_list)
-        listdir = os.listdir(td)
-        for file in listdir:
-            if not file.endswith('.tar.gz'):
-                continue
-            with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
-                print(f'Extracting all in {file}.')
-                tf.extractall(os.path.abspath(RADOLAN_PATH))
-                print('All extracted.')
-
-
 def clean_unused():
     """Cleans unused files from RADOLAN_PATH
 
     """
-    global RADOLAN_PATH
-    global DATE_RANGES_PATH
 
     assert config_was_run()
 
-    listdir = os.listdir(os.path.abspath(RADOLAN_PATH))
-    date_ranges = read_ranges(DATE_RANGES_PATH)
+    listdir = os.listdir(os.path.abspath(CFG.RADOLAN_ROOT))
+    date_ranges = read_ranges(CFG.DATE_RANGES_FILE_PATH)
 
     for file in tqdm(listdir):
         if 'dwd---bin' not in file:
@@ -780,7 +686,7 @@ def clean_unused():
             if file in used_files(date_range.start, date_range.end):
                 file_used = True
         if not file_used:
-            os.remove(os.path.join(os.path.abspath(RADOLAN_PATH), file))
+            os.remove(os.path.join(os.path.abspath(CFG.RADOLAN_ROOT), file))
 
 
 def daterange(start_date, end_date, include_end=False):
@@ -827,99 +733,6 @@ def used_files(start_date, end_date):
     """
     for date in daterange(start_date, end_date, include_end=True):
         yield binary_file_name(date)
-
-
-def config_initializer(config_fpath='.'):
-    """Cheks if global variables are set and are viable. Otherwise it checks for a .cfg file. It creates one if it
-    doesn't exist.
-
-    Globals are set by reading them from the `RADOLAN.cfg` if available. Otherwise it resorts to default values.
-    The `.cfg` file should have this format:
-    `
-    [DEFAULT]
-    radolan_path = /path/to/base/Radolan
-    date_ranges_path = /path/to/date/ranges
-    start_date = YYYY-MM-DD HH:MM:SS
-    end_date = YYYY-MM-DD HH:MM:SS
-    `
-
-    Where the dates are obviously substituted with valid ones.
-
-    Parameters
-    ----------
-    config_fpath : str
-        A valid path to the location of the `RADOLAN.cfg` file. (Defaults to pwd.)
-
-    """
-
-    globals_to_check = ['RADOLAN_PATH', 'DATE_RANGES_PATH', 'START_DATE', 'END_DATE']
-    config_fname = 'RADOLAN.cfg'
-    date_ranges_fname = 'DATE_RANGES.cfg'
-    date_format = '%Y-%m-%d %H:%M:%S'
-
-    config = configparser.ConfigParser()
-    try:
-        config.read(os.path.join(os.path.abspath(config_fpath), config_fname))
-    except TypeError:
-        raise SyntaxError('Wrong syntax in Radolan.cfg')
-
-    for var in globals_to_check:
-        if var not in config['DEFAULT']:
-            raise ValueError(f'Missing variable in Radolan.cfg: {var}')
-        else:
-            globals()[var] = config['DEFAULT'][var]
-
-    if not os.path.isdir(os.path.abspath(config['DEFAULT'][globals_to_check[0]])):
-        raise OSError('Invalid RADOLAN_PATH')
-    else:
-        globals()['RADOLAN_PATH'] = os.path.abspath(config['DEFAULT'][globals_to_check[0]])
-
-    print('Checking date ranges path.')
-    check_date_ranges_path(config['DEFAULT'][globals_to_check[1]], date_ranges_fname)  # TODO: REFACTOR!!!
-    global DATE_RANGES_PATH
-    DATE_RANGES_PATH = os.path.join(os.path.abspath(config['DEFAULT'][globals_to_check[1]]), date_ranges_fname)
-
-    print('Validating dates')
-    for date in globals_to_check[2:]:
-        try:
-            globals()[date] = dt.datetime.strptime(config['DEFAULT'][date], date_format)
-        except ValueError:
-            error_message = 'Wrong date format for {}. Expected format is: %Y-%m-%d %H:%M:%S.'.format(
-                                date,
-                                date,
-                                str(globals()['DEFAULT_' + date])
-                            )
-            raise ValueError(error_message)
-
-        if not (globals()['DEFAULT_START_DATE'] <= globals()[date] <= globals()['DEFAULT_END_DATE']):
-            error_message = '{} {} should be between {} and {}.'.format(
-                date,
-                str(globals()[date]),
-                str(globals()['DEFAULT_START_DATE']),
-                str(globals()['DEFAULT_END_DATE']),
-                str(globals()['DEFAULT_' + date])
-            )
-            raise ValueError(error_message)
-
-    if globals()['START_DATE'] > globals()['END_DATE']:
-        error_message = 'START_DATE {} is greater than END_DATE {}.'.format(
-            str(globals()['START_DATE']),
-            str(globals()['END_DATE'])
-        )
-        raise ValueError(error_message)
-
-    # print('Writing config file.')
-    # for var in globals_to_check:
-    #     config['DEFAULT'][var] = str(globals()[var])
-    #
-    # with open(os.path.join(os.path.abspath(config_fpath), config_fname), 'w') as configfile:
-    #     config.write(configfile)
-
-    print('Setting global variable CONFIG_WAS_RUN.')
-    global CONFIG_WAS_RUN
-    CONFIG_WAS_RUN = True
-
-    return DATE_RANGES_PATH
 
 
 def check_date_ranges_path(fpath, fname=None):

@@ -74,7 +74,7 @@ class ModelEvaluator:
             np.random.seed(42 + worker_id)
 
         self._train_dataset = ds.RadolanSubset(dataset=self._true_dataset, subset='train')
-        self._valid_dataset = ds.RadolanSubset(dataset=self._true_dataset, subset='validation')
+        self._valid_dataset = ds.RadolanSubset(dataset=self._true_dataset, subset='valid')
         self._train_loader = DataLoader(
             self._train_dataset,
             batch_size=1,

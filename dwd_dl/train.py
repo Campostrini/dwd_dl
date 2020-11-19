@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
+import sklearn.metrics
 
 from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
 from dwd_dl.unet import UNet
@@ -43,8 +44,10 @@ def main(device, verbose, weights, logs, batch_size, workers,
         step = 0
 
         for epoch in tqdm(range(epochs), total=epochs):
+            last_epoch = epoch == epochs - 1
             epoch_loss_train = []
             epoch_loss_valid = []
+            pr_data = {'train': {'pred': [], 'true': []}, 'valid': {'pred': [], 'true': []}}
             epoch_accuracy_train = 0
             total_elements_train = 0
             epoch_accuracy_valid = 0
@@ -77,8 +80,9 @@ def main(device, verbose, weights, logs, batch_size, workers,
                             loss_valid.append(loss.item())
                             epoch_loss_valid.append(loss.item())
                             y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
+                            y_true_class_indices = torch.unsqueeze(utils.to_class_index(y_true), dim=1)
                             correct = (
-                                    y_pred_class_indices == torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                                    y_pred_class_indices == y_true_class_indices
                             ).float().sum()
                             epoch_accuracy_valid += correct
                             total_elements_valid += batch_elements
@@ -90,10 +94,15 @@ def main(device, verbose, weights, logs, batch_size, workers,
                             optimizer.step()
                             total_elements_train += batch_elements
                             y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
+                            y_true_class_indices = torch.unsqueeze(utils.to_class_index(y_true), dim=1)
                             correct = (
-                                    y_pred_class_indices == torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                                    y_pred_class_indices == y_true_class_indices
                             ).float().sum()
                             epoch_accuracy_train += correct
+
+                        if last_epoch:
+                            pr_data[phase]['pred'].append(y_pred_class_indices.cpu().detach().numpy())
+                            pr_data[phase]['true'].append(y_true_class_indices.cpu().detach().numpy())
 
                     if phase == "train" and (step + 1) % 10 == 0:
                         if verbose:
@@ -113,6 +122,12 @@ def main(device, verbose, weights, logs, batch_size, workers,
             writer.add_scalar('Accuracy/valid', epoch_accuracy_valid/total_elements_valid, epoch)
             # writer.add_pr_curve('Precision & Recall', )
             writer.flush()
+
+        for phase in pr_data:
+            for set_ in pr_data[phase]:
+                pr_data[phase][set_] = np.concatenate(pr_data[phase][set_], dim=0)
+
+        # writer.add_figure('Confusion Matrix', sklearn.metrics.plot_confusion_martix())
 
         if save:
             saved_name_path = utils.unet_saver(

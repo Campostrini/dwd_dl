@@ -130,6 +130,7 @@ class Config:
         self._files_list = None
 
         self._NW_CORNER_LON_LAT = convert_coordinates_from_str(cfg_content.NW_CORNER_LON_LAT)
+        self._NW_CORNER_INDICES = coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
 
         self._height = int(cfg_content.HEIGHT)
         self._width = int(cfg_content.WIDTH)
@@ -174,7 +175,7 @@ class Config:
 
     @property
     def NW_CORNER_INDICES(self):
-        return coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
+        return self._NW_CORNER_INDICES
 
     @property
     def HEIGHT(self):
@@ -789,7 +790,7 @@ def distance(a_tup, b_tup):
     return np.sqrt((np.subtract(a_tup, b_tup)**2).sum(axis=2))
 
 
-def coords_finder(lat, lon, distances_output=False):
+def coords_finder(lat, lon, distances_output=False, verbose=False):
     """finds x, y coordinates given lon lat for the 900x900 RADOLAN grid.
 
     Parameters
@@ -814,10 +815,12 @@ def coords_finder(lat, lon, distances_output=False):
 
     """
     proj_stereo = wrl.georef.create_osr("dwd-radolan")
-    print(proj_stereo)
+    if verbose:
+        print(proj_stereo)
     proj_wgs = osr.SpatialReference()
     proj_wgs.ImportFromEPSG(4326)
-    print(proj_wgs)
+    if verbose:
+        print(proj_wgs)
     coords_ll = np.array([lat, lon])
     radolan_grid_xy = wrl.georef.get_radolan_grid(900, 900)
     coords_xy = wrl.georef.reproject(coords_ll, projection_source=proj_wgs, projection_target=proj_stereo)

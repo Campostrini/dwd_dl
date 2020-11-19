@@ -14,11 +14,11 @@ import tempfile
 import sys
 import tarfile
 import configparser
-
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
 from tqdm import tqdm
+from packaging import version
 
 import dwd_dl as dl
 
@@ -40,6 +40,7 @@ class RadolanConfigFileContent:
             nw_corner_lon_lat: str,
             height: str,
             width: str,
+            h5_version: str,
     ):
         self._BASE_URL = base_url
         self._RADOLAN_ROOT = radolan_root
@@ -50,6 +51,7 @@ class RadolanConfigFileContent:
         self._NW_CORNER_LON_LAT = nw_corner_lon_lat
         self._HEIGHT = height
         self._WIDTH = width
+        self._H5_VERSION = h5_version
 
     @property
     def BASE_URL(self):
@@ -86,6 +88,10 @@ class RadolanConfigFileContent:
     @property
     def WIDTH(self):
         return self._WIDTH
+
+    @property
+    def H5_VERSION(self):
+        return self._H5_VERSION
 
 
 def check_config_min_max_dates(min_start_date, max_end_date):
@@ -134,6 +140,15 @@ class Config:
 
         self._height = int(cfg_content.HEIGHT)
         self._width = int(cfg_content.WIDTH)
+
+        self._current_h5_version = version.Version('v0.0.1')
+        self._h5_version = version.Version(cfg_content.H5_VERSION)
+
+        if self._current_h5_version < self._h5_version:
+            raise VersionTooLargeError(self._current_h5_version, self._h5_version)
+        elif self._current_h5_version > self._h5_version:
+            warnings.warn("There could be compatibility issues between current supported version {} and fed version {}"
+                          "".format(self._current_h5_version, self._h5_version), FutureWarning)
 
         if Config.already_instantiated:
             raise UserWarning('There is already an instance of this class.')
@@ -184,6 +199,14 @@ class Config:
     @property
     def WIDTH(self):
         return self._width
+
+    @property
+    def CURRENT_H5_VERSION(self):
+        return self._current_h5_version
+
+    @property
+    def H5_VERSION(self):
+        return self._h5_version
 
     @property
     def date_ranges(self):
@@ -490,7 +513,7 @@ def check_date_format(cfg_content: RadolanConfigFileContent):
     assert all(stamp in cfg_content.TIMESTAMP_DATE_FORMAT for stamp in stamps_timestamps)
 
 
-def check_connection(url: str):
+def check_connection(url: str) -> bool:
     """A function to check if a website is up.
 
     Parameters
@@ -554,6 +577,7 @@ class DateRange:
     def __init__(self, start_date, end_date, date_format=None):
         if not date_format:
             date_format = CFG.RANGES_DATE_FORMAT
+        self._date_format = date_format
         start = dt.datetime.strptime(start_date, date_format)
         end = dt.datetime.strptime(end_date, date_format)
         if start > end:
@@ -563,6 +587,18 @@ class DateRange:
 
     def __iter__(self):
         return iter([self.start, self.end])
+
+    def __str__(self):
+        return "{}_{}".format(self.start.strftime(self._date_format), self.end.strftime(self._date_format))
+
+    def switch_date_format(self, format_=None):
+        assert format_ in ('ranges_date_format', 'timestamp_date_format', None)
+
+        if format_ == 'ranges_date_format' or (format_ is None and self._date_format == CFG.TIMESTAMP_DATE_FORMAT):
+            self._date_format = CFG.RANGES_DATE_FORMAT
+        elif format_ == 'timestamp_date_format' or (format_ is None and self._date_format == CFG.RANGES_DATE_FORMAT):
+            self._date_format = CFG.TIMESTAMP_DATE_FORMAT
+        return self
 
     def date_range(self, include_end=True):
         return daterange(self.start, self.end, include_end=include_end)
@@ -832,3 +868,35 @@ def coords_finder(lat, lon, distances_output=False, verbose=False):
         return np.unravel_index(distances.argmin(), distances.shape), distances
     else:
         return np.unravel_index(distances.argmin(), distances.shape)
+
+
+class VersionError(Exception):
+    """To be raised when there is a version mismatch. """
+
+    def __init__(self, v1: version.Version, v2: version.Version, message="Version {} is incompatible with version {}"):
+        self.message = message.format(v1, v2)
+        super().__init__(self.message)
+
+
+class VersionTooLargeError(VersionError):
+    """To be raised when the expected version is too large."""
+
+    def __init__(self, v_expected: version.Version, v_given: version.Version):
+        self.v_expected = v_expected
+        self.v_given = v_given
+        super().__init__(v1=v_expected, v2=v_given)
+
+    def __str__(self):
+        return f"{self.message}. Given: {self.v_given} is greater than expected: {self.v_expected}."
+
+
+class VersionTooSmallError(VersionError):
+    """To be raised when the expected version is too small."""
+
+    def __init__(self, v_expected: version.Version, v_given: version.Version):
+        self.v_expected = v_expected
+        self.v_given = v_given
+        super().__init__(v1=v_expected, v2=v_given)
+
+    def __str__(self):
+        return f"{self.message}. Given: {self.v_given} is less than expected: {self.v_expected}."

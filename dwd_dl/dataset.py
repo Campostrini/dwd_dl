@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import h5py
 import hashlib
+from packaging import version
 
 from dwd_dl import cfg
 from dwd_dl.cfg import TrainingPeriod
@@ -239,14 +240,22 @@ class RadolanSubset(RadolanDataset):
 
 
 @cfg.init_safety
-def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
+def create_h5(keep_open=True, height=256, width=256, verbose=False):
 
     classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
-    f = read_h5(filename)
+    h5_file_name = create_h5_file_name(cfg.CFG.date_ranges, cfg.CFG.H5_VERSION)
+
+    f = read_h5(h5_file_name)
     try:
         hash_check = (f.attrs['hash'] == cfg.CFG.get_timestamps_hash())
     except KeyError:
+        hash_check = False
+
+    try:
+        assert f.attrs['file_name_hash'] == hashlib.md5(h5_file_name.encode()).hexdigest()
+    except (KeyError, AssertionError):
+        print("h5 file name not corresponding to content.")
         hash_check = False
 
     if not hash_check:
@@ -273,6 +282,7 @@ def create_h5(filename, keep_open=True, height=256, width=256, verbose=False):
                     f[date_str].attrs['std'] = np.nanstd(data)
                 string_for_md5 += date_str
         f.attrs['hash'] = hashlib.md5(string_for_md5.encode()).hexdigest()
+        f.attrs['file_name_hash'] = hashlib.md5(h5_file_name.encode()).hexdigest()
     if keep_open:
         return f
     else:
@@ -291,9 +301,18 @@ def read_h5(filename):
 @contextmanager
 def h5_handler(*args, **kwargs):
 
-    file = create_h5(*args, **kwargs)
+    file = create_h5(**kwargs)
 
     try:
         yield file
     finally:
         file.close()
+
+
+def create_h5_file_name(date_ranges, version_: version.Version, with_extension=False):
+    file_name = '-'.join([f"{date_range.switch_date_format('timestamp_date_format')}" for date_range in date_ranges])
+    file_name = '-'.join((f"v{version_}", file_name))
+    if with_extension:
+        extension = '.h5'
+        file_name += extension
+    return file_name

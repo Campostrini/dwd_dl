@@ -2,6 +2,7 @@ import json
 import os
 import datetime as dt
 from contextlib import contextmanager
+import warnings
 
 import numpy as np
 import torch
@@ -10,7 +11,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
-import sklearn.metrics
 
 from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
 from dwd_dl.unet import UNet
@@ -21,11 +21,11 @@ import dwd_dl as dl
 
 
 def main(device, verbose, weights, logs, batch_size, workers,
-         filename, image_size, lr, epochs, save, cat, **kwargs):
+         image_size, lr, epochs, save, cat, **kwargs):
     makedirs(weights=weights, logs=logs)
     device = torch.device("cpu" if not torch.cuda.is_available() else device)
 
-    with data_loaders(batch_size=batch_size, workers=workers, filename=filename, image_size=image_size) as loaders_:
+    with data_loaders(batch_size=batch_size, workers=workers, image_size=image_size) as loaders_:
         loader_train, loader_valid = loaders_
         loaders = {"train": loader_train, "valid": loader_valid}
 
@@ -175,8 +175,8 @@ def data_loaders(batch_size, workers, **kwargs):
         loader_valid.dataset.dataset.file_handle.close()
 
 
-def datasets(filename, image_size):
-    f = create_h5(filename)
+def datasets(image_size):
+    f = create_h5()
     dataset = Dataset(
         h5file_handle=f,
         date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
@@ -213,5 +213,8 @@ if __name__ == "__main__":
     dl.cfg.initialize()
     parser = RadolanParser()
     kwargs_ = vars(parser.parse_args())
+    if 'filename' in kwargs_:
+        warnings.warn("The --filename option is no longer supported. It will be ignored.", DeprecationWarning)
+        del kwargs_['filename']
     snapshotargs(kwargs_)
     main(**kwargs_)

@@ -18,6 +18,7 @@ from dwd_dl import cfg
 from dwd_dl import utils
 from dwd_dl.cli import RadolanParser
 import dwd_dl as dl
+from dwd_dl import yaml_utils
 
 
 def main(device, verbose, weights, logs, batch_size, workers,
@@ -216,5 +217,6 @@ if __name__ == "__main__":
     if 'filename' in kwargs_:
         warnings.warn("The --filename option is no longer supported. It will be ignored.", DeprecationWarning)
         del kwargs_['filename']
+    yaml_utils.log_dump(**kwargs_)
     snapshotargs(kwargs_)
     main(**kwargs_)

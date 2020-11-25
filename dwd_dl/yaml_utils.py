@@ -2,15 +2,18 @@
 
 This module validates the various YAML files within the project. It uses the yamale library.
 """
-from collections import Mapping
+from collections import Mapping, OrderedDict
 from packaging import version
 from urllib.error import HTTPError
+import os
 
 import yamale
 from yamale.validators import DefaultValidators, Validator
 from yamale.validators import constraints as con
+import yaml
 
 import dwd_dl.cfg as cfg
+from dwd_dl.cfg import VersionError
 
 
 class URLValidator(Validator):
@@ -121,3 +124,49 @@ def validate(path=None):
     schema = yamale.make_schema(cfg.path_to_resources_folder(filename='RADOLAN_CFG_SCHEMA.yml'), validators=validators)
     data = yamale.make_data(path=path)
     yamale.validate(schema, data)
+
+
+def log_dump(**kwargs):
+    if os.path.isfile(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml')):
+        with open(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml'), 'r+') as f:
+            data = yaml.safe_load(f)
+        mode = 'r+'
+    else:
+        data = []
+        mode = 'w'
+
+    # TODO: check if there are some dumps that are equal. If so just take in front.
+    kwargs = dict(OrderedDict([('version', '0.0.1')] + list(OrderedDict(kwargs).items())))
+    data.extend([kwargs])
+
+    with open(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml'), mode=mode) as f:
+        yaml.safe_dump(data, f, default_flow_style=False)
+
+
+def log_load(idx=-1):
+    log_file_path = os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml')
+    if not os.path.isfile(log_file_path):
+        raise FileNotFoundError(f"File {log_file_path} not found.")
+    with open(log_file_path, 'r+') as f:
+        data = yaml.load(f)
+        try:
+            data = data[idx]
+        except IndexError:
+            raise IndexError("You tried to access the RADOLAN_LOG.yml file but it's history is not so long.")
+
+    current_version = version.Version('0.0.1')  # TODO: generalize
+    log_version = version.Version(data['version'])
+    if current_version != log_version:
+        raise VersionError(v1=current_version, v2=log_version)
+
+    assert isinstance(data, dict)
+
+    return data
+
+
+def log_load_last():
+    return log_load()
+
+
+def log_load_first():
+    return log_load(idx=0)

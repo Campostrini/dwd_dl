@@ -204,12 +204,6 @@ def makedirs(weights, logs):
     os.makedirs(logs, exist_ok=True)
 
 
-def snapshotargs(kwargs):
-    args_file = os.path.join(kwargs['logs'], "args.json")
-    with open(args_file, "w") as fp:
-        json.dump(kwargs, fp)
-
-
 if __name__ == "__main__":
     dl.cfg.initialize()
     parser = RadolanParser()
@@ -218,5 +212,4 @@ if __name__ == "__main__":
         warnings.warn("The --filename option is no longer supported. It will be ignored.", DeprecationWarning)
         del kwargs_['filename']
     yaml_utils.log_dump(**kwargs_)
-    snapshotargs(kwargs_)
     main(**kwargs_)

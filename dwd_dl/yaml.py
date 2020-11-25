@@ -4,6 +4,7 @@ This module validates the various YAML files within the project. It uses the yam
 """
 from collections import Mapping
 from packaging import version
+from urllib.error import HTTPError
 
 import yamale
 from yamale.validators import DefaultValidators, Validator
@@ -17,7 +18,13 @@ class URLValidator(Validator):
     tag = 'url'
 
     def _is_valid(self, value):
-        return cfg.check_connection(url=value)
+        try:
+            return cfg.check_connection(url=value)
+        except HTTPError:
+            return False
+
+    def fail(self, value):
+        return f"{value} is not a valid URL."
 
 
 class RangesDateFormatValidator(Validator):
@@ -69,19 +76,28 @@ class CustomDateMapValidator(Validator):
                 else:
                     errors.append(error)
 
+        failed_validation = False
+        for val in self.validators:
+            for key in value:
+                error = val.validate(value[key])
+                if bool(error):
+                    failed_validation = True
+                errors.extend(error)
+
         # Additional only to this custom class: compare if the two dates are in the correct order
-        try:
-            if not value['MIN_START_DATE'] <= value['MAX_END_DATE']:
-                message = f"MIN_START_DATE {value['MIN_START_DATE']} is greater " \
-                          f"than MAX_START_DATE {value['MAX_END_DATE']}"
-                errors.append(message)
-        except KeyError:
-            pass
+        if not failed_validation:
+            try:
+                if value['MAX_END_DATE'] < value['MIN_START_DATE']:
+                    message = f"MIN_START_DATE {value['MIN_START_DATE']} is greater " \
+                              f"than MAX_END_DATE {value['MAX_END_DATE']}"
+                    errors.append(message)
+            except KeyError:
+                pass
 
         return errors
 
     def _is_valid(self, value):
-        return isinstance(value, Mapping)  # TODO: what the hell? It doesn't look i it is in max min timestamp.
+        return isinstance(value, Mapping)  # TODO: what the hell? It doesn't look i is in max min timestamp.
 
 
 class Version(Validator):

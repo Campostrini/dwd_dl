@@ -122,7 +122,7 @@ class Config:
         self._MAX_END_DATE = cfg_content.MAX_END_DATE
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
-        self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
+        self._DATE_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
         self._date_ranges = None
         self._files_list = None
 
@@ -142,7 +142,7 @@ class Config:
                           "".format(self._current_h5_version, self._h5_version), FutureWarning)
 
         if Config.already_instantiated:
-            raise UserWarning('There is already an instance of this class.')
+            warnings.warn(f'There is already an instance of this class. {type(self)}', UserWarning)
         if not inside_initialize:
             raise UserWarning("Please initialize by calling dwd_dl.cfg.initialize()")
         Config.already_instantiated = True
@@ -215,12 +215,12 @@ class Config:
         if not os.path.isdir(self.RADOLAN_ROOT):
             os.makedirs(self.RADOLAN_ROOT)
 
-    def make_date_ranges_file(self):
+    def make_date_ranges(self):
         if not os.path.isfile(self.DATE_RANGES_FILE_PATH):
-            date_ranges_template_file_name = 'DATE_RANGES_TEMPLATE_DONT_MODIFY.cfg'
+            date_ranges_template_file_name = 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml'
             date_ranges_template_file_path = path_to_resources_folder(date_ranges_template_file_name)
             shutil.copy2(date_ranges_template_file_path, self.DATE_RANGES_FILE_PATH, follow_symlinks=False)
-            print(f"Created DATE_RANGES.cfg in {date_ranges_template_file_path}.")
+            print(f"Created DATE_RANGES.yml in {self.DATE_RANGES_FILE_PATH}.")
         else:
             print('{} already exists. Just edit it!'.format(self.DATE_RANGES_FILE_PATH))
 
@@ -417,10 +417,7 @@ def init_safety(func):  # Nice decorator in case it is needed.
 
 def initialize(inside_initialize=True, skip_download=False):
     global CFG
-    if isinstance(CFG, Config):
-        print('Already initialized. Useless initialization call. Will not re-initialize.')
-        return CFG
-    elif CFG is not None and not isinstance(CFG, Config):  # The condition after and is redundant. For readability.
+    if CFG is not None and not isinstance(CFG, Config):  # The condition after and is redundant. For readability.
         raise TypeError(
             "Expected type {} but got {} of type {}. CFG was tampered with.".format(type(Config), CFG, type(CFG))
         )
@@ -429,7 +426,7 @@ def initialize(inside_initialize=True, skip_download=False):
     radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
-    CFG.make_date_ranges_file()
+    CFG.make_date_ranges()
     check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
         CFG.download_missing_files()
@@ -447,7 +444,7 @@ def read_or_make_config_file():
 
 def read_radolan_config_file() -> RadolanConfigFileContent:
     data = yu.load_config(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_CFG.yml'))
-    yu.validate(data)
+    yu.validate_config(data)
     radolan_config_file_content = RadolanConfigFileContent(**data[0][0])
     return radolan_config_file_content
 
@@ -525,14 +522,9 @@ def read_ranges(date_ranges_path):
 
     print('Reading date ranges.')
 
-    print('Opening file containing date ranges.')
-    with open(date_ranges_path, 'r') as f:
-        lines = f.read().splitlines()
-
-    date_ranges = []
-    for line in lines:
-        date_ranges.append(DateRange(*line.split(' _ ')))
-
+    date_ranges_data = yu.load_date_ranges(date_ranges_path)
+    yu.validate_date_ranges(date_ranges_data)
+    date_ranges = [DateRange(start_date, end_date) for start_date, end_date in date_ranges_data[0][0]]
     print('Finished reading.')
 
     return date_ranges
@@ -551,8 +543,8 @@ class DateRange:
         if not date_format:
             date_format = CFG.RANGES_DATE_FORMAT
         self._date_format = date_format
-        start = dt.datetime.strptime(start_date, date_format)
-        end = dt.datetime.strptime(end_date, date_format)
+        start = start_date
+        end = end_date
         if start > end:
             raise ValueError('Start date is bigger than end date.')
         self.start = start

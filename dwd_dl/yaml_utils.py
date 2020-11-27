@@ -121,7 +121,7 @@ def load_config(path=None):
     return data
 
 
-def validate(data):
+def validate_config(data):
     validators = DefaultValidators.copy()
     for validator in [
         URLValidator, RangesDateFormatValidator, TimestampDateFormatValidator, CustomDateMapValidator, Version
@@ -129,6 +129,19 @@ def validate(data):
         validators[validator.tag] = validator
     schema = yamale.make_schema(cfg.path_to_resources_folder(filename='RADOLAN_CFG_SCHEMA.yml'), validators=validators)
     yamale.validate(schema, data)
+
+
+def load_date_ranges(path=None):
+    if not path:
+        path = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
+    data = yamale.make_data(path=path)
+    return data
+
+
+def validate_date_ranges(data):
+    schema = yamale.make_schema(cfg.path_to_resources_folder(filename='DATE_RANGES_SCHEMA.yml'))
+    yamale.validate(schema, data)
+
 
 
 def log_dump(**kwargs):

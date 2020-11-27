@@ -13,7 +13,6 @@ import datetime as dt
 import tempfile
 import sys
 import tarfile
-import configparser
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
@@ -21,6 +20,7 @@ from tqdm import tqdm
 from packaging import version
 
 import dwd_dl as dl
+import dwd_dl.yaml_utils as yu
 
 CFG = None
 CONFIG_WAS_RUN = False
@@ -31,27 +31,26 @@ CONFIG_WAS_RUN = False
 class RadolanConfigFileContent:
     def __init__(
             self,
-            base_url: str,
-            radolan_root: str,
-            ranges_date_format: str,
-            timestamp_date_format: str,
-            min_start_date: str,
-            max_end_date: str,
-            nw_corner_lon_lat: str,
-            height: str,
-            width: str,
-            h5_version: str,
+            BASE_URL: str,
+            RADOLAN_ROOT: str,
+            RANGES_DATE_FORMAT: str,
+            TIMESTAMP_DATE_FORMAT: str,
+            DATES: dict,
+            NW_CORNER_LON_LAT: list,
+            HEIGHT: int,
+            WIDTH: int,
+            H5_VERSION: str,
     ):
-        self._BASE_URL = base_url
-        self._RADOLAN_ROOT = radolan_root
-        self._RANGES_DATE_FORMAT = ranges_date_format
-        self._TIMESTAMP_DATE_FORMAT = timestamp_date_format
-        self._MIN_START_DATE = min_start_date
-        self._MAX_END_DATE = max_end_date
-        self._NW_CORNER_LON_LAT = nw_corner_lon_lat
-        self._HEIGHT = height
-        self._WIDTH = width
-        self._H5_VERSION = h5_version
+        self._BASE_URL = BASE_URL
+        self._RADOLAN_ROOT = RADOLAN_ROOT
+        self._RANGES_DATE_FORMAT = RANGES_DATE_FORMAT
+        self._TIMESTAMP_DATE_FORMAT = TIMESTAMP_DATE_FORMAT
+        self._MIN_START_DATE = DATES['MIN_START_DATE']
+        self._MAX_END_DATE = DATES['MAX_END_DATE']
+        self._NW_CORNER_LON_LAT = NW_CORNER_LON_LAT
+        self._HEIGHT = HEIGHT
+        self._WIDTH = WIDTH
+        self._H5_VERSION = H5_VERSION
 
     @property
     def BASE_URL(self):
@@ -107,13 +106,6 @@ def check_config_min_max_dates(min_start_date, max_end_date):
                       f"I got {min_start_date} - {max_end_date} instead.")
 
 
-def convert_coordinates_from_str(NW_CORNER_LON_LAT: str) -> np.ndarray:
-    separator = ', '
-    assert isinstance(NW_CORNER_LON_LAT, str)
-    assert separator in NW_CORNER_LON_LAT
-    return np.array([float(coord) for coord in NW_CORNER_LON_LAT.split(sep=separator)])
-
-
 class Config:
     already_instantiated = False
 
@@ -122,24 +114,23 @@ class Config:
         self._RANGES_DATE_FORMAT = cfg_content.RANGES_DATE_FORMAT
         self._TIMESTAMP_DATE_FORMAT = cfg_content.TIMESTAMP_DATE_FORMAT
 
-        check_connection(cfg_content.BASE_URL)
         self._BASE_URL = cfg_content.BASE_URL
 
         self._RADOLAN_ROOT = os.path.abspath(os.path.expanduser(cfg_content.RADOLAN_ROOT))
 
-        self._MIN_START_DATE = dt.datetime.strptime(cfg_content.MIN_START_DATE, self._RANGES_DATE_FORMAT)
-        self._MAX_END_DATE = dt.datetime.strptime(cfg_content.MAX_END_DATE, self._RANGES_DATE_FORMAT)
+        self._MIN_START_DATE = cfg_content.MIN_START_DATE
+        self._MAX_END_DATE = cfg_content.MAX_END_DATE
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(self._RADOLAN_ROOT, 'DATE_RANGES.cfg')
         self._date_ranges = None
         self._files_list = None
 
-        self._NW_CORNER_LON_LAT = convert_coordinates_from_str(cfg_content.NW_CORNER_LON_LAT)
+        self._NW_CORNER_LON_LAT = np.array(cfg_content.NW_CORNER_LON_LAT)
         self._NW_CORNER_INDICES = coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
 
-        self._height = int(cfg_content.HEIGHT)
-        self._width = int(cfg_content.WIDTH)
+        self._height = cfg_content.HEIGHT
+        self._width = cfg_content.WIDTH
 
         self._current_h5_version = version.Version('v0.0.1')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
@@ -434,7 +425,7 @@ def initialize(inside_initialize=True, skip_download=False):
             "Expected type {} but got {} of type {}. CFG was tampered with.".format(type(Config), CFG, type(CFG))
         )
 
-    cfg_content = read_or_make_cfg_content()
+    cfg_content = read_or_make_config_file()
     radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
@@ -446,54 +437,37 @@ def initialize(inside_initialize=True, skip_download=False):
     return CFG
 
 
-def read_or_make_cfg_content():
+def read_or_make_config_file():
     try:
-        cfg_content = read_radolan_cfg()
-    except OSError:
-        cfg_content = make_radolan_cfg()
+        cfg_content = read_radolan_config_file()
+    except FileNotFoundError:
+        cfg_content = make_radolan_config_file()
     return cfg_content
 
 
-def read_radolan_cfg() -> RadolanConfigFileContent:
-    radolan_cfg_dir = os.path.join(os.path.expanduser('~'), '.radolan_config')
-    radolan_cfg_name = 'RADOLAN.cfg'
-    radolan_cfg_file_path = os.path.join(radolan_cfg_dir, radolan_cfg_name)
-
-    if not os.path.isfile(radolan_cfg_file_path):
-        raise OSError("{} file does not exist.".format(radolan_cfg_file_path))
-
-    config = configparser.ConfigParser(interpolation=None)
-
-    try:
-        config.read(radolan_cfg_file_path)
-    except TypeError:
-        raise SyntaxError('Wrong syntax in Radolan.cfg')
-
-    radolan_file_content = RadolanConfigFileContent(**config['DEFAULT'])
-
-    return radolan_file_content
+def read_radolan_config_file() -> RadolanConfigFileContent:
+    data = yu.load_config(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_CFG.yml'))
+    yu.validate(data)
+    radolan_config_file_content = RadolanConfigFileContent(**data[0][0])
+    return radolan_config_file_content
 
 
-def make_radolan_cfg():
-    """Makes a radolan cfg file from a template in the resources folder.
+def make_radolan_config_file():
+    """Makes a radolan cfg file froma a template in the resources folder.
 
     The radolan configuration file is saved in the ~/.radolan_config/ folder.
-
-    Returns
-    -------
-
     """
     radolan_cfg_dir = os.path.join(os.path.expanduser('~'), '.radolan_config')
     if not os.path.isdir(radolan_cfg_dir):
         os.makedirs(radolan_cfg_dir)
-    radolan_cfg_name = 'RADOLAN.cfg'
+    radolan_config_file_name = 'RADOLAN_CFG.yml'
+    template_file_name = 'RADOLAN_CFG_TEMPLATE_DONT_MODIFY.yml'
 
-    template_file_name = 'RADOLAN_CFG_TEMPLATE_DONT_MODIFY.cfg'
     template_file_path = path_to_resources_folder(template_file_name)
 
-    shutil.copy2(template_file_path, os.path.join(radolan_cfg_dir, radolan_cfg_name))
+    shutil.copy2(template_file_path, os.path.join(radolan_cfg_dir, radolan_config_file_name))
 
-    return read_radolan_cfg()
+    return read_radolan_config_file()
 
 
 def path_to_resources_folder(filename=None):
@@ -532,8 +506,7 @@ def check_connection(url: str) -> bool:
 
 
 def check_date_ranges():
-    # check if date ranges in date range file are valid
-    return None
+    raise NotImplementedError
 
 
 def get_file_name(year, month, with_name_discrepancy=False):

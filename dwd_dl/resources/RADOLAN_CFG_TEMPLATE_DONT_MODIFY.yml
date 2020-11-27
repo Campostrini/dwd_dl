@@ -1,0 +1,13 @@
+BASE_URL: https://opendata.dwd.de/climate_environment/CDC/grids_germany/hourly/radolan/historical/bin/
+RADOLAN_ROOT: /$HOME/Radolan
+RANGES_DATE_FORMAT: '%Y-%m-%d %H:%M:%S'
+TIMESTAMP_DATE_FORMAT: '%y%m%d%H%M'
+DATES:
+  MIN_START_DATE: 2005-06-01 00:50:00
+  MAX_END_DATE: 2019-12-31 23:50:00
+NW_CORNER_LON_LAT:
+  - 8.6
+  - 53.6
+HEIGHT: 256
+WIDTH: 256
+H5_VERSION: 0.0.1

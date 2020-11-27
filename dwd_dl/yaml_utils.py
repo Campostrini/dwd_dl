@@ -13,7 +13,6 @@ from yamale.validators import constraints as con
 import yaml
 
 import dwd_dl.cfg as cfg
-from dwd_dl.cfg import VersionError
 
 
 class URLValidator(Validator):
@@ -115,14 +114,20 @@ class Version(Validator):
             return False
 
 
-def validate(path=None):
+def load_config(path=None):
+    if not path:
+        path = os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_CFG.yml')
+    data = yamale.make_data(path=path)
+    return data
+
+
+def validate(data):
     validators = DefaultValidators.copy()
     for validator in [
         URLValidator, RangesDateFormatValidator, TimestampDateFormatValidator, CustomDateMapValidator, Version
     ]:
         validators[validator.tag] = validator
     schema = yamale.make_schema(cfg.path_to_resources_folder(filename='RADOLAN_CFG_SCHEMA.yml'), validators=validators)
-    data = yamale.make_data(path=path)
     yamale.validate(schema, data)
 
 
@@ -157,7 +162,7 @@ def log_load(idx=-1):
     current_version = version.Version('0.0.1')  # TODO: generalize
     log_version = version.Version(data['version'])
     if current_version != log_version:
-        raise VersionError(v1=current_version, v2=log_version)
+        raise cfg.VersionError(v1=current_version, v2=log_version)
 
     assert isinstance(data, dict)
 

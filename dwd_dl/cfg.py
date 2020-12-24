@@ -20,6 +20,7 @@ from tqdm import tqdm
 from packaging import version
 
 import dwd_dl as dl
+import dwd_dl.utils as utils
 import dwd_dl.yaml_utils as yu
 
 CFG = None
@@ -40,6 +41,8 @@ class RadolanConfigFileContent:
             HEIGHT: int,
             WIDTH: int,
             H5_VERSION: str,
+            MODE: str,
+            CLASSES: dict,
     ):
         self._BASE_URL = BASE_URL
         self._RADOLAN_ROOT = RADOLAN_ROOT
@@ -51,6 +54,8 @@ class RadolanConfigFileContent:
         self._HEIGHT = HEIGHT
         self._WIDTH = WIDTH
         self._H5_VERSION = H5_VERSION
+        self._MODE = MODE
+        self._CLASSES = CLASSES
 
     @property
     def BASE_URL(self):
@@ -92,6 +97,15 @@ class RadolanConfigFileContent:
     def H5_VERSION(self):
         return self._H5_VERSION
 
+    @property
+    def MODE(self):
+        return self._MODE
+
+    @property
+    def CLASSES(self):
+        # return self._CLASSES  # TODO: Create a validator for this
+        return {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+
 
 def check_config_min_max_dates(min_start_date, max_end_date):
     assert min_start_date < max_end_date
@@ -132,8 +146,11 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.0.1')
+        self._current_h5_version = version.Version('v0.0.2')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
+
+        self._mode = cfg_content.MODE
+        self._classes = cfg_content.CLASSES
 
         if self._current_h5_version < self._h5_version:
             raise VersionTooLargeError(self._current_h5_version, self._h5_version)
@@ -200,6 +217,14 @@ class Config:
         return self._h5_version
 
     @property
+    def MODE(self):
+        return self._mode
+
+    @property
+    def CLASSES(self):
+        return self._classes
+
+    @property
     def date_ranges(self):
         if self._date_ranges is None:
             self._date_ranges = read_ranges(self.DATE_RANGES_FILE_PATH)
@@ -208,7 +233,7 @@ class Config:
     @property
     def files_list(self):
         if self._files_list is None:
-            self._files_list = RadolanFilesList(ranges_list=self.date_ranges)
+            self._files_list = RadolanFilesList(date_ranges=self.date_ranges)
         return self._files_list
 
     def check_and_make_dir_structures(self):
@@ -289,13 +314,14 @@ class Config:
 
 
 class RadolanFilesList:
-    def __init__(self, ranges_list=None, files_list=None):
+    def __init__(self, date_ranges=None, files_list=None):
         self.files_list = []
-        if ranges_list and files_list:
-            raise ValueError(f"Got both ranges_list = {ranges_list} and file_list = {files_list}")
-        elif ranges_list:
-            for range_ in ranges_list:
-                self.files_list += [RadolanFile(date) for date in range_.date_range()]
+        if date_ranges and files_list:
+            raise ValueError(f"Got both ranges_list = {date_ranges} and file_list = {files_list}")
+        elif date_ranges:
+            year_month_tuples = utils.ym_tuples(date_ranges)
+            for ym in year_month_tuples:
+                self.files_list += [RadolanFile(date) for date in MonthDateRange(*ym).date_range()]
         elif files_list:
             self._valid_inputs_for_files_list_add(files_list)
             self.__iadd__(files_list)
@@ -405,14 +431,6 @@ class RadolanFile:
 def get_download_size(url):
     r = requests.head(url)
     return int(r.headers['Content-Length'])
-
-
-def init_safety(func):  # Nice decorator in case it is needed.
-    def wrapper(*args, **kwargs):
-        if CFG is None and not isinstance(CFG, Config):
-            raise UserWarning("Before using {} please run dwd_dl.cfg.initialize".format(func))
-        return func(*args, **kwargs)
-    return wrapper
 
 
 def initialize(inside_initialize=True, skip_download=False):
@@ -567,6 +585,14 @@ class DateRange:
 
     def date_range(self, include_end=True):
         return daterange(self.start, self.end, include_end=include_end)
+
+
+class MonthDateRange(DateRange):
+    def __init__(self, year: int, month: int):
+        start_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50)
+        year, month = utils.next_year_month(year, month)
+        end_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
+        super().__init__(start_date=start_date, end_date=end_date)
 
 
 class TrainingPeriod:

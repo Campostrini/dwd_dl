@@ -11,9 +11,8 @@ import h5py
 import hashlib
 from packaging import version
 
-from dwd_dl import cfg
-from dwd_dl.cfg import TrainingPeriod
-from dwd_dl.utils import incremental_std, incremental_mean, square_select
+import dwd_dl.cfg as cfg
+import dwd_dl.utils as utils
 
 
 def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
@@ -78,7 +77,7 @@ class RadolanDataset(Dataset):
         self.normalize = normalize
         print("reading images...")
         self._image_size = image_size
-        self.training_period = TrainingPeriod(date_ranges_path)
+        self.training_period = cfg.TrainingPeriod(date_ranges_path)
         tot_pre = {}
         nan_days = {}
         std = {}
@@ -114,8 +113,8 @@ class RadolanDataset(Dataset):
             if date not in not_for_mean:
                 m = mean[date]
                 s = std[date]
-                self.std = incremental_std(self.std, self.mean, n, n_in_img, s, m)
-                self.mean = incremental_mean(self.mean, n, n_in_img, m)
+                self.std = utils.incremental_std(self.std, self.mean, n, n_in_img, s, m)
+                self.mean = utils.incremental_mean(self.mean, n, n_in_img, m)
 
         print("done loading dataset")
 
@@ -239,54 +238,47 @@ class RadolanSubset(RadolanDataset):
         return self.dataset.get_total_prex[self.indices[idx]]
 
 
-@cfg.init_safety
-def create_h5(keep_open=True, height=256, width=256, verbose=False):
+@utils.init_safety
+def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, verbose=False):
 
-    classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+    if mode not in ('r', 'c'):
+        raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
+    default_classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+    if classes is None:
+        classes = default_classes
 
-    h5_file_name = create_h5_file_name(cfg.CFG.date_ranges, cfg.CFG.H5_VERSION)
+    to_create = check_h5_missing_or_corrupt(cfg.CFG.date_ranges, classes=classes, mode=mode)
 
-    f = read_h5(h5_file_name)
-    try:
-        hash_check = (f.attrs['hash'] == cfg.CFG.get_timestamps_hash())
-    except KeyError:
-        hash_check = False
-
-    try:
-        assert f.attrs['file_name_hash'] == hashlib.md5(h5_file_name.encode()).hexdigest()
-    except (KeyError, AssertionError):
-        print("h5 file name not corresponding to content.")
-        hash_check = False
-
-    if not hash_check:
-        string_for_md5 = ''
-        training_period = cfg.CFG.date_ranges
-        for date_range in training_period:
-            for date in tqdm(date_range.date_range()):
-                date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
-                if verbose:
-                    print('Processing {}'.format(date_str))
-                if date_str not in f.keys():
-                    file_name = cfg.binary_file_name(time_stamp=date)
-                    data = square_select(date, height=height, width=width, plot=False).data
-                    tot_nans = np.count_nonzero(np.isnan(data))
-                    data = np.nan_to_num(data)
-                    f[date_str] = np.array(
-                        [(classes[class_name][0] <= data) & (data < classes[class_name][1]) for class_name in classes]
-                    ).astype(int)
-                    f[date_str].attrs['filename'] = file_name
-                    f[date_str].attrs['NaN'] = tot_nans
-                    f[date_str].attrs['img_size'] = height * width
-                    f[date_str].attrs['tot_pre'] = np.nansum(data)
-                    f[date_str].attrs['mean'] = np.nanmean(data)
-                    f[date_str].attrs['std'] = np.nanstd(data)
-                string_for_md5 += date_str
-        f.attrs['hash'] = hashlib.md5(string_for_md5.encode()).hexdigest()
-        f.attrs['file_name_hash'] = hashlib.md5(h5_file_name.encode()).hexdigest()
-    if keep_open:
-        return f
-    else:
-        f.close()
+    if to_create:
+        for year_month, file_name in zip(
+                utils.ym_tuples(cfg.CFG.date_ranges), h5_files_names_list(cfg.CFG.date_ranges, classes=classes, mode=mode, with_extension=True)
+        ):
+            if file_name in to_create:
+                with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'a') as f:
+                    for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
+                        date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+                        if verbose:
+                            print('Processing {}'.format(date_str))
+                        if date_str not in f.keys():
+                            file_name = cfg.binary_file_name(time_stamp=date)
+                            data = utils.square_select(date, height=height, width=width, plot=False).data
+                            tot_nans = np.count_nonzero(np.isnan(data))
+                            data = np.nan_to_num(data)
+                            if mode == 'c':
+                                f[date_str] = np.array(
+                                    [(classes[class_name][0] <= data) &
+                                     (data < classes[class_name][1]) for class_name in classes]
+                                ).astype(int)
+                            else:  # raw mode
+                                f[date_str] = data
+                            f[date_str].attrs['file_name'] = file_name
+                            f[date_str].attrs['NaN'] = tot_nans
+                            f[date_str].attrs['img_size'] = height * width
+                            f[date_str].attrs['tot_pre'] = np.nansum(data)
+                            f[date_str].attrs['mean'] = np.nanmean(data)
+                            f[date_str].attrs['std'] = np.nanstd(data)
+                    f.attrs['mode'] = mode
+                    f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
 
 
 def read_h5(filename):
@@ -316,3 +308,92 @@ def create_h5_file_name(date_ranges, version_: version.Version, with_extension=F
         extension = '.h5'
         file_name += extension
     return file_name
+
+
+def h5_name(year: int, month: int, version_: version.Version, mode: str, classes=None, with_extension=False):
+    if mode not in ('r', 'c'):
+        raise ValueError(f"Mode not 'r' or 'c'. Got {mode}")
+    elif mode == 'c' and not isinstance(classes, dict):  # Would need a better class checker
+        raise TypeError(f"Check classes! Got {classes}")
+    elif mode == 'c':
+        mode_classes = [classes[class_name][0] for class_name in classes]
+        mode_classes_strings = [f"{float(c):05.3}" for c in mode_classes]
+        mode = ''.join([mode] + [f"{len(mode_classes_strings)}"] + mode_classes_strings)
+        # This creates a univocal naming. r is raw. c is classes. If classes mode then the numbers following it are:
+        # first number is the number of classes. The next are the left limits of the classes with :05.3 format
+        # e.g. v0.0.2-r-201203
+        # or v0.0.2-c4000.0000.1001.0002.5-201204 means 4 classes starting at 0 0.1 1 and 2.5
+    file_name = '-'.join([f"v{version_}", f"{mode}", f"{year}{month:03}"])
+    if with_extension:
+        extension = '.h5'
+        file_name += extension
+    return file_name
+
+
+def h5_files_names_list(date_ranges, *args, **kwargs):
+    year_month_tuples = utils.ym_tuples(date_ranges)
+    return [h5_name(*ym, version_=version.Version("0.0.2"), *args, **kwargs) for ym in year_month_tuples]
+
+
+def ym_dictionary(date_ranges, *args, **kwargs):
+    dict_ = {}
+    for ym, file_name in zip(utils.ym_tuples(date_ranges), h5_files_names_list(date_ranges, *args, **kwargs)):
+        dict_[ym] = file_name
+    return dict_
+
+
+def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
+    unavailable = []
+    required = h5_files_names_list(date_ranges, *args, with_extension=True, **kwargs)
+    for file_name in required:
+        if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name)):
+            unavailable.append(file_name)
+        else:
+            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'a') as f:
+                try:
+                    hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
+                except (KeyError, AssertionError):
+                    print("h5 file name not corresponding to content.")
+                    hash_check = False
+
+            if hash_check:
+                unavailable.append(file_name)
+                os.remove(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name))
+
+    return unavailable
+
+
+class H5Dataset:
+    def __init__(self, date_ranges, mode, classes=None):
+        self.mode = mode
+        self.classes = classes
+        self._date_ranges = date_ranges
+        missing = check_h5_missing_or_corrupt(date_ranges, mode=mode, classes=classes)
+        if missing:
+            raise FileNotFoundError(f"Missing h5 files: {missing}")
+        self.year_month_file_names_dictionary = ym_dictionary(date_ranges, mode=mode, classes=classes, with_extension=True)
+        self.files_dictionary = {
+            ym: h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'r')
+            for (ym, file_name) in self.year_month_file_names_dictionary.items()
+        }
+
+    def __getitem__(self, item):
+        if item == 'mode':
+            return self.mode
+        elif item == 'classes':
+            return self.classes
+        timestamp = dt.datetime.strptime(item, cfg.CFG.TIMESTAMP_DATE_FORMAT)
+        return self.files_dictionary[(timestamp.year, timestamp.month)][item]
+
+    def close(self):
+        for ym in self.files_dictionary:
+            self.files_dictionary[ym].close()
+
+    def keys(self):
+        keys_ = []
+        for ym in self.files_dictionary:
+            keys_.extend(self.files_dictionary[ym].keys())
+        return keys_
+
+    def __iter__(self):
+        return iter(self.keys())

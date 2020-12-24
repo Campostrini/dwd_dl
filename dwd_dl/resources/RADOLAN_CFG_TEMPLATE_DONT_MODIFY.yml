@@ -10,4 +10,18 @@ NW_CORNER_LON_LAT:
   - 53.6
 HEIGHT: 256
 WIDTH: 256
-H5_VERSION: 0.0.1
+H5_VERSION: 0.0.2
+MODE: 'c'
+CLASSES:
+  '0':
+    - 0
+    - 0.1
+  '0.1':
+    - 0.1
+    - 1
+  '1':
+    - 1
+    - 2.5
+  '2.5':
+    - 2.5
+    - 'inf'

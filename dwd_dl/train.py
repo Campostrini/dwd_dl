@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 
-from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5
+from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5, H5Dataset
 from dwd_dl.unet import UNet
 from dwd_dl import cfg
 from dwd_dl import utils
@@ -177,7 +177,8 @@ def data_loaders(batch_size, workers, **kwargs):
 
 
 def datasets(image_size):
-    f = create_h5()
+    create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+    f = H5Dataset(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
     dataset = Dataset(
         h5file_handle=f,
         date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,

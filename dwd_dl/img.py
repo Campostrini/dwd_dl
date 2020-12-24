@@ -12,12 +12,13 @@ import wradlib as wrl
 import holoviews as hv
 import panel as pn
 
-from dwd_dl import cfg
+import dwd_dl.cfg as cfg
+import dwd_dl.utils as utils
 
 hv.extension('bokeh')
 
 
-@cfg.init_safety
+@utils.init_safety
 def selection(
         time_stamp,
         *,

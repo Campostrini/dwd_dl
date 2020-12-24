@@ -9,10 +9,16 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 
-import dwd_dl.dataset as ds
-from dwd_dl import cfg
-from dwd_dl import unet, img
+import dwd_dl.cfg as cfg
+import dwd_dl.unet as unet
 
+
+def init_safety(func):  # Nice decorator in case it is needed.
+    def wrapper(*args, **kwargs):
+        if cfg.CFG is None and not isinstance(cfg.CFG, cfg.Config):
+            raise UserWarning("Before using {} please run dwd_dl.cfg.initialize".format(func))
+        return func(*args, **kwargs)
+    return wrapper
 
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
     if path is None:
@@ -60,6 +66,7 @@ class ModelEvaluator:
             eval_or_train='eval',
             device='cuda:0'
     ):
+        import dwd_dl.dataset as ds
         self._phases = ['train', 'valid']
         self.model = network_loader(path_to_saved_model, network_class, eval_or_train,
                                     permute_output=False, softmax_output=False)
@@ -180,8 +187,10 @@ def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> tor
     return category_indices.to(dtype=dtype)
 
 
-@cfg.init_safety
+@init_safety
 def visualize(h5_filename, path_to_saved_model, eval_or_train='eval'):
+    import dwd_dl.dataset as ds
+    import dwd_dl.img as img
     with ds.h5_handler(h5_filename) as f:
         evaluator = ModelEvaluator(
             h5file_handle=f,
@@ -209,6 +218,7 @@ def incremental_mean(mean, sequence_n, elements_in_image, mean_at_timestamp):
 
 
 def square_select(time_stamp, height=None, width=None, plot=False):
+    import dwd_dl.img as img
     """Returns the square selection of an area with NW_CORNER set
 
     Parameters
@@ -244,3 +254,33 @@ def square_select(time_stamp, height=None, width=None, plot=False):
         out.plot()
 
     return out.copy()
+
+
+def year_month_tuple_list(start_date, end_date):
+    start_year, start_month = start_date.year, start_date.month
+    year = start_year
+    month = start_month
+    result = []
+    while year < end_date.year or month <= end_date.month:
+        result.append((year, month))
+        year, month = next_year_month(year, month)
+    return result
+
+
+def next_year_month(year, month):
+    months_per_year = 12
+    month += 1
+    year += month // (months_per_year + 1)
+    month -= months_per_year * (month // (months_per_year + 1))
+    return year, month
+
+
+def ym_tuples(date_ranges):
+    year_month_tuples = []
+    for date_range in date_ranges:
+        year_month_tuples.extend(
+            ym for ym in year_month_tuple_list(date_range.start, date_range.end) if ym not in year_month_tuples
+        )
+    return year_month_tuples
+
+

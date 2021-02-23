@@ -62,6 +62,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
                 for step, data in enumerate(loaders[phase]):
 
                     x, y_true = data
+                    y_true = y_true[:, ::4, ...].to(dtype=torch.long)
                     x, y_true = x.to(device), y_true.to(device)
 
                     optimizer.zero_grad()
@@ -69,7 +70,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
                     with torch.set_grad_enabled(phase == "train"):
                         y_pred = unet(x)
 
-                        loss = cross_entropy_loss(y_pred, utils.to_class_index(y_true))
+                        loss = cross_entropy_loss(y_pred, y_true)
 
                         # Needed to compute stats
                         batch_elements = 1
@@ -81,7 +82,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
                             loss_valid.append(loss.item())
                             epoch_loss_valid.append(loss.item())
                             y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
-                            y_true_class_indices = torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                            y_true_class_indices = torch.unsqueeze(y_true, dim=1)
                             correct = (
                                     y_pred_class_indices == y_true_class_indices
                             ).float().sum()
@@ -95,7 +96,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
                             optimizer.step()
                             total_elements_train += batch_elements
                             y_pred_class_indices = torch.topk(y_pred, 1, dim=1).indices
-                            y_true_class_indices = torch.unsqueeze(utils.to_class_index(y_true), dim=1)
+                            y_true_class_indices = torch.unsqueeze(y_true, dim=1)
                             correct = (
                                     y_pred_class_indices == y_true_class_indices
                             ).float().sum()

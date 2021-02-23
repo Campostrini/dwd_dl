@@ -82,14 +82,14 @@ class RadolanDataset(Dataset):
         nan_days = {}
         std = {}
         mean = {}
-        for date in h5file_handle:
+        for date in cfg.CFG.timestamps_list:
             tot_pre[date] = h5file_handle[date].attrs['tot_pre']
             nan_days[date] = h5file_handle[date].attrs['NaN']
             std[date] = h5file_handle[date].attrs['std']
             mean[date] = h5file_handle[date].attrs['mean']
 
         self._tot_pre = tot_pre
-        self.sequence = sorted(h5file_handle)
+        self.sequence = sorted(cfg.CFG.timestamps_list)
         self.sorted_sequence = sorted(self.sequence)
         self._sequence_timestamps = sorted(self.sequence)
 
@@ -168,7 +168,9 @@ class RadolanDataset(Dataset):
             for t in indices:
                 data = self.file_handle[self.sorted_sequence[t]]
                 item_tensors[sub_period].append(data)
-            item_tensors[sub_period] = torch.from_numpy(np.stack(item_tensors[sub_period]).astype(np.float32))
+            item_tensors[sub_period] = torch.from_numpy(
+                np.concatenate(item_tensors[sub_period], axis=0).astype(np.float32)
+            )
 
         return item_tensors['seq'], item_tensors['tru']
 
@@ -264,13 +266,21 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                             data = utils.square_select(date, height=height, width=width, plot=False).data
                             tot_nans = np.count_nonzero(np.isnan(data))
                             data = np.nan_to_num(data)
-                            if mode == 'c':
-                                f[date_str] = np.array(
+                            if mode == 'c':  # skipped if in raw mode
+                                data = np.array(
                                     [(classes[class_name][0] <= data) &
                                      (data < classes[class_name][1]) for class_name in classes]
                                 ).astype(int)
-                            else:  # raw mode
-                                f[date_str] = data
+                                data = utils.to_class_index(data)
+                                data = np.expand_dims(data, 0)
+                            # adding dimension for timestamp and coordinates
+                            normalized_time_of_day = utils.normalized_time_of_day_from_string(timestamp_string=date_str)
+                            # dim for concat
+                            timestamps_grid = np.full((1, height, width), normalized_time_of_day, dtype=np.float32)
+                            coordinates_array = cfg.CFG.coordinates_array
+                            data = np.concatenate((data, timestamps_grid, coordinates_array))
+
+                            f[date_str] = data
                             f[date_str].attrs['file_name'] = file_name
                             f[date_str].attrs['NaN'] = tot_nans
                             f[date_str].attrs['img_size'] = height * width
@@ -332,7 +342,7 @@ def h5_name(year: int, month: int, version_: version.Version, mode: str, classes
 
 def h5_files_names_list(date_ranges, *args, **kwargs):
     year_month_tuples = utils.ym_tuples(date_ranges)
-    return [h5_name(*ym, version_=version.Version("0.0.2"), *args, **kwargs) for ym in year_month_tuples]
+    return [h5_name(*ym, version_=cfg.CFG.CURRENT_H5_VERSION, *args, **kwargs) for ym in year_month_tuples]
 
 
 def ym_dictionary(date_ranges, *args, **kwargs):
@@ -349,7 +359,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
         if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name)):
             unavailable.append(file_name)
         else:
-            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'a') as f:
+            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), mode='a') as f:
                 try:
                     hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
                 except (KeyError, AssertionError):

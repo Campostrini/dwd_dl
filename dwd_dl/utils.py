@@ -20,6 +20,7 @@ def init_safety(func):  # Nice decorator in case it is needed.
         return func(*args, **kwargs)
     return wrapper
 
+
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
     if path is None:
         path = input('Enter a path for saving the trained model. ')
@@ -136,7 +137,7 @@ class ModelEvaluator:
         x, y_true = x.to(device), y_true.to(device)
         y = model(x)
 
-        x, y, y_true = to_class_index(x), torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), to_class_index(y_true)
+        x, y, y_true = x[::4], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[::4]
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
 
         return x, y, y_true
@@ -165,12 +166,16 @@ class ModelEvaluator:
         return out
 
 
-def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> torch.tensor:
+def to_class_index(tensor: torch.tensor, dtype=torch.long, device=torch.device('cuda:0'), numpy_or_torch='n'):
     """This function converts a tensor of shape (B,N,C,H,W) to (B,N,H,W) collapsing C into N as class index.
     It should only contain ones and zeros. The output are indices as torch.long.
 
+    works also with 3 and 4 dimensions
+
     Parameters
     ----------
+    device
+    numpy_or_torch
     dtype
     tensor
 
@@ -178,13 +183,23 @@ def to_class_index(tensor: torch.tensor, dtype: torch.dtype = torch.long) -> tor
     -------
 
     """
-    assert tensor.ndim == 5
+    ndim = tensor.ndim
+    assert ndim in (3, 4, 5)
+    assert numpy_or_torch in ('n', 't')
+    axes_to_add = tuple(i for i in range(0, 5 - ndim))
+    np_array = np.expand_dims(tensor, axes_to_add)
 
-    category_indices = torch.zeros(*tensor.shape[:2], *tensor.shape[-2:], device=tensor.device, dtype=tensor.dtype)
-    for category_number in range(tensor.shape[2]):
-        category_indices += category_number * tensor[:, :, category_number, ...]
+    category_indices = np.zeros((*np_array.shape[:2], *np_array.shape[-2:]))
+    for category_number in range(np_array.shape[2]):
+        category_indices += category_number * np_array[:, :, category_number, ...]
 
-    return category_indices.to(dtype=dtype)
+    category_indices = np.squeeze(category_indices, axis=axes_to_add)
+    if numpy_or_torch == 't':
+        category_indices = torch.from_numpy(category_indices)
+        category_indices.to(device=device)
+        category_indices.to(dtype=dtype)
+
+    return category_indices
 
 
 @init_safety
@@ -256,12 +271,16 @@ def square_select(time_stamp, height=None, width=None, plot=False):
     return out.copy()
 
 
+def cut_square(array, height, width, indices_up_left):
+    return array[indices_up_left[0] - height:indices_up_left[0], indices_up_left[1]:indices_up_left[1] + width]
+
+
 def year_month_tuple_list(start_date, end_date):
     start_year, start_month = start_date.year, start_date.month
     year = start_year
     month = start_month
     result = []
-    while year < end_date.year or month <= end_date.month:
+    while month + 12 * (year - end_date.year) <= end_date.month:  # this is a linear inequality
         result.append((year, month))
         year, month = next_year_month(year, month)
     return result
@@ -284,3 +303,11 @@ def ym_tuples(date_ranges):
     return year_month_tuples
 
 
+def normalized_time_of_day_from_string(timestamp_string, min_=-1, max_=1):
+    minute = int(timestamp_string[-2:])
+    hour = int(timestamp_string[-4:-3])
+    hour_minute = hour + (minute / 60)
+    hours_in_day = 24
+    std = max_ - min_
+    mean = max_ - std / 2
+    return (hour_minute / hours_in_day) * std - mean

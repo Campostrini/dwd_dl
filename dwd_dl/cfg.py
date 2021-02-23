@@ -1,6 +1,7 @@
 """Module for checking requirements and downloading the radar data.
 
 """
+import gzip
 import hashlib
 import inspect
 import os
@@ -25,6 +26,7 @@ import dwd_dl.yaml_utils as yu
 
 CFG = None
 CONFIG_WAS_RUN = False
+
 
 # TODO: Add download manager for current year
 
@@ -110,7 +112,7 @@ class RadolanConfigFileContent:
 def check_config_min_max_dates(min_start_date, max_end_date):
     assert min_start_date < max_end_date
     expected_min_start_date = dt.datetime(2005, 6, 1, 0, 50)
-    expected_max_start_date = dt.datetime(2019, 12, 31, 23, 50)
+    expected_max_start_date = dt.datetime(2020, 12, 31, 23, 50)
     try:
         assert min_start_date >= expected_min_start_date
         assert max_end_date <= expected_max_start_date
@@ -146,11 +148,21 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.0.2')
+        self._current_h5_version = version.Version('v0.0.3')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
 
         self._mode = cfg_content.MODE
         self._classes = cfg_content.CLASSES
+
+        radolan_grid_ll = utils.cut_square(
+            array=wrl.georef.get_radolan_grid(900, 900, wgs84=True),
+            height=self._height,
+            width=self._width,
+            indices_up_left=self._NW_CORNER_INDICES,
+        )
+
+        self._radolan_grid_ll_array = radolan_grid_ll  # shape (900, 900, 2)
+        self._coordinates_array = np.moveaxis(radolan_grid_ll, -1, 0)  # shape for concatenation. (2, 900, 900)
 
         if self._current_h5_version < self._h5_version:
             raise VersionTooLargeError(self._current_h5_version, self._h5_version)
@@ -231,10 +243,28 @@ class Config:
         return self._date_ranges
 
     @property
+    def timestamps_list(self):
+        timestamp_list = []
+        for date_range in self.date_ranges:
+            format_cache = date_range.date_format
+            date_range.switch_date_format(format_='timestamp_date_format')
+            timestamp_list.extend([x for x in date_range.str_date_range()])
+            date_range.switch_date_format(format_=format_cache)
+        return timestamp_list
+
+    @property
     def files_list(self):
         if self._files_list is None:
             self._files_list = RadolanFilesList(date_ranges=self.date_ranges)
         return self._files_list
+
+    @property
+    def coordinates_array(self):
+        return self._coordinates_array
+
+    @property
+    def radolan_grid_ll_array(self):
+        return self._radolan_grid_ll_array
 
     def check_and_make_dir_structures(self):
         if not os.path.isdir(self.RADOLAN_ROOT):
@@ -293,12 +323,18 @@ class Config:
 
                 listdir = os.listdir(td)
                 for file in listdir:
-                    if not file.endswith('.tar.gz'):
-                        continue
-                    with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
-                        print(f'Extracting all in {file}.')
-                        tf.extractall(self.RADOLAN_ROOT)
-                        print('All extracted.')
+                    if file.endswith('.tar.gz'):
+                        with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
+                            print(f'Extracting all in {file}.')
+                            tf.extractall(self.RADOLAN_ROOT)
+                            print('All extracted.')
+                    elif file.endswith('.gz'):
+                        with gzip.open(
+                                os.path.join(td, file), 'rb'
+                        ) as f_in, open(
+                            os.path.join(self.RADOLAN_ROOT, file.replace('.gz', '')), 'wb'
+                        ) as f_out:
+                            shutil.copyfileobj(f_in, f_out)
 
     def get_timestamps_hash(self):
         string_for_md5 = ''
@@ -364,13 +400,13 @@ class RadolanFilesList:
 
     @property
     def download_list(self):
-        download_list = [file.get_relevant_file_to_download(with_url=True) for file in self.files_list]
+        download_list = [file.get_relevant_file_to_download() for file in self.files_list]
         download_list = list(dict.fromkeys(download_list))
         return download_list
 
     @property
     def download_list_file_names(self):
-        download_list_file_names = [file.get_relevant_file_to_download(with_url=False) for file in self.files_list]
+        download_list_file_names = [file.get_file_name() for file in self.files_list]
         download_list_file_names = list(dict.fromkeys(download_list_file_names))
         return download_list_file_names
 
@@ -406,11 +442,11 @@ class RadolanFile:
     def month(self):
         return self.date.month
 
-    def get_relevant_file_to_download(self, with_url=False):
-        if not with_url:
-            return get_file_name(self.year, self.month)
-        else:
-            return get_download_url(self.year, self.month, base_url=CFG.BASE_URL)
+    def get_relevant_file_to_download(self):
+        return get_download_url(self.year, self.month, self.date, base_url=CFG.BASE_URL)
+
+    def get_file_name(self):
+        return get_download_file_name(self.year, self.month, self.date)
 
     def __eq__(self, other):
         if isinstance(other, RadolanFile):
@@ -524,20 +560,30 @@ def check_date_ranges():
     raise NotImplementedError
 
 
-def get_file_name(year, month, with_name_discrepancy=False):
+def get_monthly_file_name(year, month, date, with_name_discrepancy=False):
+    if date.year >= 2020:
+        warnings.warn("The Month File is probably not available for year {} month {}".format(year, month))
     if year == 2005 or not with_name_discrepancy:
         return 'RW-{}{:02d}.tar.gz'.format(year, month)
     else:
         return 'RW{}{:02d}.tar.gz'.format(year, month)
 
 
-def get_download_url(year, month, base_url):
-    url = base_url + f'{year}/' + get_file_name(year, month, with_name_discrepancy=True)
+def get_download_url(year, month, date: dt.datetime, base_url):  # TODO: refactor this
+    url = base_url + f'{year}/' + get_monthly_file_name(year, month, date, with_name_discrepancy=True)
+    if not file_is_available(url=url):
+        url = base_url.replace('historical', 'recent') + binary_file_name(date, extension='.gz')
     return url
 
 
-def read_ranges(date_ranges_path):
+def get_download_file_name(year, month, date: dt.datetime):
+    if 'historical' in get_download_url(year, month, date, base_url=CFG.BASE_URL):
+        return get_monthly_file_name(year, month, date)
+    else:
+        return binary_file_name(date, extension='.gz')
 
+
+def read_ranges(date_ranges_path):
     print('Reading date ranges.')
 
     date_ranges_data = yu.load_date_ranges(date_ranges_path)
@@ -575,16 +621,27 @@ class DateRange:
         return "{}_{}".format(self.start.strftime(self._date_format), self.end.strftime(self._date_format))
 
     def switch_date_format(self, format_=None):
-        assert format_ in ('ranges_date_format', 'timestamp_date_format', None)
+        assert format_ in ('ranges_date_format', 'timestamp_date_format', None,
+                           CFG.TIMESTAMP_DATE_FORMAT, CFG.RANGES_DATE_FORMAT,)
 
-        if format_ == 'ranges_date_format' or (format_ is None and self._date_format == CFG.TIMESTAMP_DATE_FORMAT):
+        if (format_ == 'ranges_date_format' or (format_ is None and self._date_format == CFG.TIMESTAMP_DATE_FORMAT)
+                or format_ == CFG.RANGES_DATE_FORMAT):
             self._date_format = CFG.RANGES_DATE_FORMAT
-        elif format_ == 'timestamp_date_format' or (format_ is None and self._date_format == CFG.RANGES_DATE_FORMAT):
+        elif (format_ == 'timestamp_date_format' or (format_ is None and self._date_format == CFG.RANGES_DATE_FORMAT)
+                or format_ == CFG.TIMESTAMP_DATE_FORMAT):
             self._date_format = CFG.TIMESTAMP_DATE_FORMAT
         return self
 
+    @property
+    def date_format(self):
+        return self._date_format
+
     def date_range(self, include_end=True):
         return daterange(self.start, self.end, include_end=include_end)
+
+    def str_date_range(self, include_end=True):
+        assert self._date_format is not None
+        return [x.strftime(self.date_format) for x in self.date_range(include_end=include_end)]
 
 
 class MonthDateRange(DateRange):
@@ -739,7 +796,7 @@ def daterange(start_date, end_date, include_end=False):
         end = 1
     else:
         end = 0
-    for n in range(int((end_date - start_date).total_seconds()/3600) + end):
+    for n in range(int((end_date - start_date).total_seconds() / 3600) + end):
         yield start_date + dt.timedelta(hours=n)
 
 
@@ -781,11 +838,13 @@ def config_was_run():
     return CONFIG_WAS_RUN
 
 
-def binary_file_name(time_stamp):
+def binary_file_name(time_stamp, extension=None):
     """Returns the file name of a DWD binary given a datetime.datetime timestamp.
 
     Parameters
     ----------
+    extension : str
+        A string that is appended to the filename.
     time_stamp : datetime.datetime
         A valid timestamp.
 
@@ -795,7 +854,10 @@ def binary_file_name(time_stamp):
         The name of the binary corresponding to the given timestamp. `raa01-rw_10000-yymmDDHHMM-dwd---bin`
 
     """
-    return 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime(CFG.TIMESTAMP_DATE_FORMAT))
+    file_name = 'raa01-rw_10000-{}-dwd---bin'.format(time_stamp.strftime(CFG.TIMESTAMP_DATE_FORMAT))
+    if extension:
+        return file_name + extension
+    return file_name
 
 
 def distance(a_tup, b_tup):
@@ -814,10 +876,10 @@ def distance(a_tup, b_tup):
         A 2D array containing the distances of each and every point in b_tup from a_tup.
 
     """
-    return np.sqrt((np.subtract(a_tup, b_tup)**2).sum(axis=2))
+    return np.sqrt((np.subtract(a_tup, b_tup) ** 2).sum(axis=2))
 
 
-def coords_finder(lat, lon, distances_output=False, verbose=False):
+def coords_finder(lon, lat, distances_output=False, verbose=False):
     """finds x, y coordinates given lon lat for the 900x900 RADOLAN grid.
 
     Parameters
@@ -848,7 +910,7 @@ def coords_finder(lat, lon, distances_output=False, verbose=False):
     proj_wgs.ImportFromEPSG(4326)
     if verbose:
         print(proj_wgs)
-    coords_ll = np.array([lat, lon])
+    coords_ll = np.array([lon, lat])
     radolan_grid_xy = wrl.georef.get_radolan_grid(900, 900)
     coords_xy = wrl.georef.reproject(coords_ll, projection_source=proj_wgs, projection_target=proj_stereo)
     # TODO: refactor line above using wrl.georef.get_radolan_coords

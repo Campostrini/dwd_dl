@@ -13,7 +13,10 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
 
         features = init_features
-        self._in_channels = in_channels
+        lon_lat_channels = 2
+        timestamp_channel = 1
+        image_channel = 1
+        self._in_channels = in_channels * (image_channel + timestamp_channel + lon_lat_channels)
         self._out_channels = out_channels
         self._permute_output = permute_output
         self._softmax = softmax_output
@@ -23,7 +26,7 @@ class UNet(nn.Module):
         sizes = [init_features * 2**n for n in range(depth)]
         if not cat:
             sizes_in_down = sizes.copy()
-            sizes_in_down.insert(0, in_channels)
+            sizes_in_down.insert(0, self._in_channels)
             del sizes_in_down[-1]
             sizes_out_down = sizes.copy()
 
@@ -33,7 +36,7 @@ class UNet(nn.Module):
             del sizes_out_up[-1]
         else:
             sizes_in_down = [2 * i for i in sizes]
-            sizes_in_down.insert(0, in_channels * 2)
+            sizes_in_down.insert(0, self._in_channels * 2)
             del sizes_in_down[-1]
             sizes_out_down = sizes.copy()
 
@@ -50,8 +53,8 @@ class UNet(nn.Module):
         self._cat = cat
 
         self.basic1 = UNet._basic_block(
-            in_channels=in_channels,
-            out_channels=in_channels,
+            in_channels=self._in_channels,
+            out_channels=self._in_channels,
             name="basic1",
             conv_bias=self._conv_bias,
         )
@@ -105,8 +108,6 @@ class UNet(nn.Module):
         self.softmax = nn.Softmax(dim=2)  # probably not right!
 
     def forward(self, x):
-
-        x = utils.to_class_index(x, dtype=torch.float)
 
         basic1 = self.basic1(x)
         x = self.sum_or_cat(basic1, x)

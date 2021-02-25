@@ -207,7 +207,7 @@ class Config:
     @property
     def RADOLAN_H5(self):
         if self.VSC:
-            root = os.environ['GLOBAL']
+            root = os.environ['BINFL']
         else:
             root = self.RADOLAN_ROOT
         return os.path.join(root, 'H5')

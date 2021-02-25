@@ -82,7 +82,7 @@ def selection(
         x_slice, y_slice = None, None
 
     # Open the data
-    file_path = os.path.join(cfg.CFG.RADOLAN_ROOT, cfg.binary_file_name(time_stamp))
+    file_path = os.path.join(cfg.CFG.RADOLAN_RAW, cfg.binary_file_name(time_stamp))
     rw_filename = wrl.util.get_wradlib_data_file(file_path)
     ds, rwattrs = wrl.io.read_radolan_composite(rw_filename, loaddata='xarray')
 

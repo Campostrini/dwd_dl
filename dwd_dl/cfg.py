@@ -189,6 +189,14 @@ class Config:
         return self._RADOLAN_ROOT
 
     @property
+    def RADOLAN_RAW(self):
+        return os.path.join(self.RADOLAN_ROOT, 'Raw')
+
+    @property
+    def RADOLAN_H5(self):
+        return os.path.join(self.RADOLAN_ROOT, 'H5')
+
+    @property
     def MIN_START_DATE(self):
         return self._MIN_START_DATE
 
@@ -267,8 +275,9 @@ class Config:
         return self._radolan_grid_ll_array
 
     def check_and_make_dir_structures(self):
-        if not os.path.isdir(self.RADOLAN_ROOT):
-            os.makedirs(self.RADOLAN_ROOT)
+        for dir_ in (self.RADOLAN_ROOT, self.RADOLAN_RAW, self.RADOLAN_H5):
+            if not os.path.isdir(dir_):
+                os.makedirs(dir_)
 
     def make_date_ranges(self):
         if not os.path.isfile(self.DATE_RANGES_FILE_PATH):
@@ -326,13 +335,13 @@ class Config:
                     if file.endswith('.tar.gz'):
                         with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
                             print(f'Extracting all in {file}.')
-                            tf.extractall(self.RADOLAN_ROOT)
+                            tf.extractall(self.RADOLAN_RAW)
                             print('All extracted.')
                     elif file.endswith('.gz'):
                         with gzip.open(
                                 os.path.join(td, file), 'rb'
                         ) as f_in, open(
-                            os.path.join(self.RADOLAN_ROOT, file.replace('.gz', '')), 'wb'
+                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
@@ -461,7 +470,7 @@ class RadolanFile:
         return hash(self.file_name)
 
     def exists(self):
-        return os.path.isfile(os.path.join(CFG.RADOLAN_ROOT, self.file_name))
+        return os.path.isfile(os.path.join(CFG.RADOLAN_RAW, self.file_name))
 
 
 def get_download_size(url):
@@ -484,7 +493,7 @@ def initialize(inside_initialize=True, skip_download=False):
     check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
         CFG.download_missing_files()
-    os.environ['WRADLIB_DATA'] = CFG.RADOLAN_ROOT
+    os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 
 

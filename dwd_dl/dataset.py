@@ -256,7 +256,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                 utils.ym_tuples(cfg.CFG.date_ranges), h5_files_names_list(cfg.CFG.date_ranges, classes=classes, mode=mode, with_extension=True)
         ):
             if file_name in to_create:
-                with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'a') as f:
+                with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
                     for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
                         date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
                         if verbose:
@@ -295,7 +295,7 @@ def read_h5(filename):
     if not filename.endswith('.h5'):
         filename += '.h5'
 
-    f = h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), filename), 'a')
+    f = h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), filename), 'a')
 
     return f
 
@@ -356,10 +356,10 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
     unavailable = []
     required = h5_files_names_list(date_ranges, *args, with_extension=True, **kwargs)
     for file_name in required:
-        if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name)):
+        if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)
         else:
-            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), mode='a') as f:
+            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
                 try:
                     hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
                 except (KeyError, AssertionError):
@@ -368,7 +368,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
 
             if hash_check:
                 unavailable.append(file_name)
-                os.remove(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name))
+                os.remove(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name))
 
     return unavailable
 
@@ -383,7 +383,7 @@ class H5Dataset:
             raise FileNotFoundError(f"Missing h5 files: {missing}")
         self.year_month_file_names_dictionary = ym_dictionary(date_ranges, mode=mode, classes=classes, with_extension=True)
         self.files_dictionary = {
-            ym: h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), file_name), 'r')
+            ym: h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'r')
             for (ym, file_name) in self.year_month_file_names_dictionary.items()
         }
 

@@ -22,7 +22,7 @@ dependencies:
   - ca-certificates=2020.10.14=0
   - cachetools=4.1.1=py_0
   - cairo=1.16.0=hcf35c78_1003
-  - cartopy=0.18.0=py37h55f60b2_1
+  - cartopy=0.18.0
   - certifi=2020.6.20=pyhd3eb1b0_3
   - cffi=1.14.0=py37hd463f26_0
   - cfitsio=3.470=h3eac812_5

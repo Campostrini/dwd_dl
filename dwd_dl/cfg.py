@@ -429,8 +429,10 @@ class RadolanFilesList:
 
     @property
     def download_list(self):
+        print("Computing download list...")
         download_list = [file.get_relevant_file_to_download() for file in self.files_list]
         download_list = list(dict.fromkeys(download_list))
+        print("Computed...")
         return download_list
 
     @property

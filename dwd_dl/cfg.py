@@ -497,6 +497,7 @@ class RadolanFile:
 
 def get_download_size(url):
     r = requests.head(url)
+    print(f"Getting download size for: {url}")
     return int(r.headers['Content-Length'])
 
 

@@ -143,7 +143,6 @@ def validate_date_ranges(data):
     yamale.validate(schema, data)
 
 
-
 def log_dump(**kwargs):
     if os.path.isfile(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml')):
         with open(os.path.join(os.path.expanduser('~/.radolan_config'), 'RADOLAN_LOG.yml'), 'r+') as f:

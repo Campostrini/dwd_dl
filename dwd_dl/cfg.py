@@ -45,6 +45,7 @@ class RadolanConfigFileContent:
             H5_VERSION: str,
             MODE: str,
             CLASSES: dict,
+            VSC: bool,
     ):
         self._BASE_URL = BASE_URL
         self._RADOLAN_ROOT = RADOLAN_ROOT
@@ -58,6 +59,7 @@ class RadolanConfigFileContent:
         self._H5_VERSION = H5_VERSION
         self._MODE = MODE
         self._CLASSES = CLASSES
+        self._VSC = VSC
 
     @property
     def BASE_URL(self):
@@ -108,6 +110,10 @@ class RadolanConfigFileContent:
         # return self._CLASSES  # TODO: Create a validator for this
         return {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
+    @property
+    def VSC(self):
+        return self._VSC
+
 
 def check_config_min_max_dates(min_start_date, max_end_date):
     assert min_start_date < max_end_date
@@ -154,6 +160,8 @@ class Config:
         self._mode = cfg_content.MODE
         self._classes = cfg_content.CLASSES
 
+        self._VSC = cfg_content.VSC
+
         radolan_grid_ll = utils.cut_square(
             array=wrl.georef.get_radolan_grid(900, 900, wgs84=True),
             height=self._height,
@@ -190,11 +198,19 @@ class Config:
 
     @property
     def RADOLAN_RAW(self):
-        return os.path.join(self.RADOLAN_ROOT, 'Raw')
+        if self.VSC:
+            root = os.environ['BINFL']
+        else:
+            root = self.RADOLAN_ROOT
+        return os.path.join(root, 'Raw')
 
     @property
     def RADOLAN_H5(self):
-        return os.path.join(self.RADOLAN_ROOT, 'H5')
+        if self.VSC:
+            root = os.environ['GLOBAL']
+        else:
+            root = self.RADOLAN_ROOT
+        return os.path.join(root, 'H5')
 
     @property
     def MIN_START_DATE(self):
@@ -243,6 +259,10 @@ class Config:
     @property
     def CLASSES(self):
         return self._classes
+
+    @property
+    def VSC(self):
+        return self._VSC
 
     @property
     def date_ranges(self):

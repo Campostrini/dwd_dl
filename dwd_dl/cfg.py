@@ -448,6 +448,7 @@ class RadolanFilesList:
             return self._total_size
 
         total_size = 0
+        print(self.download_list)
         print("Computing download size.")
         for url in tqdm(self.download_list):
             total_size += get_download_size(url)

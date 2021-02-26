@@ -431,8 +431,9 @@ class RadolanFilesList:
     def download_list(self):
         print("Computing download list...")
         download_list = [file.get_relevant_file_to_download() for file in self.files_list]
+        print("Eliminating redundancies...")
         download_list = list(dict.fromkeys(download_list))
-        print("Computed...")
+        print("Done")
         return download_list
 
     @property
@@ -450,7 +451,7 @@ class RadolanFilesList:
         total_size = 0
 
         print("Computing download size.")
-        for url in self.download_list:
+        for url in tqdm(self.download_list):
             total_size += get_download_size(url)
 
         self._total_size = total_size
@@ -475,6 +476,7 @@ class RadolanFile:
         return self.date.month
 
     def get_relevant_file_to_download(self):
+        print(f"Getting relevant file to download for {self.year} - {self.month} - {self.date}")
         return get_download_url(self.year, self.month, self.date, base_url=CFG.BASE_URL)
 
     def get_file_name(self):

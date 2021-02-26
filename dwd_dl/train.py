@@ -127,7 +127,7 @@ def main(device, verbose, weights, logs, batch_size, workers,
 
         for phase in pr_data:
             for set_ in pr_data[phase]:
-                pr_data[phase][set_] = np.concatenate(pr_data[phase][set_], dim=0)
+                pr_data[phase][set_] = np.concatenate(pr_data[phase][set_], axis=0)
 
         # writer.add_figure('Confusion Matrix', sklearn.metrics.plot_confusion_martix())
 

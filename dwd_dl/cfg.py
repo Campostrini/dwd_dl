@@ -139,7 +139,7 @@ class Config:
 
         self._BASE_URL = cfg_content.BASE_URL
 
-        self._RADOLAN_ROOT = os.path.abspath(os.path.expanduser(cfg_content.RADOLAN_ROOT))
+        self._RADOLAN_ROOT = os.path.expandvars(os.path.abspath(os.path.expanduser(cfg_content.RADOLAN_ROOT)))
 
         self._MIN_START_DATE = cfg_content.MIN_START_DATE
         self._MAX_END_DATE = cfg_content.MAX_END_DATE

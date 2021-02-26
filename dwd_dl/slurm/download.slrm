@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+#SBATCH -J download
+#SBATCH -N 1
+#SBATCH --qos normal_binf
+#SBATCH -C binf
+#SBATCH --partition binf
+#SBATCH --profile=None
+#SBATCH --ntasks-per-node=16
+#SBATCH --ntasks-per-core=1
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
+#SBATCH --min-time=04:00:00
+#SBATCH --output=~/project/.out/
+
+conda activate py37
+
+cd ~/project/source/dwd-dl-thesis/dwd_dl/
+
+python download.py37 <<EOF
+y
+EOF

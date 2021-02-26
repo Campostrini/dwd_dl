@@ -11,9 +11,9 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
 #SBATCH --time=04:00:00
-#SBATCH --output=$HOME/project/.out/
+#SBATCH --output=$HOME/project/.out/%j.out
 
-conda activate py37
+source activate py37
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 

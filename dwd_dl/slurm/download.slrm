@@ -17,6 +17,6 @@ source activate py37
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python download.py37 <<EOF
+python download.py <<EOF
 y
 EOF

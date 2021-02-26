@@ -19,6 +19,7 @@ import wradlib as wrl
 from osgeo import osr
 from tqdm import tqdm
 from packaging import version
+from typing import List
 
 import dwd_dl as dl
 import dwd_dl.utils as utils
@@ -347,7 +348,6 @@ class Config:
                 download_files_to_directory(
                     os.path.abspath(td),
                     missing_files.download_list,
-                    missing_files.download_list_file_names
                 )
 
                 listdir = os.listdir(td)
@@ -394,6 +394,8 @@ class RadolanFilesList:
         # total download size initialization
         self._total_size = 0
 
+        self._download_list = None
+
     @staticmethod
     def _valid_inputs_for_files_list_add(other):
         if not (isinstance(other, RadolanFilesList) or isinstance(other, list)):
@@ -429,18 +431,19 @@ class RadolanFilesList:
 
     @property
     def download_list(self):
-        print("Computing download list...")
-        download_list = [file.get_relevant_file_to_download() for file in self.files_list]
-        print("Eliminating redundancies...")
-        download_list = list(dict.fromkeys(download_list))
-        print("Done")
+        if not self._download_list:
+            download_list = []
+            print("Computing download list.")
+            for file in self.files_list:
+                if file.date not in download_list:
+                    download_file = DownloadFile(file.year, file.month, file.date, CFG.BASE_URL)
+                    download_list.append(download_file)
+                    print(f"Added {download_file} to the download list.")
+            self._download_list = download_list
+            print("Done")
+        else:
+            download_list = self._download_list
         return download_list
-
-    @property
-    def download_list_file_names(self):
-        download_list_file_names = [file.get_file_name() for file in self.files_list]
-        download_list_file_names = list(dict.fromkeys(download_list_file_names))
-        return download_list_file_names
 
     @property
     def total_download_size(self):
@@ -451,8 +454,8 @@ class RadolanFilesList:
         total_size = 0
 
         print("Computing download size.")
-        for url in tqdm(self.download_list):
-            total_size += get_download_size(url)
+        for file in self.download_list:
+            total_size += file.size
 
         self._total_size = total_size
 
@@ -595,6 +598,80 @@ def check_date_ranges():
     raise NotImplementedError
 
 
+class DownloadFile:
+    def __init__(self, year, month, date, base_url):
+        assert date.year == year
+        assert date.month == month
+        file_name = get_monthly_file_name(year, month, date, with_name_discrepancy=True)
+        url = base_url + f'{year}/' + file_name
+        size = file_is_available(url)
+        is_monthly = True
+        if not size:
+            file_name = binary_file_name(date, extension='.gz')
+            url = base_url.replace('historical', 'recent') + file_name
+            size = file_is_available(url)
+            is_monthly = False
+
+        self._url = url
+        self._file_name = file_name
+        self._size = size
+        self._is_monthly = is_monthly
+        self._year = year
+        self._month = month
+        if self._is_monthly:
+            self._date = dt.datetime(year, month, 1, 0, 50)
+        else:
+            self._date = date
+
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def file_name(self):
+        return self._file_name
+
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def date(self):
+        return self._date
+
+    @property
+    def year(self):
+        return self._year
+
+    @property
+    def month(self):
+        return self._month
+
+    def is_monthly(self):
+        return self._is_monthly
+
+    def is_hourly(self):
+        return not self._is_monthly
+
+    def contains_date(self, date: dt.datetime):
+        assert isinstance(date, dt.datetime)
+        if self.is_hourly():
+            return self.date == date
+        else:
+            return self.year == date.year and self.month == date.month
+
+    def __eq__(self, other):
+        if not (isinstance(other, DownloadFile) or isinstance(other, dt.datetime)):
+            raise TypeError(f"Expected {type(DownloadFile)} or {type(dt.datetime)} but got {type(other)} instead.")
+        if isinstance(other, DownloadFile):
+            return self.file_name == other.file_name
+        else:
+            return self.contains_date(other)
+
+    def __str__(self):
+        return f"<DownloadFile named: {self.file_name} of size: {self.size}.>"
+
+
 def get_monthly_file_name(year, month, date, with_name_discrepancy=False):
     if date.year >= 2020:
         warnings.warn("The Month File is probably not available for year {} month {}".format(year, month))
@@ -733,7 +810,7 @@ def file_is_available(url):
         return int(r.headers['Content-Length'])
 
 
-def download_files_to_directory(dirpath, downloadable_list, names_list):
+def download_files_to_directory(dirpath, downloadable_list: List[DownloadFile]):
     """Downloads files to directory.
 
     Parameters
@@ -742,8 +819,6 @@ def download_files_to_directory(dirpath, downloadable_list, names_list):
         Valid path to a directory.
     downloadable_list : str or list of str
         Valid urls pointing to downloadable files.
-    names_list : str or list of str
-        Names to give to the files in downloadable_list.
 
     Raises
     ------
@@ -753,15 +828,11 @@ def download_files_to_directory(dirpath, downloadable_list, names_list):
     """
     if not os.path.isdir(dirpath):
         raise OSError('Invalid Path.')
-    if type(downloadable_list) is not list:
-        downloadable_list = [downloadable_list]
-    if type(names_list) is not list:
-        names_list = [names_list]
 
-    for url, name in zip(downloadable_list, names_list):
-        print(f'Downloading file {name}')
-        r = requests.get(url)
-        with open(os.path.join(os.path.abspath(dirpath), name), 'wb') as fd:
+    for file in downloadable_list:
+        print(f'Downloading file {file.file_name}')
+        r = requests.get(file.url)
+        with open(os.path.join(os.path.abspath(dirpath), file.file_name), 'wb') as fd:
             for chunk in r.iter_content(chunk_size=128):
                 fd.write(chunk)
 

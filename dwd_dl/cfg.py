@@ -373,7 +373,7 @@ class Config:
                             os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
-                        os.remove(file)
+                        os.remove(os.path.join(self.RADOLAN_RAW, file))
 
     def get_timestamps_hash(self):
         string_for_md5 = ''

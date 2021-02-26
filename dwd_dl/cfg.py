@@ -365,6 +365,16 @@ class Config:
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
+                for file in os.listdir(self.RADOLAN_RAW):
+                    if file.endswith('.gz'):
+                        with gzip.open(
+                            os.path.join(self.RADOLAN_RAW, file), 'rb'
+                        ) as f_in, open(
+                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
+                        ) as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                        os.remove(file)
+
     def get_timestamps_hash(self):
         string_for_md5 = ''
         for file in self.files_list:

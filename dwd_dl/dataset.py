@@ -363,7 +363,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
                 try:
                     hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
                 except (KeyError, AssertionError):
-                    print("h5 file name not corresponding to content.")
+                    print(f"h5 file name not corresponding to content for file {file_name}")
                     hash_check = False
 
             if hash_check:

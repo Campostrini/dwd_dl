@@ -82,8 +82,20 @@ def selection(
         x_slice, y_slice = None, None
 
     # Open the data
-    file_path = os.path.join(cfg.CFG.RADOLAN_RAW, cfg.binary_file_name(time_stamp))
-    rw_filename = wrl.util.get_wradlib_data_file(file_path)
+    file_name = cfg.binary_file_name(time_stamp)
+    file_path = os.path.join(cfg.CFG.RADOLAN_RAW, file_name)
+    try:
+        rw_filename = wrl.util.get_wradlib_data_file(file_path)
+    except OSError:
+        print(f"File {file_name} not found. Starting approximation loop.")
+        for file_name in cfg.binary_file_name_approx_generator(time_stamp):
+            file_path = os.path.join(cfg.CFG.RADOLAN_RAW, file_name)
+            try:
+                rw_filename = wrl.util.get_wradlib_data_file(file_path)
+                print(f"Found file {file_name}. Using this for timestamp: {time_stamp}")
+                break
+            except OSError:
+                continue
     ds, rwattrs = wrl.io.read_radolan_composite(rw_filename, loaddata='xarray')
 
     if (x_slice, y_slice) != (None, None):

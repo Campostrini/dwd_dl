@@ -976,6 +976,24 @@ def binary_file_name(time_stamp, extension=None):
     return file_name
 
 
+def binary_file_name_approx_generator(time_stamp, extension=None):
+    """
+
+    Parameters
+    ----------
+    time_stamp
+    extension
+
+    Yields
+    ------
+
+    """
+    for i in range(60):
+        delta = dt.timedelta(minutes=((-1)**i*((i+1)//2)))  # gives: 0 -1 1 -2 2 and so on
+        yield binary_file_name(time_stamp + delta, extension=extension)
+    raise OverflowError
+
+
 def distance(a_tup, b_tup):
     """Computes the distance between numpy.ndarray .
 

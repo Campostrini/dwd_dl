@@ -263,7 +263,12 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                             print('Processing {}'.format(date_str))
                         if date_str not in f.keys():
                             file_name = cfg.binary_file_name(time_stamp=date)
-                            data = utils.square_select(date, height=height, width=width, plot=False).data
+                            try:
+                                data = utils.square_select(date, height=height, width=width, plot=False).data
+                            except OverflowError:
+                                # If not found then treat is as NaN-filled
+                                data = np.empty((height, width))
+                                data[:] = np.nan
                             tot_nans = np.count_nonzero(np.isnan(data))
                             data = np.nan_to_num(data)
                             if mode == 'c':  # skipped if in raw mode

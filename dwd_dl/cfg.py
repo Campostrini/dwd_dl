@@ -24,6 +24,7 @@ from typing import List
 import dwd_dl as dl
 import dwd_dl.utils as utils
 import dwd_dl.yaml_utils as yu
+import dwd_dl.dataset as ds
 
 CFG = None
 CONFIG_WAS_RUN = False
@@ -530,7 +531,7 @@ def initialize(inside_initialize=True, skip_download=False):
     CFG.check_and_make_dir_structures()
     CFG.make_date_ranges()
     check_ranges_overlap(CFG.date_ranges)
-    if not skip_download:
+    if ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE) and not skip_download:
         CFG.download_missing_files()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG

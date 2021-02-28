@@ -262,7 +262,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                         if verbose:
                             print('Processing {}'.format(date_str))
                         if date_str not in f.keys():
-                            file_name = cfg.binary_file_name(time_stamp=date)
+                            binary_file_name = cfg.binary_file_name(time_stamp=date)  # TODO: refactor. Not correct for deviations
                             try:
                                 data = utils.square_select(date, height=height, width=width, plot=False).data
                             except OverflowError:
@@ -286,7 +286,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                             data = np.concatenate((data, timestamps_grid, coordinates_array))
 
                             f[date_str] = data
-                            f[date_str].attrs['file_name'] = file_name
+                            f[date_str].attrs['file_name'] = binary_file_name
                             f[date_str].attrs['NaN'] = tot_nans
                             f[date_str].attrs['img_size'] = height * width
                             f[date_str].attrs['tot_pre'] = np.nansum(data)
@@ -367,6 +367,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
             with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
                 try:
                     hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
+                    assert hash_check
                 except (KeyError, AssertionError):
                     print(f"h5 file name not corresponding to content for file {file_name}")
                     hash_check = False

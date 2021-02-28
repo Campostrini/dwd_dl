@@ -371,7 +371,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
                     print(f"h5 file name not corresponding to content for file {file_name}")
                     hash_check = False
 
-            if hash_check:
+            if not hash_check:
                 unavailable.append(file_name)
                 os.remove(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name))
 

@@ -5,6 +5,7 @@
 #SBATCH --qos gpu_v100
 #SBATCH -C gpu
 #SBATCH --partition gpu_v100
+#SBATCH --gres gpu:1
 #SBATCH --ntasks-per-node=16
 #SBATCH --ntasks-per-core=1
 #SBATCH --mail-type=ALL

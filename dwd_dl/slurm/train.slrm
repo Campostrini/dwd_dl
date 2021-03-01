@@ -3,7 +3,6 @@
 #SBATCH -J train
 #SBATCH -N 1
 #SBATCH --qos gpu_v100
-#SBATCH -C gpu
 #SBATCH --partition gpu_v100
 #SBATCH --gres gpu:1
 #SBATCH --ntasks-per-node=16

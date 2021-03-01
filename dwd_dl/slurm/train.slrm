@@ -9,13 +9,13 @@
 #SBATCH --ntasks-per-core=1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
-#SBATCH --time=04:00:00
-#SBATCH --output=/home/lv71491/stefanoc/project/.out/%j.out
+#SBATCH --time=20:00:00
+#SBATCH --output=/home/lv71491/stefanoc/project/.out/train%j.out
 
 source activate py37
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python download.py <<EOF
+python train.py --batch-size 175 --epochs 100 --save true --workers 4 --<<EOF
 y
 EOF

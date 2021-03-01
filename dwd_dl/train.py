@@ -21,9 +21,8 @@ import dwd_dl as dl
 from dwd_dl import yaml_utils
 
 
-def main(device, verbose, weights, logs, batch_size, workers,
+def main(device, verbose, batch_size, workers,
          image_size, lr, epochs, save, cat, **kwargs):
-    makedirs(weights=weights, logs=logs)
     device = torch.device("cpu" if not torch.cuda.is_available() else device)
 
     with data_loaders(batch_size=batch_size, workers=workers, image_size=image_size) as loaders_:

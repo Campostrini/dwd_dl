@@ -4,6 +4,7 @@
 
 import datetime as dt
 import os
+from typing import List
 
 import torch
 from torch.utils.data import DataLoader
@@ -137,7 +138,7 @@ class ModelEvaluator:
         x, y_true = x.to(device), y_true.to(device)
         y = model(x)
 
-        x, y, y_true = x[::4], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[::4]
+        x, y, y_true = x[:, ::4], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[:, ::4]
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
 
         return x, y, y_true
@@ -164,6 +165,27 @@ class ModelEvaluator:
         for phase in self._phases:
             out[phase] = self._dataset[phase].timestamps
         return out
+
+
+def get_images_arrays(dates_list: List[dt.datetime], path_to_saved_model, eval_or_train='eval', batch_size=None):
+    import dwd_dl.dataset as ds
+
+    with ds.h5dataset_context_wrapper(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES) as f:
+        evaluator = ModelEvaluator(
+            h5file_handle=f,
+            path_to_saved_model=path_to_saved_model,
+            network_class=unet.UNet,
+            date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
+            eval_or_train=eval_or_train
+        )
+        images_arrays = []
+        with torch.no_grad():
+            legal_timestamps = evaluator.legal_timestamps
+            for date in dates_list:
+                timestamp = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+                if date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT) in legal_timestamps:
+                    images_arrays.append(evaluator.on_timestamp(timestamp))
+    return images_arrays
 
 
 def to_class_index(tensor: torch.tensor, dtype=torch.long, device=torch.device('cuda:0'), numpy_or_torch='n'):

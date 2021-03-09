@@ -744,6 +744,11 @@ class DateRange:
     def __str__(self):
         return "{}_{}".format(self.start.strftime(self._date_format), self.end.strftime(self._date_format))
 
+    def __contains__(self, item):
+        if isinstance(item, dt.datetime):
+            return self.start <= item <= self.end
+        return False
+
     def switch_date_format(self, format_=None):
         assert format_ in ('ranges_date_format', 'timestamp_date_format', None,
                            CFG.TIMESTAMP_DATE_FORMAT, CFG.RANGES_DATE_FORMAT,)

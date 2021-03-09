@@ -82,7 +82,7 @@ class RadolanDataset(Dataset):
         nan_days = {}
         std = {}
         mean = {}
-        for date in cfg.CFG.timestamps_list:
+        for date in tqdm(cfg.CFG.timestamps_list):
             tot_pre[date] = h5file_handle[date].attrs['tot_pre']
             nan_days[date] = h5file_handle[date].attrs['NaN']
             std[date] = h5file_handle[date].attrs['std']
@@ -413,3 +413,13 @@ class H5Dataset:
 
     def __iter__(self):
         return iter(self.keys())
+
+
+@contextmanager
+def h5dataset_context_wrapper(*args, **kwargs):
+    f = H5Dataset(*args, **kwargs)
+
+    try:
+        yield f
+    finally:
+        f.close()

@@ -123,6 +123,7 @@ def main(device, verbose, batch_size, workers,
             writer.add_scalar('Accuracy/valid', epoch_accuracy_valid/total_elements_valid, epoch)
             # writer.add_pr_curve('Precision & Recall', )
             writer.flush()
+            print(f"Epoch: {epoch} finished.")
 
         for phase in pr_data:
             for set_ in pr_data[phase]:

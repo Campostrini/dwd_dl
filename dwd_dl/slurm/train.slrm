@@ -15,4 +15,4 @@ source activate py37
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python train.py --batch-size 175 --epochs 100 --save true --workers 4
+python train.py --batch-size 175 --epochs 30 --save true --workers 4

@@ -10,7 +10,8 @@
 #SBATCH --time=20:00:00
 #SBATCH --output=/home/lv71491/stefanoc/project/.out/train%j.out
 
-module list
+module purge
+module load cuda/10.1.168
 
 source activate py37
 

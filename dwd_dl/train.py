@@ -24,6 +24,7 @@ from dwd_dl import yaml_utils
 def main(device, verbose, batch_size, workers,
          image_size, lr, epochs, save, cat, **kwargs):
     device = torch.device("cpu" if not torch.cuda.is_available() else device)
+    print(f"Using: {device}")
 
     with data_loaders(batch_size=batch_size, workers=workers, image_size=image_size) as loaders_:
         loader_train, loader_valid = loaders_

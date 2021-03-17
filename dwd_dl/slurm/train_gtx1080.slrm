@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+#SBATCH -J train
+#SBATCH -N 1
+#SBATCH --qos gpu_gtx1080single
+#SBATCH --partition gpu_gtx1080single
+#SBATCH --gres gpu:1
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
+#SBATCH --time=20:00:00
+#SBATCH --mem 128G
+#SBATCH --output=/home/lv71491/stefanoc/project/.out/train%j.out
+
+source activate py37
+
+cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
+
+python train.py --batch-size 175 --epochs 30 --save true --workers 4

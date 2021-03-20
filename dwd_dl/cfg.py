@@ -175,6 +175,9 @@ class Config:
 
         self._VSC = cfg_content.VSC
 
+        self._VIDEO_START = cfg_content.VIDEO_START
+        self._VIDE_END = cfg_content.VIDEO_END
+
         radolan_grid_ll = utils.cut_square(
             array=wrl.georef.get_radolan_grid(900, 900, wgs84=True),
             height=self._height,
@@ -276,6 +279,14 @@ class Config:
     @property
     def VSC(self):
         return self._VSC
+
+    @property
+    def VIDEO_START(self):
+        return self._VIDEO_START
+
+    @property
+    def VIDEO_END(self):
+        return self._VIDE_END
 
     @property
     def date_ranges(self):

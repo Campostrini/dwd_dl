@@ -32,7 +32,7 @@ class RadarSequence:
         self._dates_list = [date for date in cfg.daterange(start_date, end_date, include_end=True)]
         self._images_arrays = get_images_arrays(self._dates_list, path_to_saved_model, batch_size=batch_size)
         self._images_arrays = [
-            np.concatenate(np.squeeze(im_item, axis=0) for im_item in im) for im in self._images_arrays
+            np.concatenate((np.squeeze(im_item, axis=0) for im_item in im)) for im in self._images_arrays
         ]
         self.state = self._images_arrays[0]
         self._step_index = 0

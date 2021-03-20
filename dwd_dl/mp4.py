@@ -14,6 +14,7 @@ Please feel free to use and modify this, but keep the above information. Thanks!
 """
 
 import datetime as dt
+from typing import Union
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -24,13 +25,15 @@ from .utils import get_images_arrays, to_class_index
 
 
 class RadarSequence:
-    def __init__(self, start_date: dt.datetime, end_date: dt.datetime, batch_size: int):
+    def __init__(self, start_date: dt.datetime, end_date: dt.datetime, batch_size: int, path_to_saved_model: str):
         self.start_date = start_date
         self.end_date = end_date
         self.batch_size = batch_size
         self._dates_list = [date for date in cfg.daterange(start_date, end_date, include_end=True)]
-        self._images_arrays = get_images_arrays(self._dates_list, "/shared1/PythonProjects/MasterThesis/Radolan/Models/2021-03-02 18:01:37.069121/UNet_run_2021-03-02 18:01:37.069121.pt", batch_size=batch_size)
-        self._images_arrays = [(to_class_index(im[0]), im[1], to_class_index(im[2])) for im in self._images_arrays]
+        self._images_arrays = get_images_arrays(self._dates_list, path_to_saved_model, batch_size=batch_size)
+        self._images_arrays = [
+            np.concatenate(np.squeeze(im_item, axis=0) for im_item in im) for im in self._images_arrays
+        ]
         self.state = self._images_arrays[0]
         self._step_index = 0
         self.time_elapsed = dt.timedelta(0)
@@ -45,8 +48,14 @@ class RadarSequence:
         print(self.current_time)
 
 
-def save_mp4(start_date: dt.datetime, end_date: dt.datetime, batch_size: int = 5):
-    radar_sequence = RadarSequence(start_date=start_date, end_date=end_date, batch_size=batch_size)
+def save_mp4(start_date: dt.datetime, end_date: dt.datetime, path_to_saved_model, path_to_mp4,
+             batch_size: int = 5, image_index: Union[int, None] = None):
+
+    if image_index is None:
+        image_index = 6
+    assert image_index in range(8)
+    radar_sequence = RadarSequence(start_date=start_date, end_date=end_date, batch_size=batch_size,
+                                   path_to_saved_model=path_to_saved_model)
     delta_t = 1./30
 
     fig = plt.figure()
@@ -71,7 +80,7 @@ def save_mp4(start_date: dt.datetime, end_date: dt.datetime, batch_size: int = 5
         """perform animation step"""
         radar_sequence.step()
 
-        array_plot = ax.imshow(np.squeeze(radar_sequence.state[0]))
+        array_plot = ax.imshow(np.squeeze(radar_sequence.state[image_index]))
         time_text.set_text(f'time = {radar_sequence.time_elapsed}')
         fig.canvas.draw()
         return array_plot, time_text
@@ -87,5 +96,5 @@ def save_mp4(start_date: dt.datetime, end_date: dt.datetime, batch_size: int = 5
     # the video can be embedded in html5.  You may need to adjust this for
     # your system: for more information, see
     # http://matplotlib.sourceforge.net/api/animation_api.html
-    ani.save('eval2.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
+    ani.save(path_to_mp4, fps=30, extra_args=['-vcodec', 'libx264'])
 

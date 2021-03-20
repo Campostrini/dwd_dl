@@ -48,6 +48,7 @@ class RadolanConfigFileContent:
             MODE: str,
             CLASSES: dict,
             VSC: bool,
+            VIDEO: dict,
     ):
         self._BASE_URL = BASE_URL
         self._RADOLAN_ROOT = RADOLAN_ROOT
@@ -62,6 +63,8 @@ class RadolanConfigFileContent:
         self._MODE = MODE
         self._CLASSES = CLASSES
         self._VSC = VSC
+        self._VIDEO_START = VIDEO['START']
+        self._VIDEO_END = VIDEO['END']
 
     @property
     def BASE_URL(self):
@@ -115,6 +118,14 @@ class RadolanConfigFileContent:
     @property
     def VSC(self):
         return self._VSC
+
+    @property
+    def VIDEO_START(self):
+        return self._VIDEO_START
+
+    @property
+    def VIDEO_END(self):
+        return self._VIDEO_END
 
 
 def check_config_min_max_dates(min_start_date, max_end_date):

@@ -225,10 +225,10 @@ def to_class_index(tensor: torch.tensor, dtype=torch.long, device=torch.device('
 
 
 @init_safety
-def visualize(h5_filename, path_to_saved_model, eval_or_train='eval'):
+def visualize(path_to_saved_model, *args, eval_or_train='eval', **kwargs):
     import dwd_dl.dataset as ds
     import dwd_dl.img as img
-    with ds.h5_handler(h5_filename) as f:
+    with ds.h5dataset_context_wrapper(*args, **kwargs) as f:
         evaluator = ModelEvaluator(
             h5file_handle=f,
             path_to_saved_model=path_to_saved_model,

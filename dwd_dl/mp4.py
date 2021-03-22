@@ -16,6 +16,8 @@ Please feel free to use and modify this, but keep the above information. Thanks!
 import datetime as dt
 from typing import Union
 
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np

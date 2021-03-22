@@ -98,5 +98,5 @@ def save_mp4(start_date: dt.datetime, end_date: dt.datetime, path_to_saved_model
     # the video can be embedded in html5.  You may need to adjust this for
     # your system: for more information, see
     # http://matplotlib.sourceforge.net/api/animation_api.html
-    ani.save(path_to_mp4, fps=30, extra_args=['-vcodec', 'libx264'])
+    ani.save(path_to_mp4, fps=30)  # , extra_args=['-vcodec', 'libx264'])
 

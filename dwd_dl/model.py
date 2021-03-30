@@ -1,0 +1,402 @@
+import os
+from collections import OrderedDict
+
+import numpy as np
+import torch
+import torch.nn as nn
+import pytorch_lightning as pl
+from torch.utils.data import DataLoader
+from torch.utils.data import WeightedRandomSampler
+
+from dwd_dl import utils
+from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5, H5Dataset
+from dwd_dl import cfg
+
+
+class UNetLitModel(pl.LightningModule):
+
+    def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
+                 conv_bias=False, depth=7, cat=False, classes=4, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
+                 **kwargs):
+        super().__init__()
+
+        self.workers = num_workers
+        self.image_size = image_size
+        self.batch_size = batch_size
+        self.dataset = None
+        self.valid_dataset = None
+        self.train_dataset = None
+        features = init_features
+        lon_lat_channels = 2
+        timestamp_channel = 1
+        image_channel = 1
+        self._in_channels = in_channels * (image_channel + timestamp_channel + lon_lat_channels)
+        self._out_channels = out_channels
+        self._permute_output = permute_output
+        self._softmax = softmax_output
+        self._conv_bias = conv_bias
+        self._depth = depth
+        self._classes = classes
+        self._lr = lr
+        sizes = [init_features * 2 ** n for n in range(depth)]
+        if not cat:
+            sizes_in_down = sizes.copy()
+            sizes_in_down.insert(0, self._in_channels)
+            del sizes_in_down[-1]
+            sizes_out_down = sizes.copy()
+
+            sizes_in_up = sizes.copy()
+            sizes_out_up = sizes.copy()
+            sizes_out_up.insert(0, out_channels * classes)
+            del sizes_out_up[-1]
+        else:
+            sizes_in_down = [2 * i for i in sizes]
+            sizes_in_down.insert(0, self._in_channels * 2)
+            del sizes_in_down[-1]
+            sizes_out_down = sizes.copy()
+
+            sizes_in_up = [3 * i for i in sizes]
+            sizes_out_up = sizes.copy()
+            sizes_out_up.insert(0, out_channels * classes)
+            del sizes_out_up[-1]
+
+        self._sizes_in_down = sizes_in_down
+        self._sizes_out_down = sizes_out_down
+        self._sizes_in_up = sizes_in_up
+        self._sizes_out_up = sizes_out_up
+        self._sizes = sizes
+        self._cat = cat
+
+        self.basic1 = self._basic_block(
+            in_channels=self._in_channels,
+            out_channels=self._in_channels,
+            name="basic1",
+            conv_bias=self._conv_bias,
+        )
+
+        self.encoder = nn.ModuleList([
+            self._downsample_block(
+                in_channels=in_channels_,
+                out_channels=out_channels_,
+                name=name_,
+                conv_bias=conv_bias,
+            ) for in_channels_, out_channels_, name_ in zip(
+                sizes_in_down, sizes_out_down, (f"down{i + 1}" for i in range(self._depth))
+            )
+        ])
+
+        self.down_skips = nn.ModuleList([
+            self._downskip(in_channels=in_channels_, out_channels=out_channels_, name=name_, conv_bias=conv_bias) for
+            in_channels_, out_channels_, name_ in zip(
+                sizes_in_down, sizes_out_down, (f"down_skip{i + 1}" for i in range(self._depth))
+            )
+        ])
+
+        self.bottleneck = self._basic_block(
+            in_channels=sizes[-1] * 2 ** self._cat,  # avoids extra logic. Doubles in_channels if cat.
+            out_channels=sizes[-1],
+            name="bottleneck",
+            conv_bias=self._conv_bias,
+        )
+
+        self.decoder = nn.ModuleList([
+            self._upsample_block(
+                in_channels=in_channels_,
+                out_channels=out_channels_,
+                name=name_,
+                conv_bias=conv_bias,
+            ) for in_channels_, out_channels_, name_ in zip(
+                sizes_in_up, sizes_out_up, (f"up{i + 1}" for i in range(self._depth))
+            )
+        ])
+
+        self.up_skips = nn.ModuleList([
+            self._upskip(
+                in_channels=in_channels_,
+                out_channels=out_channels_,
+                name=name_,
+                conv_bias=conv_bias,
+            ) for in_channels_, out_channels_, name_ in zip(
+                sizes_in_up, sizes_out_up, (f"up_skip{i + 1}" for i in range(self._depth))
+            )
+        ])
+
+        self.softmax = nn.Softmax(dim=2)  # probably not right!
+
+    @staticmethod
+    def _block(in_channels, features, name, conv_bias):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        name + "conv1",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=features,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        ),
+                    ),
+                    (name + "norm1", nn.BatchNorm2d(num_features=features, momentum=0.01)),
+                    (name + "relu1", nn.ReLU(inplace=True)),
+                    (
+                        name + "conv2",
+                        nn.Conv2d(
+                            in_channels=features,
+                            out_channels=features,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        ),
+                    ),
+                    (name + "norm2", nn.BatchNorm2d(num_features=features, momentum=0.01)),
+                    (name + "relu2", nn.ReLU(inplace=True)),
+                ]
+            )
+        )
+
+    @staticmethod
+    def _basic_block(in_channels, out_channels, name, conv_bias):
+        """Basic block, in_channels should be equal to out_channels
+
+        """
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        name + "conv1",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        ),
+                    ),
+                    (name + "norm1", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
+                    (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
+                    (
+                        name + "conv2",
+                        nn.Conv2d(
+                            in_channels=out_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        )
+                    )
+                ]
+            )
+        )
+
+    @staticmethod
+    def _downsample_block(in_channels, out_channels, name, conv_bias):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
+                    (name + "maxpool1", nn.MaxPool2d(kernel_size=2, stride=2)),
+                    (name + "norm2", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "leakyrelu2", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
+                    (
+                        name + "conv1",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        )
+                    )
+                ]
+            )
+        )
+
+    @staticmethod
+    def _upsample_block(in_channels, out_channels, name, conv_bias):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        name + "upsample",
+                        nn.Upsample(
+                            scale_factor=2,
+                            mode='nearest',
+                        )
+                    ),
+                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
+                    (
+                        name + "conv1",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        )
+                    ),
+                    (name + "norm2", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
+                    (name + "leakyrelu2", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
+                    (
+                        name + "conv2",
+                        nn.Conv2d(
+                            in_channels=out_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            padding=1,
+                            bias=conv_bias,
+                        )
+                    ),
+                ]
+            )
+        )
+
+    @staticmethod
+    def _downskip(in_channels, out_channels, name, conv_bias):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        name + "conv",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=out_channels,
+                            kernel_size=3,
+                            stride=2,
+                            padding=1,
+                            bias=conv_bias,
+                        )
+                    ),
+                    (name + "norm", nn.BatchNorm2d(num_features=out_channels, momentum=0.01))
+                ]
+            )
+        )
+
+    @staticmethod
+    def _upskip(in_channels, out_channels, name, conv_bias):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        name + "upsample",
+                        nn.Upsample(
+                            scale_factor=2,
+                            mode="nearest"
+                        )
+                    ),
+                    (name + "norm", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (
+                        name + "conv",
+                        nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=out_channels,
+                            kernel_size=1,
+                            stride=1,
+                            padding=0,
+                            bias=conv_bias
+                        )
+                    )
+                ]
+            )
+        )
+
+    def sum_or_cat(self, *args, dim=1, **kwargs):
+        if self._cat:
+            return torch.cat(args, dim=dim, **kwargs)
+        else:
+            return torch.stack(args, dim=0).sum(dim=0)
+
+    def forward(self, x):
+
+        basic1 = self.basic1(x)
+        x = self.sum_or_cat(basic1, x)
+
+        trace = []
+
+        for encoding_layer, down_skip_layer in zip(self.encoder, self.down_skips):
+            x_encoded = encoding_layer(x)
+            trace.append(x_encoded)
+            x = self.sum_or_cat(x_encoded, down_skip_layer(x))
+
+        trace[-1] = x
+        x = self.bottleneck(x)
+
+        for decoding_layer, up_skip_layer, trace_ in zip(
+                reversed(self.decoder), reversed(self.up_skips), reversed(trace)
+        ):
+            x = self.sum_or_cat(x, trace_)
+            x = self.sum_or_cat(decoding_layer(x), up_skip_layer(x))
+
+        # sum at the end is always needed otherwise we have too many channels.
+        if self._cat:
+            x_1, x_2 = torch.split(x, x.size()[1] // 2, dim=1)
+            x = x_1 + x_2
+
+        x = x.reshape(x.shape[0], self._out_channels, 4, *x.shape[-2:])
+
+        if self._softmax:
+            x = self.softmax(x)
+        if self._permute_output:
+            x = x.permute(0, 2, 1, 3, 4)
+
+        return x
+
+    def training_step(self, batch, batch_idx):
+        x, y_true = batch
+        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_pred = self(x)
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        loss = cross_entropy_loss(y_pred, y_true)
+        self.log('train_loss', loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y_true = batch
+        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_pred = self(x)
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        loss = cross_entropy_loss(y_pred, y_true)
+        self.log('valid_loss', loss)
+        return loss
+
+    def train_dataloader(self):
+        weighted_random_sampler = WeightedRandomSampler(
+            weights=self.train_dataset.weights,
+            num_samples=len(self.train_dataset),
+            replacement=False
+        )
+
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.workers,
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+
+    def val_dataloader(self):
+        return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+
+    def prepare_data(self):
+        create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+        f = H5Dataset(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+        self.dataset = Dataset(
+            h5file_handle=f,
+            date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
+            image_size=self.image_size
+        )
+
+        self.train_dataset = Subset(
+            dataset=self.dataset,
+            subset='train',
+            valid_cases=20,  # Percentage
+        )
+
+        self.valid_dataset = Subset(
+            dataset=self.dataset,
+            subset='valid',
+            valid_cases=20  # Percentage
+        )
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adadelta(self.parameters(), lr=self._lr)
+        return optimizer

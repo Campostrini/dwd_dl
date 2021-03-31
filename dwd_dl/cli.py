@@ -10,6 +10,46 @@ class RadolanParser(argparse.ArgumentParser):
         super().__init__(
             description="Training U-Net model for segmentation of RADOLAN precipitation images"
         )
+        self.add_argument(
+            "--device",
+            type=str,
+            default="cuda:0",
+            help="device for training (default: cuda:0)",
+        )
+        self.add_argument(
+            "--workers",
+            type=int,
+            default=4,
+            help="number of workers for data loading (default: 4)",
+        )
+        self.add_argument(
+            "--weights", type=str, default="./weights", help="folder to save weights"
+        )
+        self.add_argument(
+            "--logs", type=str, default="./logs", help="folder to save logs"
+        )
+        self.add_argument(
+            "--images", type=str, default="../Radolan", help="root folder with images"
+        )
+        self.add_argument(
+            "--save",
+            type=bool,
+            default=False,
+            help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
+        )
+        self.add_argument(
+            "--verbose",
+            type=bool,
+            default=False,
+            help="Verbose setting. Either true or false."
+        )
+
+
+class DeprecatedRadolanParser(argparse.ArgumentParser):
+    def __init__(self):
+        super().__init__(
+            description="OldArgparseArguments"
+        )
 
         self.add_argument(
             "--batch-size",
@@ -17,6 +57,7 @@ class RadolanParser(argparse.ArgumentParser):
             default=6,
             help="input batch size for training (default: 6)",
         )
+
 
         self.add_argument(
             "--epochs",
@@ -101,3 +142,4 @@ class RadolanParser(argparse.ArgumentParser):
             default='no_name.h5',
             help='Name for the h5 file.'
         )
+

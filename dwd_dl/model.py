@@ -20,13 +20,24 @@ class UNetLitModel(pl.LightningModule):
                  **kwargs):
         super().__init__()
 
+        self.save_hyperparameters(
+            'in_channels',
+            'out_channels',
+            'init_features',
+            'conv_bias',
+            'depth',
+            'cat',
+            'lr',
+            'batch_size',
+            'image_size',
+        )
         self.workers = num_workers
         self.image_size = image_size
         self.batch_size = batch_size
         self.dataset = None
         self.valid_dataset = None
         self.train_dataset = None
-        features = init_features
+        self.init_features = init_features
         lon_lat_channels = 2
         timestamp_channel = 1
         image_channel = 1
@@ -38,7 +49,7 @@ class UNetLitModel(pl.LightningModule):
         self._depth = depth
         self._classes = classes
         self._lr = lr
-        sizes = [init_features * 2 ** n for n in range(depth)]
+        sizes = [self.init_features * 2 ** n for n in range(depth)]
         if not cat:
             sizes_in_down = sizes.copy()
             sizes_in_down.insert(0, self._in_channels)
@@ -310,7 +321,6 @@ class UNetLitModel(pl.LightningModule):
             return torch.stack(args, dim=0).sum(dim=0)
 
     def forward(self, x):
-
         basic1 = self.basic1(x)
         x = self.sum_or_cat(basic1, x)
 
@@ -344,14 +354,33 @@ class UNetLitModel(pl.LightningModule):
 
         return x
 
+    def on_train_start(self):
+        self.logger.log_hyperparams(self.hparams)
+
     def training_step(self, batch, batch_idx):
         x, y_true = batch
         y_true = y_true[:, ::4, ...].to(dtype=torch.long)
         y_pred = self(x)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
         loss = cross_entropy_loss(y_pred, y_true)
-        self.log('train_loss', loss)
-        return loss
+
+        train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
+
+        self.log_dict({'train_loss': loss, 'train_accuracy': train_acc})
+
+        return {'loss': loss, 'train_acc': train_acc}
+
+    def training_epoch_end(self, outputs):
+        train_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
+        train_acc = float(sum([batch['train_acc'] for batch in outputs])) / len(outputs)
+        self.log_dict({'epoch_train_loss': train_loss, 'epoch_train_acc': train_acc})
+        self.logger.experiment.add_hparams(
+            dict(self.hparams),
+            {
+                'hparam/train_loss': train_loss,
+                'hparam/train_acc': train_acc,
+            },
+            )
 
     def validation_step(self, batch, batch_idx):
         x, y_true = batch
@@ -359,8 +388,11 @@ class UNetLitModel(pl.LightningModule):
         y_pred = self(x)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()
         loss = cross_entropy_loss(y_pred, y_true)
-        self.log('valid_loss', loss)
-        return loss
+
+        val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
+
+        self.log_dict({'valid_loss': loss, 'valid_accuracy': val_acc})
+        return {'loss': loss, 'val_acc': val_acc}
 
     def train_dataloader(self):
         weighted_random_sampler = WeightedRandomSampler(
@@ -369,8 +401,10 @@ class UNetLitModel(pl.LightningModule):
             replacement=False
         )
 
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.workers,
-                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+        return DataLoader(
+            self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.workers,
+            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), sampler=weighted_random_sampler,
+        )
 
     def val_dataloader(self):
         return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
@@ -400,3 +434,70 @@ class UNetLitModel(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adadelta(self.parameters(), lr=self._lr)
         return optimizer
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("UNet")
+        parser.add_argument(
+            "--in-channels",
+            type=int,
+            default=6,
+            help="Number of input channels. (default: 6)",
+        )
+        parser.add_argument(
+            "--out-channels",
+            type=int,
+            default=1,
+            help="Number of output channels. (default: 1)"
+        )
+        parser.add_argument(
+            "--batch-size",
+            type=int,
+            default=6,
+            help="Input batch size for training. (default: 6)",
+        )
+        parser.add_argument(
+            "--epochs",
+            type=int,
+            default=100,
+            help="Number of epochs to train. (default: 100)",
+        )
+        parser.add_argument(
+            "--lr",
+            type=float,
+            default=0.001,
+            help="Initial learning rate. (default: 0.001)",
+        )
+        parser.add_argument(
+            "--image-size",
+            type=int,
+            default=256,
+            help="Target input image size. (default: 256)",
+        )
+        parser.add_argument(
+            "--cat",
+            type=bool,
+            default=False,
+            help="Whether the skips should be implemented with torch.cat or with a simple sum. "
+                 "False (default) means sum."
+        )
+        parser.add_argument(
+            "--init-features",
+            type=int,
+            default=32,
+            help="Number of features fo the first convolutional layer. (default: 32)"
+        )
+        parser.add_argument(
+            "--depth",
+            type=int,
+            default=7,
+            help="Number of layer-groups of the UNet. (default: 7)"
+        )
+        parser.add_argument(
+            "--conv-bias",
+            type=bool,
+            default=False,
+            help="Use bias in the convolutions. Might have huge memory footprint. (default: False)"
+        )
+        return parent_parser
+

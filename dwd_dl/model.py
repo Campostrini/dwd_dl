@@ -1,16 +1,8 @@
-import os
 from collections import OrderedDict
 
-import numpy as np
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
-from torch.utils.data import WeightedRandomSampler
-
-from dwd_dl import utils
-from dwd_dl.dataset import RadolanDataset as Dataset, RadolanSubset as Subset, create_h5, H5Dataset
-from dwd_dl import cfg
 
 
 class UNetLitModel(pl.LightningModule):

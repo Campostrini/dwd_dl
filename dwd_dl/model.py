@@ -394,6 +394,18 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'valid_loss': loss, 'valid_accuracy': val_acc})
         return {'loss': loss, 'val_acc': val_acc}
 
+    def validation_epoch_end(self, outputs):
+        val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
+        val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
+        self.log_dict({'epoch_val_loss': val_loss, 'epoch_val_acc': val_acc})
+        self.logger.experiment.add_hparams(
+            dict(self.hparams),
+            {
+                'hparam/val_loss': val_loss,
+                'hparam/val_acc': val_acc,
+            }
+        )
+
     def train_dataloader(self):
         weighted_random_sampler = WeightedRandomSampler(
             weights=self.train_dataset.weights,

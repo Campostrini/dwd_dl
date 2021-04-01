@@ -10,21 +10,20 @@ import dwd_dl.model as model
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl import yaml_utils
+from dwd_dl import utils
 
 
 def main(args):
     unet = model.UNetLitModel(**vars(args))
+    experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
     logger = TestTubeLogger(
-        os.path.join(dl.cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
-        dt.datetime.now().strftime(dl.cfg.CFG.TIMESTAMP_DATE_FORMAT),
+        os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
+        experiment_timestamp_str,
     )
     trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=5)
     trainer.fit(unet)
-
-
-def makedirs(weights, logs):
-    os.makedirs(weights, exist_ok=True)
-    os.makedirs(logs, exist_ok=True)
+    checkpoint_path = utils.create_checkpoint_path(experiment_timestamp_str)
+    trainer.save_checkpoint(checkpoint_path)
 
 
 if __name__ == "__main__":

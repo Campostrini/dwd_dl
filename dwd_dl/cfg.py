@@ -310,6 +310,25 @@ class Config:
             self._files_list = RadolanFilesList(date_ranges=self.date_ranges)
         return self._files_list
 
+    def create_checkpoint_dir(self, experiment_timestamp_str):
+        checkpoint_dir = os.path.join(self.RADOLAN_ROOT, 'Models', experiment_timestamp_str)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        return checkpoint_dir
+
+    def create_checkpoint_path(self, experiment_timestamp_str):
+        checkpoint_name = self._create_raw_checkpoint_name(experiment_timestamp_str)
+        checkpoint_dir = self.create_checkpoint_dir(experiment_timestamp_str)
+        checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
+        return checkpoint_path
+
+    @staticmethod
+    def _create_raw_checkpoint_name(experiment_timestamp_str):
+        """Change prefix if you want to change the checkpoint name.
+
+        """
+        prefix = ''
+        return prefix + f"{experiment_timestamp_str}.ckpt"
+
     @property
     def coordinates_array(self):
         return self._coordinates_array

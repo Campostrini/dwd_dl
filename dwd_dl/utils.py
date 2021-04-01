@@ -22,22 +22,6 @@ def init_safety(func):  # Nice decorator in case it is needed.
     return wrapper
 
 
-def create_checkpoint_path(experiment_timestamp_str):
-    checkpoint_name = create_checkpoint_name(experiment_timestamp_str)
-    checkpoint_dir = os.path.join(cfg.CFG.RADOLAN_ROOT, 'Models', experiment_timestamp_str)
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
-    return checkpoint_path
-
-
-def create_checkpoint_name(experiment_timestamp_str):
-    """Change prefix if you want to change the checkpoint name.
-
-    """
-    prefix = ''
-    return prefix + f"{experiment_timestamp_str}.ckpt"
-
-
 def unet_saver(trained_network, path=None, fname=None, timestamp=None):
     if path is None:
         path = input('Enter a path for saving the trained model. ')

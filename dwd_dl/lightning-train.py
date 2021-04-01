@@ -7,10 +7,10 @@ from pytorch_lightning.loggers import TestTubeLogger
 
 from dwd_dl import cfg
 import dwd_dl.model as model
+import dwd_dl.callbacks as callbacks
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl import yaml_utils
-from dwd_dl import utils
 
 
 def main(args):
@@ -20,9 +20,10 @@ def main(args):
         os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
         experiment_timestamp_str,
     )
-    trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=5)
+    callbacks_list = callbacks.CallbacksList(experiment_timestamp_str)
+    trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=5, callbacks=callbacks_list)
     trainer.fit(unet)
-    checkpoint_path = utils.create_checkpoint_path(experiment_timestamp_str)
+    checkpoint_path = cfg.CFG.create_checkpoint_path(experiment_timestamp_str)
     trainer.save_checkpoint(checkpoint_path)
 
 

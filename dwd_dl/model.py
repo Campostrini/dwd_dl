@@ -406,6 +406,9 @@ class UNetLitModel(pl.LightningModule):
             }
         )
 
+    def predict_step(self, batch, batch_idx):
+        return self(batch)
+
     def train_dataloader(self):
         weighted_random_sampler = WeightedRandomSampler(
             weights=self.train_dataset.weights,
@@ -422,8 +425,14 @@ class UNetLitModel(pl.LightningModule):
         return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
 
+    def predict_dataloader(self):
+        return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+
     def prepare_data(self):
         create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+
+    def setup(self, stage):
         f = H5Dataset(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
         self.dataset = Dataset(
             h5file_handle=f,

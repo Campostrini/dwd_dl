@@ -1,6 +1,11 @@
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 
 from dwd_dl import cfg
+
+
+class CreateVideo(Callback):
+    def __init__(self):
+        super().__init__()
 
 
 class CallbacksList:
@@ -13,6 +18,7 @@ class CallbacksList:
             mode='min',
             auto_insert_metric_name=False,
         )
+
         self.callback_list = [val_loss_checkpoint]
 
     def __list__(self):

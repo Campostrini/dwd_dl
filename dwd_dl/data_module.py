@@ -59,3 +59,29 @@ class RadolanDataModule(LightningDataModule):
         return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
 
+
+class RadolanLiveDataModule(RadolanDataModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @property
+    def legal_timestamps(self):
+        return sorted(self.valid_dataset.timestamps + self.train_dataset.timestamps)
+
+    def all_timestamps(self):
+        return self.dataset.sorted_sequence
+
+    def which_dataset(self, timestamp):
+        valid = self.valid_dataset.has_timestamp(timestamp)
+        train = self.train_dataset.has_timestamp(timestamp)
+        if not valid and not train:
+            raise ValueError('Current timestamp {} is not present, neither '
+                             'in validation nor in training dataset.'.format(timestamp))
+        elif valid and train:
+            raise ValueError('Current timestamp {} is present in both validation and training dataset.'
+                             'This error should never occur. Check code.'.format(timestamp))
+        elif valid:
+            return 'valid'
+        else:
+            return 'train'
+

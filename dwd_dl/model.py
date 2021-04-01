@@ -3,6 +3,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+from pytorch_lightning.core.decorators import auto_move_data
 
 
 class UNetLitModel(pl.LightningModule):
@@ -471,3 +472,37 @@ class UNetLitModel(pl.LightningModule):
         )
         return parent_parser
 
+
+class RadolanLiveEvaluator(UNetLitModel):
+    def __init__(self, dm, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dm = dm
+
+    def which_dataset(self, *args):
+        return self.dm.which_dataset(*args)
+
+    @property
+    def legal_timestamps(self, *args, **kwargs):
+        return self.dm.legal_timestamps
+
+    def on_timestamp(self, timestamp):
+        x, y_true = self.dm.dataset.from_timestamp(timestamp)
+        x, y_true = torch.unsqueeze(x, 0), torch.unsqueeze(y_true, 0)
+        y = self(x)
+        x, y, y_true = x[:, ::4], torch.argmax(y, dim=1), y_true[:, ::4]
+        return x.cpu().numpy(), y.cpu().numpy(), y_true.cpu().numpy()
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
+        parser.add_argument(
+            "--model-path",
+            type=str,
+            default=None,
+            help="The path to the saved model."
+        )
+        return parent_parser
+
+    @auto_move_data
+    def forward(self, x):
+        return super().forward(x)

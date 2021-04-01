@@ -14,6 +14,7 @@ import panel as pn
 
 import dwd_dl.cfg as cfg
 import dwd_dl.utils as utils
+from dwd_dl.data_module import RadolanLiveDataModule
 
 hv.extension('bokeh')
 

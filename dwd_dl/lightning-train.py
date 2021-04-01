@@ -8,6 +8,7 @@ from pytorch_lightning.loggers import TestTubeLogger
 from dwd_dl import cfg
 import dwd_dl.model as model
 import dwd_dl.callbacks as callbacks
+import dwd_dl.data_module as data_module
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl import yaml_utils
@@ -15,6 +16,7 @@ from dwd_dl import yaml_utils
 
 def main(args):
     unet = model.UNetLitModel(**vars(args))
+    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
     experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
     logger = TestTubeLogger(
         os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
@@ -22,7 +24,7 @@ def main(args):
     )
     callbacks_list = callbacks.CallbacksList(experiment_timestamp_str)
     trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=5, callbacks=callbacks_list)
-    trainer.fit(unet)
+    trainer.fit(unet, dm)
     checkpoint_path = cfg.CFG.create_checkpoint_path(experiment_timestamp_str)
     trainer.save_checkpoint(checkpoint_path)
 

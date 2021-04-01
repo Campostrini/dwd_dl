@@ -11,12 +11,11 @@ class CreateVideo(Callback):
 class CallbacksList:
     def __init__(self, experiment_timestamp_str):
         val_loss_checkpoint = ModelCheckpoint(
-            monitor='val_loss',
+            monitor='valid_loss',
             dirpath=cfg.CFG.create_checkpoint_dir(experiment_timestamp_str),
-            filename=f'{experiment_timestamp_str}' + '-epoch{epoch:02d}-val_loss{val_loss:.2f}',
+            filename=f'{experiment_timestamp_str}' + '-{epoch:02d}-{val_loss:.2f}',
             save_top_k=1,
             mode='min',
-            auto_insert_metric_name=False,
         )
 
         self.callback_list = [val_loss_checkpoint]
@@ -35,3 +34,8 @@ class CallbacksList:
 
     def __repr__(self):
         return repr(self.callback_list)
+
+    def append(self, item):
+        assert isinstance(item, Callback)
+        self.callback_list.append(item)
+

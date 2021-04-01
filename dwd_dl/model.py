@@ -409,49 +409,6 @@ class UNetLitModel(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         return self(batch)
 
-    def train_dataloader(self):
-        weighted_random_sampler = WeightedRandomSampler(
-            weights=self.train_dataset.weights,
-            num_samples=len(self.train_dataset),
-            replacement=False
-        )
-
-        return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.workers,
-            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), sampler=weighted_random_sampler,
-        )
-
-    def val_dataloader(self):
-        return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
-                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
-
-    def predict_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.workers,
-                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
-
-    def prepare_data(self):
-        create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
-
-    def setup(self, stage):
-        f = H5Dataset(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
-        self.dataset = Dataset(
-            h5file_handle=f,
-            date_ranges_path=cfg.CFG.DATE_RANGES_FILE_PATH,
-            image_size=self.image_size
-        )
-
-        self.train_dataset = Subset(
-            dataset=self.dataset,
-            subset='train',
-            valid_cases=20,  # Percentage
-        )
-
-        self.valid_dataset = Subset(
-            dataset=self.dataset,
-            subset='valid',
-            valid_cases=20  # Percentage
-        )
-
     def configure_optimizers(self):
         optimizer = torch.optim.Adadelta(self.parameters(), lr=self._lr)
         return optimizer

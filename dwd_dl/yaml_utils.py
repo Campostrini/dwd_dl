@@ -131,14 +131,14 @@ def validate_config(data):
     yamale.validate(schema, data)
 
 
-def load_date_ranges(path=None):
+def load_ranges(path=None):
     if not path:
         path = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
     data = yamale.make_data(path=path)
     return data
 
 
-def validate_date_ranges(data):
+def validate_ranges(data):
     schema = yamale.make_schema(cfg.path_to_resources_folder(filename='DATE_RANGES_SCHEMA.yml'))
     yamale.validate(schema, data)
 

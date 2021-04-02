@@ -782,11 +782,11 @@ def get_download_file_name(year, month, date: dt.datetime):
         return binary_file_name(date, extension='.gz')
 
 
-def read_ranges(date_ranges_path):
-    print('Reading date ranges.')
+def read_ranges(ranges_path):
+    print('Reading ranges.')
 
-    date_ranges_data = yu.load_date_ranges(date_ranges_path)
-    yu.validate_date_ranges(date_ranges_data)
+    date_ranges_data = yu.load_ranges(ranges_path)
+    yu.validate_ranges(date_ranges_data)
     date_ranges = [DateRange(start_date, end_date) for start_date, end_date in date_ranges_data[0][0]]
     print('Finished reading.')
 

@@ -315,7 +315,7 @@ class Config:
     @property
     def video_ranges(self):
         if self._video_ranges is None:
-            self_video_ranges = read_ranges(self.VIDEO_RANGES_FILE_PATH)
+            self._video_ranges = read_ranges(self.VIDEO_RANGES_FILE_PATH)
         return self._video_ranges
 
     @property
@@ -331,7 +331,10 @@ class Config:
     @property
     def files_list(self):
         if self._files_list is None:
-            self._files_list = RadolanFilesList(date_ranges=self.date_ranges)
+            date_ranges_files_list = RadolanFilesList(date_ranges=self.date_ranges)
+            video_ranges_files_list = RadolanFilesList(date_ranges=self.video_ranges)
+            self._files_list = date_ranges_files_list + video_ranges_files_list
+            self._files_list.remove_duplicates()
         return self._files_list
 
     def create_checkpoint_dir(self, experiment_timestamp_str):
@@ -452,10 +455,7 @@ class Config:
                         os.remove(os.path.join(self.RADOLAN_RAW, file))
 
     def get_timestamps_hash(self):
-        string_for_md5 = ''
-        for file in self.files_list:
-            string_for_md5 += file.date.strftime(self.TIMESTAMP_DATE_FORMAT)
-        return hashlib.md5(string_for_md5.encode()).hexdigest()
+        raise DeprecationWarning
 
     def check_h5_file(self):
         raise NotImplementedError
@@ -584,7 +584,17 @@ class RadolanFile:
         return hash(self.file_name)
 
     def exists(self):
-        return os.path.isfile(os.path.join(CFG.RADOLAN_RAW, self.file_name))
+        if not os.path.isfile(os.path.join(CFG.RADOLAN_RAW, self.file_name)):
+            try:
+                for file_name in binary_file_name_approx_generator(self.date):
+                    file_path = os.path.join(CFG.RADOLAN_RAW, file_name)
+                    if os.path.isfile(file_path):
+                        return True
+            except OverflowError:
+                print(f"File {self.file_name} not found even with approximation loop. Sorry.")
+                return False
+        return True
+
 
 
 def get_download_size(url):
@@ -606,8 +616,10 @@ def initialize(inside_initialize=True, skip_download=False):
     CFG.check_and_make_dir_structures()
     CFG.make_video_and_date_ranges()
     check_ranges_overlap(CFG.date_ranges)
+    check_ranges_overlap(CFG.video_ranges)
     if not skip_download:
-        if ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE):
+        if (ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE) or
+                ds.check_h5_missing_or_corrupt(CFG.video_ranges, classes=CFG.CLASSES, mode=CFG.MODE)):
             CFG.download_missing_files()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG

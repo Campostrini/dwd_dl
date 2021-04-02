@@ -250,50 +250,56 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
         classes = default_classes
 
     to_create = check_h5_missing_or_corrupt(cfg.CFG.date_ranges, classes=classes, mode=mode)
+    video_h5_to_create = check_h5_missing_or_corrupt(cfg.CFG.video_ranges, classes=classes, mode=mode)
+    for h5_file in video_h5_to_create:
+        if h5_file not in to_create:
+            to_create.append(h5_file)
 
     if to_create:
-        for year_month, file_name in zip(
-                utils.ym_tuples(cfg.CFG.date_ranges), h5_files_names_list(cfg.CFG.date_ranges, classes=classes, mode=mode, with_extension=True)
-        ):
-            if file_name in to_create:
-                with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
-                    for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
-                        date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
-                        if verbose:
-                            print('Processing {}'.format(date_str))
-                        if date_str not in f.keys():
-                            binary_file_name = cfg.binary_file_name(time_stamp=date)  # TODO: refactor. Not correct for deviations
-                            try:
-                                data = utils.square_select(date, height=height, width=width, plot=False).data
-                            except OverflowError:
-                                # If not found then treat is as NaN-filled
-                                data = np.empty((height, width))
-                                data[:] = np.nan
-                            tot_nans = np.count_nonzero(np.isnan(data))
-                            data = np.nan_to_num(data)
-                            if mode == 'c':  # skipped if in raw mode
-                                data = np.array(
-                                    [(classes[class_name][0] <= data) &
-                                     (data < classes[class_name][1]) for class_name in classes]
-                                ).astype(int)
-                                data = utils.to_class_index(data)
-                                data = np.expand_dims(data, 0)
-                            # adding dimension for timestamp and coordinates
-                            normalized_time_of_day = utils.normalized_time_of_day_from_string(timestamp_string=date_str)
-                            # dim for concat
-                            timestamps_grid = np.full((1, height, width), normalized_time_of_day, dtype=np.float32)
-                            coordinates_array = cfg.CFG.coordinates_array
-                            data = np.concatenate((data, timestamps_grid, coordinates_array))
+        for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
+            for year_month, file_name in zip(
+                    utils.ym_tuples(ranges),
+                    h5_files_names_list(ranges, classes=classes, mode=mode, with_extension=True)
+            ):
+                if file_name in to_create:
+                    with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
+                        for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
+                            date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+                            if verbose:
+                                print('Processing {}'.format(date_str))
+                            if date_str not in f.keys():
+                                binary_file_name = cfg.binary_file_name(time_stamp=date)  # TODO: refactor. Not correct for deviations
+                                try:
+                                    data = utils.square_select(date, height=height, width=width, plot=False).data
+                                except OverflowError:
+                                    # If not found then treat is as NaN-filled
+                                    data = np.empty((height, width))
+                                    data[:] = np.nan
+                                tot_nans = np.count_nonzero(np.isnan(data))
+                                data = np.nan_to_num(data)
+                                if mode == 'c':  # skipped if in raw mode
+                                    data = np.array(
+                                        [(classes[class_name][0] <= data) &
+                                         (data < classes[class_name][1]) for class_name in classes]
+                                    ).astype(int)
+                                    data = utils.to_class_index(data)
+                                    data = np.expand_dims(data, 0)
+                                # adding dimension for timestamp and coordinates
+                                normalized_time_of_day = utils.normalized_time_of_day_from_string(timestamp_string=date_str)
+                                # dim for concat
+                                timestamps_grid = np.full((1, height, width), normalized_time_of_day, dtype=np.float32)
+                                coordinates_array = cfg.CFG.coordinates_array
+                                data = np.concatenate((data, timestamps_grid, coordinates_array))
 
-                            f[date_str] = data
-                            f[date_str].attrs['file_name'] = binary_file_name
-                            f[date_str].attrs['NaN'] = tot_nans
-                            f[date_str].attrs['img_size'] = height * width
-                            f[date_str].attrs['tot_pre'] = np.nansum(data)
-                            f[date_str].attrs['mean'] = np.nanmean(data)
-                            f[date_str].attrs['std'] = np.nanstd(data)
-                    f.attrs['mode'] = mode
-                    f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
+                                f[date_str] = data
+                                f[date_str].attrs['file_name'] = binary_file_name
+                                f[date_str].attrs['NaN'] = tot_nans
+                                f[date_str].attrs['img_size'] = height * width
+                                f[date_str].attrs['tot_pre'] = np.nansum(data)
+                                f[date_str].attrs['mean'] = np.nanmean(data)
+                                f[date_str].attrs['std'] = np.nanstd(data)
+                        f.attrs['mode'] = mode
+                        f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
 
 
 def read_h5(filename):

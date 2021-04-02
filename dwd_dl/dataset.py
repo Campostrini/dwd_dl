@@ -337,7 +337,7 @@ def h5_name(year: int, month: int, version_: version.Version, mode: str, classes
         # This creates a univocal naming. r is raw. c is classes. If classes mode then the numbers following it are:
         # first number is the number of classes. The next are the left limits of the classes with :05.3 format
         # e.g. v0.0.2-r-201203
-        # or v0.0.2-c4000.0000.1001.0002.5-201204 means 4 classes starting at 0 0.1 1 and 2.5
+        # or v0.0.2-c4000.0000.1001.0002.5-2012004 means 4 classes starting at 0 0.1 1 and 2.5
     file_name = '-'.join([f"v{version_}", f"{mode}", f"{year}{month:03}"])
     if with_extension:
         extension = '.h5'

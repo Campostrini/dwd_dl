@@ -158,8 +158,22 @@ class Config:
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
+        self._VIDEO_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'VIDEO_RANGES.yml')
+
         self._date_ranges = None
         self._files_list = None
+        self._video_ranges = None
+
+        self._ranges_path_dict = {
+            'video_ranges':
+                {'path': self.VIDEO_RANGES_FILE_PATH,
+                 'template_file_name': 'VIDEO_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'VIDEO_RANGES.yml'},
+            'date_ranges':
+                {'path': self.DATE_RANGES_FILE_PATH,
+                 'template_file_name': 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'DATE_RANGES.yml'},
+        }
 
         self._NW_CORNER_LON_LAT = np.array(cfg_content.NW_CORNER_LON_LAT)
         self._NW_CORNER_INDICES = coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
@@ -241,6 +255,10 @@ class Config:
         return self._DATE_RANGES_FILE_PATH
 
     @property
+    def VIDEO_RANGES_FILE_PATH(self):
+        return self._VIDEO_RANGES_FILE_PATH
+
+    @property
     def BASE_URL(self):
         return self._BASE_URL
 
@@ -295,6 +313,12 @@ class Config:
         return self._date_ranges
 
     @property
+    def video_ranges(self):
+        if self._video_ranges is None:
+            self_video_ranges = read_ranges(self.VIDEO_RANGES_FILE_PATH)
+        return self._video_ranges
+
+    @property
     def timestamps_list(self):
         timestamp_list = []
         for date_range in self.date_ranges:
@@ -343,13 +367,23 @@ class Config:
                 os.makedirs(dir_)
 
     def make_date_ranges(self):
-        if not os.path.isfile(self.DATE_RANGES_FILE_PATH):
-            date_ranges_template_file_name = 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml'
-            date_ranges_template_file_path = path_to_resources_folder(date_ranges_template_file_name)
-            shutil.copy2(date_ranges_template_file_path, self.DATE_RANGES_FILE_PATH, follow_symlinks=False)
-            print(f"Created DATE_RANGES.yml in {self.DATE_RANGES_FILE_PATH}.")
+        self._make_single_range(self._ranges_path_dict['date_ranges'])
+
+    def make_video_ranges(self):
+        self._make_single_range(self._ranges_path_dict['video_ranges'])
+
+    def make_video_and_date_ranges(self):
+        for range_ in self._ranges_path_dict:
+            self._make_single_range(range_dict=self._ranges_path_dict[range_])
+
+    @staticmethod
+    def _make_single_range(range_dict):
+        if not os.path.isfile(range_dict['path']):
+            template_file_path = path_to_resources_folder(range_dict['template_file_name'])
+            shutil.copy2(template_file_path, range_dict['path'], follow_symlinks=False)
+            print(f"Created {range_dict['file_name']} in {range_dict['path']}.")
         else:
-            print('{} already exists. Just edit it!'.format(self.DATE_RANGES_FILE_PATH))
+            print(f"{range_dict['path']} already exists. Just edit it!")
 
     def check_downloaded_files(self):
         # compare with existing
@@ -570,7 +604,7 @@ def initialize(inside_initialize=True, skip_download=False):
     radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
-    CFG.make_date_ranges()
+    CFG.make_video_and_date_ranges()
     check_ranges_overlap(CFG.date_ranges)
     if not skip_download:
         if ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE):

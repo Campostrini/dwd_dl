@@ -319,9 +319,17 @@ class Config:
         return self._video_ranges
 
     @property
-    def timestamps_list(self):
+    def date_timestamps_list(self):
+        return self._timestamps_list(self.date_ranges)
+
+    @property
+    def video_timestamps_list(self):
+        return self._timestamps_list(self.video_ranges)
+
+    @staticmethod
+    def _timestamps_list(ranges):
         timestamp_list = []
-        for date_range in self.date_ranges:
+        for date_range in ranges:
             format_cache = date_range.date_format
             date_range.switch_date_format(format_='timestamp_date_format')
             timestamp_list.extend([x for x in date_range.str_date_range()])

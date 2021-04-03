@@ -1,3 +1,5 @@
+import datetime as dt
+
 from pytorch_lightning import Trainer
 import torch
 
@@ -5,11 +7,13 @@ import dwd_dl.model as model
 import dwd_dl.data_module as data_module
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
+from dwd_dl.video import VideoProducer
 
 
 def main(args):
-    unet = model.UNetLitModel(**vars(args))
-    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
+    timestamp_string = dt.datetime.now().strftime(dl.cfg.CFG.TIMESTAMP_DATE_FORMAT)
+    unet = model.UNetLitModel(**vars(args), timestamp_string=timestamp_string)
+    dm = data_module.VideoDataModule(args.batch_size, args.workers, args.image_size)
 
     trainer = Trainer.from_argparse_args(args)
     if args.model_path.endswith('.ckpt'):
@@ -21,8 +25,9 @@ def main(args):
     else:
         print("Nothing to do")
         return
-    prediction = trainer.predict(unet, datamodule=dm)
-    print(prediction)
+
+    producer = VideoProducer(trainer, unet, dm, 'true')
+    producer.produce()
 
 
 if __name__ == "__main__":

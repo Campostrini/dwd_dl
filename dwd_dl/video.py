@@ -1,22 +1,23 @@
 """This module contains the relevant tools to make a video from a model and a datamodule
 
 """
+import warnings
 import os
 import datetime as dt
-from typing import Literal, Union, List
 
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from pytorch_lightning import Trainer, LightningModule, LightningDataModule
+from pytorch_lightning import Trainer, LightningModule
 import numpy as np
 
 import dwd_dl.cfg as cfg
+from dwd_dl.data_module import VideoDataModule
 
 
 class VideoRadarSequence:
-    def __init__(self, sequence_array: np.ndarray, time_range, name: Literal['pred', 'true']):
+    def __init__(self, sequence_array: np.ndarray, time_range, name):
         assert name in ('pred', 'true')
         self.sequence_array = sequence_array
         self.time_range = time_range
@@ -27,6 +28,7 @@ class VideoRadarSequence:
         self._step_index = 0
         self.time_elapsed = dt.timedelta(0)
         self.current_time = self._dates_list[0]
+        self.name = name
 
     def step(self):
         self.time_elapsed += dt.timedelta(hours=1)
@@ -43,8 +45,8 @@ class VideoProducer:
     def __init__(self,
                  trainer: Trainer,
                  model: LightningModule,
-                 datamodule: LightningDataModule,
-                 mode: Literal['pred', 'true', 'both'],
+                 datamodule: VideoDataModule,
+                 mode,
                  frame_rate: float = 30.):
         self.trainer = trainer
         self.model = model
@@ -54,6 +56,8 @@ class VideoProducer:
         self.mode = mode
         self.frame_rate = frame_rate
         self.timestamp_string = self.model.timestamp_string
+        if self.timestamp_string is None:
+            warnings.warn(f"timestamp string is {self.timestamp_string}")
         self.dir_path = os.path.join(cfg.CFG.RADOLAN_ROOT, 'Videos', self.timestamp_string)
 
     def produce(self):
@@ -63,9 +67,11 @@ class VideoProducer:
             predictions_array = self._make_prediction_array()
             prediction_sequence = VideoRadarSequence(predictions_array, cfg.CFG.VIDEO_RANGES, 'pred')
             sequences.append(prediction_sequence)
-        if self.mode == ('true', 'both'):
+        if self.mode in ('true', 'both'):
+            print("making True array")
             true_array = self._make_true_array()
-            true_sequence = VideoRadarSequence(true_array, cfg.CFG.VIDEO_RANGES, 'true')
+            print("initialising sequence")
+            true_sequence = VideoRadarSequence(true_array, cfg.CFG.video_ranges, 'true')
             sequences.append(true_sequence)
         self._save_mp4(sequences)
 
@@ -79,7 +85,9 @@ class VideoProducer:
         return np.concatenate(prediction_groups, axis=0)
 
     def _make_true_array(self):
-        true_groups = [y_true[0, 1, ...].cpu().numpy() for x, y_true in self.datamodule.predict_dataloader()]
+        if not self.datamodule.has_setup_fit:
+            self.datamodule.setup()
+        true_groups = [y_true[:, 0, ...].cpu().numpy() for x, y_true in self.datamodule.predict_dataloader()]
         return np.concatenate(true_groups, axis=0)
 
     @staticmethod
@@ -117,11 +125,11 @@ class VideoProducer:
                     raise OverflowError("Too many versions. Clear them up!")
             return file_name(version)
 
-    def _save_mp4(self, sequences: Union[VideoRadarSequence, List[VideoRadarSequence]]):
+    def _save_mp4(self, sequences):
 
-        if isinstance(sequences, list):
-            raise NotImplementedError("Not yet implemented for both.")
-        radar_sequence = sequences
+        sequences_dict = dict()
+        for sequence in sequences:
+            sequences_dict[sequence.name] = sequence
 
         delta_t = 1. / self.frame_rate
 
@@ -139,19 +147,20 @@ class VideoProducer:
         def animate(i):
             """perform animation step"""
             if i > 0:
-                radar_sequence.step()
-            array_plot = ax.imshow(radar_sequence.state)
-            time_text.set_text(f'time = {radar_sequence.time_elapsed}')
+                sequences_dict['true'].step()
+            array_plot = ax.imshow(sequences_dict['true'].state)
+            time_text.set_text(f"time = {sequences_dict['true'].time_elapsed}")
             fig.canvas.draw()
             return array_plot, time_text
 
         animate(0)
         interval = 1000 * delta_t
 
-        ani = animation.FuncAnimation(fig, animate, frames=len(radar_sequence),
+        ani = animation.FuncAnimation(fig, animate, frames=len(sequences_dict['true']),
                                       interval=interval, init_func=init)
 
-        ani.save(path_to_mp4, fps=30)  # , extra_args=['-vcodec', 'libx264'])
+        path_to_mp4 = os.path.join(self.dir_path, self.video_name('true'))
+        ani.save(path_to_mp4, fps=self.frame_rate)  # , extra_args=['-vcodec', 'libx264'])
 
     def _make_dirs(self):
         os.makedirs(self.dir_path, exist_ok=True)

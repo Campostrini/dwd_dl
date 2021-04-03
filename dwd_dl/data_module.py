@@ -1,3 +1,5 @@
+import datetime as dt
+
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import WeightedRandomSampler, DataLoader
 import numpy as np
@@ -58,6 +60,35 @@ class RadolanDataModule(LightningDataModule):
     def predict_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+
+    @property
+    def legal_timestamps(self):
+        return [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
+
+    def legal_datetimes(self):
+        return [
+            dt.datetime.strptime(date_string, cfg.CFG.TIMESTAMP_DATE_FORMAT) for date_string in self.legal_timestamps
+        ]
+
+
+class VideoDataModule(RadolanDataModule):
+    def __init__(self, *args):
+        super(VideoDataModule, self).__init__(*args)
+
+    def setup(self, stage=None):
+        f = H5Dataset(cfg.CFG.video_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+        self.dataset = Dataset(
+            h5file_handle=f,
+            date_ranges_path=cfg.CFG.VIDEO_RANGES_FILE_PATH,
+            image_size=self.image_size,
+            mode='video'
+        )
+
+    def train_dataloader(self):
+        raise NotImplementedError("This DataModule should not be used for training.")
+
+    def val_dataloader(self):
+        raise NotImplementedError("This DataModule should not be used for validation.")
 
 
 class RadolanLiveDataModule(RadolanDataModule):

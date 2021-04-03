@@ -69,8 +69,14 @@ class RadolanDataset(Dataset):
         normalize=False,
         max_nans=10,
         min_weights_factor_of_max=0.0001,
+        mode='normal',
     ):
 
+        assert mode in ('normal', 'video')
+        if mode == 'normal':
+            timestamps_list = cfg.CFG.date_timestamps_list
+        else:
+            timestamps_list = cfg.CFG.video_timestamps_list
         self.min_weights_factor_of_max = min_weights_factor_of_max
         # read radolan files
         self.file_handle = h5file_handle
@@ -82,14 +88,14 @@ class RadolanDataset(Dataset):
         nan_days = {}
         std = {}
         mean = {}
-        for date in tqdm(cfg.CFG.timestamps_list):
+        for date in tqdm(timestamps_list):
             tot_pre[date] = h5file_handle[date].attrs['tot_pre']
             nan_days[date] = h5file_handle[date].attrs['NaN']
             std[date] = h5file_handle[date].attrs['std']
             mean[date] = h5file_handle[date].attrs['mean']
 
         self._tot_pre = tot_pre
-        self.sequence = sorted(cfg.CFG.timestamps_list)
+        self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(self.sequence)
         self._sequence_timestamps = sorted(self.sequence)
 

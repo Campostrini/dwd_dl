@@ -327,16 +327,6 @@ def h5_handler(*args, **kwargs):
     finally:
         file.close()
 
-
-def create_h5_file_name(date_ranges, version_: version.Version, with_extension=False):
-    file_name = '-'.join([f"{date_range.switch_date_format('timestamp_date_format')}" for date_range in date_ranges])
-    file_name = '-'.join((f"v{version_}", file_name))
-    if with_extension:
-        extension = '.h5'
-        file_name += extension
-    return file_name
-
-
 def h5_name(year: int, month: int, version_: version.Version, mode: str, classes=None, with_extension=False):
     if mode not in ('r', 'c'):
         raise ValueError(f"Mode not 'r' or 'c'. Got {mode}")

@@ -327,6 +327,7 @@ def h5_handler(*args, **kwargs):
     finally:
         file.close()
 
+
 def h5_name(year: int, month: int, version_: version.Version, mode: str, classes=None, with_extension=False):
     if mode not in ('r', 'c'):
         raise ValueError(f"Mode not 'r' or 'c'. Got {mode}")

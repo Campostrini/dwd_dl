@@ -10,6 +10,7 @@ class UNetLitModel(pl.LightningModule):
 
     def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
                  conv_bias=False, depth=7, cat=False, classes=4, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
+                 timestamp_string=None,
                  **kwargs):
         super().__init__()
 
@@ -70,6 +71,8 @@ class UNetLitModel(pl.LightningModule):
         self._sizes_out_up = sizes_out_up
         self._sizes = sizes
         self._cat = cat
+
+        self.timestamp_string = timestamp_string
 
         self.basic1 = self._basic_block(
             in_channels=self._in_channels,
@@ -363,6 +366,7 @@ class UNetLitModel(pl.LightningModule):
 
         return {'loss': loss, 'train_acc': train_acc}
 
+
     def training_epoch_end(self, outputs):
         train_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         train_acc = float(sum([batch['train_acc'] for batch in outputs])) / len(outputs)
@@ -399,8 +403,9 @@ class UNetLitModel(pl.LightningModule):
             }
         )
 
-    def predict_step(self, batch, batch_idx):
-        return self(batch)
+    def predict(self, batch, batch_idx, data_loader_idx):
+        x, y_true = batch
+        return self(x)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adadelta(self.parameters(), lr=self._lr)

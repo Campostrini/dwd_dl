@@ -596,7 +596,6 @@ class RadolanFile:
         return True
 
 
-
 def get_download_size(url):
     r = requests.head(url)
     print(f"Getting download size for: {url}")
@@ -808,7 +807,7 @@ def read_ranges(ranges_path):
 def check_ranges_overlap(ranges_list):
     for first_date_range, second_date_range in itertools.combinations(ranges_list, 2):
         if not first_date_range.end < second_date_range.start:  # all other conditions follow since start < end always.
-            raise ValueError("There is an overlap in date ranges. {} {} and {} {}.".format(
+            raise ValueError("There is an overlap or wrong order in date ranges. {} {} and {} {}.".format(
                 first_date_range.start, first_date_range.end, second_date_range.start, second_date_range.end
             ))
 

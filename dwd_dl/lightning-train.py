@@ -15,9 +15,9 @@ from dwd_dl import yaml_utils
 
 
 def main(args):
-    unet = model.UNetLitModel(**vars(args))
-    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
     experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+    unet = model.UNetLitModel(**vars(args), timestamp_string=experiment_timestamp_str)
+    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
     logger = TestTubeLogger(
         os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
         experiment_timestamp_str,

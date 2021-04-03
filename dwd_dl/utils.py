@@ -325,11 +325,10 @@ def ym_tuples(date_ranges):
     return year_month_tuples
 
 
-def normalized_time_of_day_from_string(timestamp_string, min_=-1, max_=1):
+def normalized_time_of_day_from_string(timestamp_string):
     minute = int(timestamp_string[-2:])
-    hour = int(timestamp_string[-4:-3])
+    hour = int(timestamp_string[-4:-2])
     hour_minute = hour + (minute / 60)
     hours_in_day = 24
-    std = max_ - min_
-    mean = max_ - std / 2
-    return (hour_minute / hours_in_day) * std - mean
+    half_day = hours_in_day / 2
+    return (hour_minute - half_day) / half_day

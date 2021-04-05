@@ -24,7 +24,7 @@ def main(args):
         experiment_timestamp_str,
     )
     callbacks_list = callbacks.CallbacksList(experiment_timestamp_str)
-    trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=5, callbacks=callbacks_list)
+    trainer = Trainer.from_argparse_args(args, logger=logger, flush_logs_every_n_steps=100, callbacks=callbacks_list)
     trainer.fit(unet, dm)
     checkpoint_path = cfg.CFG.create_checkpoint_path_with_name(experiment_timestamp_str)
     trainer.save_checkpoint(checkpoint_path)

@@ -35,6 +35,9 @@ class CallbacksList:
     def __repr__(self):
         return repr(self.callback_list)
 
+    def __add__(self, other):
+        return other + self.callback_list
+
     def append(self, item):
         assert isinstance(item, Callback)
         self.callback_list.append(item)

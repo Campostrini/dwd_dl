@@ -70,6 +70,9 @@ class RadolanDataModule(LightningDataModule):
             dt.datetime.strptime(date_string, cfg.CFG.TIMESTAMP_DATE_FORMAT) for date_string in self.legal_timestamps
         ]
 
+    def close(self):
+        self.dataset.close()
+
 
 class VideoDataModule(RadolanDataModule):
     def __init__(self, *args):

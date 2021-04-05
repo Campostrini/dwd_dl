@@ -203,6 +203,9 @@ class RadolanDataset(Dataset):
         except ValueError:
             return False
 
+    def close(self):
+        self.file_handle.close()
+
 
 class RadolanSubset(RadolanDataset):
     """Radolan Dataset Subset, training, validation or testing

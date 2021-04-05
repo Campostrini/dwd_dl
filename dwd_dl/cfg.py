@@ -350,7 +350,7 @@ class Config:
         os.makedirs(checkpoint_dir, exist_ok=True)
         return checkpoint_dir
 
-    def create_checkpoint_path(self, experiment_timestamp_str):
+    def create_checkpoint_path_with_name(self, experiment_timestamp_str):
         checkpoint_name = self._create_raw_checkpoint_name(experiment_timestamp_str)
         checkpoint_dir = self.create_checkpoint_dir(experiment_timestamp_str)
         checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)

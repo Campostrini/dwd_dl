@@ -12,13 +12,14 @@ from dwd_dl.video import VideoProducer
 
 def main(args):
     timestamp_string = dt.datetime.now().strftime(dl.cfg.CFG.TIMESTAMP_DATE_FORMAT)
-    unet = model.UNetLitModel(**vars(args), timestamp_string=timestamp_string)
+    unet = model.UNetLitModel(**vars(args))
     dm = data_module.VideoDataModule(args.batch_size, args.workers, args.image_size)
 
     trainer = Trainer.from_argparse_args(args)
     if args.model_path is not None:
         if args.model_path.endswith('.ckpt'):
             unet.load_from_checkpoint(checkpoint_path=args.model_path)
+            unet.assign_timestamp_string_from_checkpoint_path(checkpoint_path=args.model_path)
         elif args.model_path.endswith('.pt'):
             unet.load_state_dict(torch.load(args.model_path))
         else:
@@ -26,6 +27,9 @@ def main(args):
     else:
         print("Nothing to do")
         return
+
+    if unet.timestamp_string is None:
+        unet.timestamp_string = timestamp_string
 
     producer = VideoProducer(trainer, unet, dm, args.video_mode, args.frame_rate)
     producer.produce()

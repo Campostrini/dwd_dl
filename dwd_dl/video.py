@@ -133,13 +133,12 @@ class VideoProducer:
             print(f"Directory {self.dir_path} does not exist.")
             return base_name + '.mp4'
         else:
-            version = 1
             def file_name(v): return base_name + f"_v{v}" + ".mp4"
-            while os.path.isfile(os.path.join(self.dir_path, file_name(version))):
-                version += 1
-                if version > 100:
-                    raise OverflowError("Too many versions. Clear them up!")
-            return file_name(version)
+
+            for v in range(1, 100):
+                if not os.path.isfile(os.path.join(self.dir_path, file_name(v))):
+                    return file_name(v)
+            raise OverflowError("Too many versions. Clear them up!")
 
     def _legal_datetimes(self):
         return self.datamodule.legal_datetimes()
@@ -215,7 +214,7 @@ class VideoProducer:
         ani = animation.FuncAnimation(fig, animate, frames=len(list(sequences_dict.values())[0]),
                                       interval=interval, init_func=init)
 
-        path_to_mp4 = os.path.join(self.dir_path, self.video_name('true'))
+        path_to_mp4 = os.path.join(self.dir_path, self.video_name())
         ani.save(path_to_mp4, fps=self.frame_rate)  # , extra_args=['-vcodec', 'libx264'])
 
     def _make_dirs(self):

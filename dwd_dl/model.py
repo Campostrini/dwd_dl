@@ -1,9 +1,13 @@
+import os
+import datetime as dt
 from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from pytorch_lightning.core.decorators import auto_move_data
+
+import dwd_dl.cfg as cfg
 
 
 class UNetLitModel(pl.LightningModule):
@@ -476,6 +480,16 @@ class UNetLitModel(pl.LightningModule):
             help="Use bias in the convolutions. Might have huge memory footprint. (default: False)"
         )
         return parent_parser
+
+    def assign_timestamp_string_from_checkpoint_path(self, checkpoint_path):
+        name = os.path.split(checkpoint_path)[-1]
+        name = name.replace('.ckpt', '')
+        string = name.split('_')[0]
+        try:
+            dt.datetime.strptime(string, cfg.CFG.TIMESTAMP_DATE_FORMAT)
+            self.timestamp_string = string
+        except ValueError:
+            pass
 
 
 class RadolanLiveEvaluator(UNetLitModel):

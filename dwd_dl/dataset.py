@@ -81,6 +81,7 @@ class RadolanDataset(Dataset):
         assert video_or_normal in ('normal', 'video')
         if video_or_normal == 'normal':
             timestamps_list = cfg.CFG.date_timestamps_list
+            print("Using normal mode for dataset.")
         else:
             timestamps_list = cfg.CFG.video_timestamps_list
         self.min_weights_factor_of_max = min_weights_factor_of_max

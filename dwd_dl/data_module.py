@@ -51,15 +51,16 @@ class RadolanDataModule(LightningDataModule):
         return DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.num_workers,
             worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), sampler=weighted_random_sampler,
+            pin_memory=True
         )
 
     def val_dataloader(self):
         return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
-                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
     def predict_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
-                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id))
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
     @property
     def legal_timestamps(self):

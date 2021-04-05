@@ -47,14 +47,14 @@ class VideoProducer:
                  trainer: Trainer,
                  model: LightningModule,
                  datamodule: VideoDataModule,
-                 mode,
+                 video_mode,
                  frame_rate: float = 30.):
         self.trainer = trainer
         self.model = model
         self.datamodule = datamodule
-        if mode not in ('pred', 'true', 'both'):
-            raise ValueError(f"{mode} is not a valid mode for {type(self)}")
-        self.mode = mode
+        if video_mode not in ('pred', 'true', 'both'):
+            raise ValueError(f"{video_mode} is not a valid video_mode for {type(self)}")
+        self.video_mode = video_mode
         self.frame_rate = frame_rate
         self.timestamp_string = self.model.timestamp_string
         if self.timestamp_string is None:
@@ -64,11 +64,11 @@ class VideoProducer:
     def produce(self):
         self._make_dirs()
         sequences = []
-        if self.mode in ('pred', 'both'):
+        if self.video_mode in ('pred', 'both'):
             predictions_array = self._make_prediction_array()
-            prediction_sequence = VideoRadarSequence(predictions_array, cfg.CFG.VIDEO_RANGES, 'pred')
+            prediction_sequence = VideoRadarSequence(predictions_array, cfg.CFG.video_ranges, 'pred')
             sequences.append(prediction_sequence)
-        if self.mode in ('true', 'both'):
+        if self.video_mode in ('true', 'both'):
             print("making True array")
             true_array = self._make_true_array()
             print("initialising sequence")
@@ -84,7 +84,7 @@ class VideoProducer:
 
     def _make_prediction_array(self):
         prediction = self.predict()
-        prediction_groups = (np.argmax(batch, axis=1) for batch in prediction)
+        prediction_groups = [np.squeeze(np.argmax(batch, axis=1)) for batch in prediction]
         return np.concatenate(prediction_groups, axis=0)
 
     def _make_true_array(self):
@@ -114,13 +114,19 @@ class VideoProducer:
             default=None,
             help="The path to the saved model."
         )
+        parser.add_argument(
+            "--video_mode",
+            type=str,
+            default='both',
+            help="The video_mode of the video. 'pred', 'true' or 'both'. (default: 'both')"
+        )
         return parent_parser
 
     def video_name(self, mode=None):
         if mode is None:
-            mode = self.mode
+            mode = self.video_mode
         if mode not in ('pred', 'true', 'both'):
-            raise ValueError(f"{mode} is not a valid mode for {type(self)}")
+            raise ValueError(f"{mode} is not a valid video_mode for {type(self)}")
 
         base_name = f"{self.timestamp_string}_{mode}"
         if not os.path.isdir(self.dir_path):
@@ -159,8 +165,7 @@ class VideoProducer:
             yaml.safe_dump(simplified_datetimes, f, default_flow_style=False)
 
     def _yaml_name(self):
-        return self.video_name(mode=self.mode).split('.mp4')[0] + '.yml'
-
+        return self.video_name(mode=self.video_mode).split('.mp4')[0] + '.yml'
 
     def _save_mp4(self, sequences, datetimes):
 
@@ -171,29 +176,43 @@ class VideoProducer:
         delta_t = 1. / self.frame_rate
 
         fig = plt.figure()
-        ax = fig.add_subplot(111, aspect='equal', autoscale_on=True)
 
-        time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+        ax = dict()
+        number_of_subplots = len(sequences_dict)
+        cols = number_of_subplots
+        raws = 1
+        for n, sequence_name in enumerate(sequences_dict):
+            subplot_code = raws * 100 + cols * 10 + 1 + n
+            ax[sequence_name] = fig.add_subplot(subplot_code, aspect='equal', autoscale_on=True)
+
+        time_text = {sequence: ax[sequence].text(0.02, 0.95, '', transform=ax[sequence].transAxes) for sequence in ax}
 
         def init():
             """initialize animation"""
             # line.set_data([], [])
-            time_text.set_text('')
-            return time_text
+            out = [text.set_text('') for text in time_text.values()]
+            return out
 
         def animate(i):
             """perform animation step"""
-            if i > 0:
-                sequences_dict['true'].step()
-            array_plot = ax.imshow(sequences_dict['true'].state)
-            time_text.set_text(f"time = {sequences_dict['true'].time_elapsed} \n datetime = {datetimes[i]}")
+            array_plot = []
+            text = []
+            for seq in sequences_dict:
+                if i > 0:
+                    sequences_dict[seq].step()
+                array_plot.append(ax[seq].imshow(sequences_dict[seq].state))
+                text.append(
+                    time_text[seq].set_text(
+                        f"time = {sequences_dict[seq].time_elapsed} \n datetime = {datetimes[i]}"
+                    )
+                )
             fig.canvas.draw()
-            return array_plot, time_text
+            return array_plot + text
 
         animate(0)
         interval = 1000 * delta_t
 
-        ani = animation.FuncAnimation(fig, animate, frames=len(sequences_dict['true']),
+        ani = animation.FuncAnimation(fig, animate, frames=len(list(sequences_dict.values())[0]),
                                       interval=interval, init_func=init)
 
         path_to_mp4 = os.path.join(self.dir_path, self.video_name('true'))

@@ -81,7 +81,7 @@ class VideoDataModule(RadolanDataModule):
             h5file_handle=f,
             date_ranges_path=cfg.CFG.VIDEO_RANGES_FILE_PATH,
             image_size=self.image_size,
-            mode='video'
+            video_or_normal='video'
         )
 
     def train_dataloader(self):

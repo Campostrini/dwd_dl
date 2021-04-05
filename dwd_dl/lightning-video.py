@@ -27,7 +27,7 @@ def main(args):
         print("Nothing to do")
         return
 
-    producer = VideoProducer(trainer, unet, dm, 'true')
+    producer = VideoProducer(trainer, unet, dm, args.video_mode, args.frame_rate)
     producer.produce()
 
 

@@ -75,11 +75,11 @@ class RadolanDataset(Dataset):
         normalize=False,
         max_nans=10,
         min_weights_factor_of_max=0.0001,
-        mode='normal',
+        video_or_normal='normal',
     ):
 
-        assert mode in ('normal', 'video')
-        if mode == 'normal':
+        assert video_or_normal in ('normal', 'video')
+        if video_or_normal == 'normal':
             timestamps_list = cfg.CFG.date_timestamps_list
         else:
             timestamps_list = cfg.CFG.video_timestamps_list

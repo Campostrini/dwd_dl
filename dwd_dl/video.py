@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from pytorch_lightning import Trainer, LightningModule
 import numpy as np
+import yaml
 
 import dwd_dl.cfg as cfg
 from dwd_dl.data_module import VideoDataModule
@@ -73,7 +74,9 @@ class VideoProducer:
             print("initialising sequence")
             true_sequence = VideoRadarSequence(true_array, cfg.CFG.video_ranges, 'true')
             sequences.append(true_sequence)
-        self._save_mp4(sequences)
+        datetimes = self._legal_datetimes()
+        self._yaml_dump()
+        self._save_mp4(sequences, datetimes)
 
     def predict(self):
         prediction = self.trainer.predict(model=self.model, datamodule=self.datamodule)
@@ -125,7 +128,34 @@ class VideoProducer:
                     raise OverflowError("Too many versions. Clear them up!")
             return file_name(version)
 
-    def _save_mp4(self, sequences):
+    def _legal_datetimes(self):
+        return self.datamodule.legal_datetimes()
+
+    def _simplify_legal_datetimes(self):
+        datetimes = sorted(self._legal_datetimes())
+        simplified_datetimes = []
+        start = end = datetimes[0]
+        for datetime in datetimes[1:]:
+            if datetime > end + dt.timedelta(hours=2):
+                simplified_datetimes.append([start, end])
+                start = datetime
+                end = datetime
+            else:
+                end = datetime
+        simplified_datetimes.append([start, end])
+        return simplified_datetimes
+
+    def _yaml_dump(self):
+        simplified_datetimes = self._simplify_legal_datetimes()
+        yaml_name = self._yaml_name()
+        with open(os.path.join(self.dir_path, yaml_name), mode='w') as f:
+            yaml.safe_dump(simplified_datetimes, f, default_flow_style=False)
+
+    def _yaml_name(self):
+        return self.video_name(mode=self.mode).split('.mp4')[0] + '.yml'
+
+
+    def _save_mp4(self, sequences, datetimes):
 
         sequences_dict = dict()
         for sequence in sequences:
@@ -149,7 +179,7 @@ class VideoProducer:
             if i > 0:
                 sequences_dict['true'].step()
             array_plot = ax.imshow(sequences_dict['true'].state)
-            time_text.set_text(f"time = {sequences_dict['true'].time_elapsed}")
+            time_text.set_text(f"time = {sequences_dict['true'].time_elapsed} \n datetime = {datetimes[i]}")
             fig.canvas.draw()
             return array_plot, time_text
 

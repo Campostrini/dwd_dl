@@ -57,15 +57,12 @@ class DeprecatedRadolanParser(argparse.ArgumentParser):
             default=6,
             help="input batch size for training (default: 6)",
         )
-
-
         self.add_argument(
             "--epochs",
             type=int,
             default=100,
             help="number of epochs to train (default: 100)",
         )
-
         self.add_argument(
             "--lr",
             type=float,

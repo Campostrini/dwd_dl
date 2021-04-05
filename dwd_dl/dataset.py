@@ -38,7 +38,13 @@ def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
 
 
 def timestamps_at_training_period_end_handler(ranges_list, to_remove, in_channels, out_channels):
-    for _, range_end in ranges_list:
+    for date_range in ranges_list:
+        range_start, range_end = date_range
+        try:
+            if range_end + dt.timedelta(hours=1) in ranges_list[ranges_list.index(date_range) + 1]:
+                continue
+        except IndexError:
+            pass
         dr = cfg.daterange(
             range_end - dt.timedelta(hours=in_channels + out_channels - 2),
             range_end,
@@ -384,6 +390,7 @@ def check_h5_missing_or_corrupt(date_ranges, *args, **kwargs):
 
 class H5Dataset:
     def __init__(self, date_ranges, mode, classes=None):
+        create_h5(mode=mode, classes=classes)
         self.mode = mode
         self.classes = classes
         self._date_ranges = date_ranges

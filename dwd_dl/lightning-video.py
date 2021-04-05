@@ -16,12 +16,13 @@ def main(args):
     dm = data_module.VideoDataModule(args.batch_size, args.workers, args.image_size)
 
     trainer = Trainer.from_argparse_args(args)
-    if args.model_path.endswith('.ckpt'):
-        unet.load_from_checkpoint(checkpoint_path=args.model_path)
-    elif args.model_path.endswith('.pt'):
-        unet.load_state_dict(torch.load(args.model_path))
-    elif args.model_path is not None:
-        raise ValueError(f"Don't know what to do with {args.model_path}")
+    if args.model_path is not None:
+        if args.model_path.endswith('.ckpt'):
+            unet.load_from_checkpoint(checkpoint_path=args.model_path)
+        elif args.model_path.endswith('.pt'):
+            unet.load_state_dict(torch.load(args.model_path))
+        else:
+            raise ValueError(f"Don't know what to do with {args.model_path}")
     else:
         print("Nothing to do")
         return

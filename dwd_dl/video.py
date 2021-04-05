@@ -105,8 +105,8 @@ class VideoProducer:
         parser.add_argument(
             "--frame_rate",
             type=float,
-            default=30,
-            help="The video framerate. (default: 30)"
+            default=10,
+            help="The video framerate. (default: 10)"
         )
         parser.add_argument(
             "--model-path",
@@ -179,12 +179,13 @@ class VideoProducer:
         ax = dict()
         number_of_subplots = len(sequences_dict)
         cols = number_of_subplots
-        raws = 1
+        rows = 1
         for n, sequence_name in enumerate(sequences_dict):
-            subplot_code = raws * 100 + cols * 10 + 1 + n
+            subplot_code = rows * 100 + cols * 10 + 1 + n
             ax[sequence_name] = fig.add_subplot(subplot_code, aspect='equal', autoscale_on=True)
-
-        time_text = {sequence: ax[sequence].text(0.02, 0.95, '', transform=ax[sequence].transAxes) for sequence in ax}
+            time_text = {
+                sequence: ax[sequence].text(0.02, 1.15, '', transform=ax[sequence].transAxes) for sequence in ax
+            }
 
         def init():
             """initialize animation"""
@@ -199,16 +200,19 @@ class VideoProducer:
             for seq in sequences_dict:
                 if i > 0:
                     sequences_dict[seq].step()
-                array_plot.append(ax[seq].imshow(sequences_dict[seq].state))
+
+                im = ax[seq].imshow(sequences_dict[seq].state, vmin=0, vmax=4)
+                array_plot.append(im)
                 text.append(
                     time_text[seq].set_text(
-                        f"time = {sequences_dict[seq].time_elapsed} \n datetime = {datetimes[i]}"
+                        f"{seq}\ntime elapsed = {sequences_dict[seq].time_elapsed} \ndatetime of T-6h = {datetimes[i]}"
                     )
                 )
             fig.canvas.draw()
             return array_plot + text
 
         animate(0)
+
         interval = 1000 * delta_t
 
         ani = animation.FuncAnimation(fig, animate, frames=len(list(sequences_dict.values())[0]),

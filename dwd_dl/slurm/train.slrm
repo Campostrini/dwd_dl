@@ -14,8 +14,8 @@
 module purge
 module load cuda/10.1.168
 
-source activate py37
+source activate py37thesis16bit
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python train.py --batch-size 175 --epochs 100 --save true --workers 4
+python lightning-train.py --gpus -1 --batch-size 175 --epochs 100 --save true --workers 8 --video false --precision 16 --accumulate_grad_batches 5

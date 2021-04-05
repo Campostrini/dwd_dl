@@ -108,6 +108,13 @@ class VideoProducer:
             default=30,
             help="The video framerate. (default: 30)"
         )
+        parser.add_argument(
+            "--model-path",
+            type=str,
+            default=None,
+            help="The path to the saved model."
+        )
+        return parent_parser
 
     def video_name(self, mode=None):
         if mode is None:

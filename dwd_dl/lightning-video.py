@@ -36,12 +36,7 @@ if __name__ == "__main__":
     parser = RadolanParser()
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
-    parser.add_argument(
-        "--model-path",
-        type=str,
-        default=None,
-        help="The path to the saved model."
-    )
+    parser = VideoProducer.add_video_specific_argparse_args(parser)
     args = parser.parse_args()
     # yaml_utils.log_dump(**kwargs_)
     main(args)

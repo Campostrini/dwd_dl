@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH -J train
+#SBATCH -J make_video
 #SBATCH -N 1
 #SBATCH --qos gpu_v100
 #SBATCH --partition gpu_v100

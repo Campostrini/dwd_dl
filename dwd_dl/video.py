@@ -6,7 +6,7 @@ import os
 import datetime as dt
 
 import matplotlib as mpl
-# mpl.use('Agg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from pytorch_lightning import Trainer, LightningModule

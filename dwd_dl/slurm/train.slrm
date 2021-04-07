@@ -18,4 +18,4 @@ source activate py37torch16bit
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python lightning-train.py --gpus -1 --batch-size 150 --epochs 100 --save true --workers 8 --video false --precision 16
+python lightning-train.py --gpus -1 --batch-size 150 --max_epochs 100 --save true --workers 8 --video false --precision 16

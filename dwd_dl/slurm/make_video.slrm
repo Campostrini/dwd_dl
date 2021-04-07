@@ -14,8 +14,8 @@
 module purge
 module load cuda/10.1.168
 
-source activate py37
+source activate py37torch16bit
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python make_video.py "$1" "$2"
+python lightning-video.py --gpus -1 --model-path "$1" --video_mode 'both'

@@ -1,5 +1,4 @@
 import os
-import warnings
 import datetime as dt
 
 from pytorch_lightning import Trainer
@@ -12,7 +11,6 @@ import dwd_dl.data_module as data_module
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl.video import VideoProducer
-from dwd_dl import yaml_utils
 
 
 def main(args):
@@ -24,6 +22,8 @@ def main(args):
         experiment_timestamp_str,
     )
     callbacks_list = callbacks.CallbacksList(experiment_timestamp_str)
+    if args.max_epochs is None:
+        args.max_epochs = 100
     trainer = Trainer.from_argparse_args(args, logger=logger,
                                          flush_logs_every_n_steps=100, callbacks=list(callbacks_list))
     trainer.fit(unet, dm)

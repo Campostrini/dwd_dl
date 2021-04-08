@@ -18,7 +18,7 @@ def main(args):
     trainer = Trainer.from_argparse_args(args)
     if args.model_path is not None:
         if args.model_path.endswith('.ckpt'):
-            unet.load_from_checkpoint(checkpoint_path=args.model_path)
+            unet = model.UNetLitModel.load_from_checkpoint(checkpoint_path=args.model_path)
             unet.assign_timestamp_string_from_checkpoint_path(checkpoint_path=args.model_path)
         elif args.model_path.endswith('.pt'):
             unet.load_state_dict(torch.load(args.model_path))

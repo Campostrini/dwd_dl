@@ -18,4 +18,4 @@ source activate py37torch16bit
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python lightning-video.py --gpus -1 --model-path "$1" --video_mode 'both'
+python lightning-video.py --gpus -1 --model-path "$1" --video_mode 'both' --precision 16 --batch-size 150

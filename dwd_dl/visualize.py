@@ -13,13 +13,14 @@ def main(args):
     dm.setup()
     unet = model.RadolanLiveEvaluator(dm, **vars(args))
     if args.model_path.endswith('.ckpt'):
-        unet.load_from_checkpoint(checkpoint_path=args.model_path, dm=dm)
+        unet = model.RadolanLiveEvaluator.load_from_checkpoint(checkpoint_path=args.model_path, dm=dm)
     elif args.model_path.endswith('.pt'):
         unet.load_state_dict(torch.load(args.model_path))
 
     unet.eval()
-    unet.to('cuda')
-    img.visualizer(unet)
+    with torch.no_grad():
+        unet.to('cuda')
+        img.visualizer(unet)
 
 
 if __name__ == "__main__":

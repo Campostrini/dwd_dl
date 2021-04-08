@@ -46,7 +46,8 @@ class UNetLitModel(pl.LightningModule):
         self._conv_bias = conv_bias
         self._depth = depth
         self._classes = classes
-        self._lr = lr
+        self.lr = lr
+        self.cel_weights = torch.tensor([0, 0.1, 1, 2.5])
         sizes = [self.init_features * 2 ** n for n in range(depth)]
         if not cat:
             sizes_in_down = sizes.copy()
@@ -354,9 +355,6 @@ class UNetLitModel(pl.LightningModule):
 
         return x
 
-    def on_train_start(self):
-        self.logger.log_hyperparams(self.hparams)
-
     def training_step(self, batch, batch_idx):
         x, y_true = batch
         y_true = y_true[:, ::4, ...].to(dtype=torch.long)
@@ -366,22 +364,15 @@ class UNetLitModel(pl.LightningModule):
 
         train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        self.log_dict({'train_loss': loss, 'train_accuracy': train_acc})
+        self.log_dict({'train/loss': loss, 'train/accuracy': train_acc})
+        self.log('lr', self.lr, True)
 
         return {'loss': loss, 'train_acc': train_acc}
-
 
     def training_epoch_end(self, outputs):
         train_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         train_acc = float(sum([batch['train_acc'] for batch in outputs])) / len(outputs)
-        self.log_dict({'epoch_train_loss': train_loss, 'epoch_train_acc': train_acc})
-        self.logger.experiment.add_hparams(
-            dict(self.hparams),
-            {
-                'hparam/train_loss': train_loss,
-                'hparam/train_acc': train_acc,
-            },
-            )
+        self.log_dict({'train/epoch_loss': train_loss, 'train/epoch_accuracy': train_acc})
 
     def validation_step(self, batch, batch_idx):
         x, y_true = batch
@@ -392,27 +383,29 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        self.log_dict({'valid_loss': loss, 'valid_accuracy': val_acc})
+        self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
+        self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
         return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
+        # TODO: Move to callbacks when it's available
         val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
-        self.log_dict({'epoch_val_loss': val_loss, 'epoch_val_acc': val_acc})
-        self.logger.experiment.add_hparams(
-            dict(self.hparams),
-            {
-                'hparam/val_loss': val_loss,
-                'hparam/val_acc': val_acc,
-            }
-        )
+        self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
+        # self.logger.experiment.add_hparams(
+        #     dict(self.hparams),
+        #     {
+        #         'hparam/val_loss': val_loss,
+        #         'hparam/val_acc': val_acc,
+        #     }
+        # )
 
     def predict(self, batch, batch_idx, data_loader_idx):
         x, y_true = batch
         return self(x)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adadelta(self.parameters(), lr=self._lr)
+        optimizer = torch.optim.Adadelta(self.parameters(), lr=self.lr)
         return optimizer
 
     @staticmethod

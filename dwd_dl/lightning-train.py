@@ -20,6 +20,7 @@ def main(args):
     logger = TestTubeLogger(
         os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
         experiment_timestamp_str,
+        create_git_tag=True,
     )
     callbacks_list = callbacks.CallbacksList(experiment_timestamp_str)
     if args.max_epochs is None:

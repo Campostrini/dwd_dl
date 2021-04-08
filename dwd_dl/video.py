@@ -99,8 +99,8 @@ class VideoProducer:
         parser.add_argument(
             "--video",
             type=bool,
-            default=True,
-            help="Whether a video should be produced. (default: true)"
+            default=False,
+            help="Whether a video should be produced. (default: false)"
         )
         parser.add_argument(
             "--frame_rate",

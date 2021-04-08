@@ -9,7 +9,7 @@
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
 #SBATCH --time=20:00:00
 #SBATCH --mem 128G
-#SBATCH --output=/home/lv71491/stefanoc/project/.out/train%j.out
+#SBATCH --output=/home/lv71491/stefanoc/project/.out/train_%j.out
 
 module purge
 module load cuda/10.1.168

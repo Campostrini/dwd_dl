@@ -288,16 +288,20 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                 try:
                                     data = utils.square_select(date, height=height, width=width, plot=False).data
                                 except OverflowError:
-                                    # If not found then treat is as NaN-filled
+                                    # If not found then treat it as NaN-filled
                                     data = np.empty((height, width))
                                     data[:] = np.nan
                                 tot_nans = np.count_nonzero(np.isnan(data))
                                 data = np.nan_to_num(data)
+                                class_frequency = dict()
                                 if mode == 'c':  # skipped if in raw mode
                                     data = np.array(
                                         [(classes[class_name][0] <= data) &
                                          (data < classes[class_name][1]) for class_name in classes]
                                     ).astype(int)
+                                    class_frequency = {
+                                        class_name: np.count_nonzero(data[i]) for i, class_name in enumerate(classes)
+                                    }
                                     data = utils.to_class_index(data)
                                     data = np.expand_dims(data, 0)
                                 # adding dimension for timestamp and coordinates
@@ -308,6 +312,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                 data = np.concatenate((data, timestamps_grid, coordinates_array))
 
                                 f[date_str] = data
+                                f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
                                 f[date_str].attrs['file_name'] = binary_file_name
                                 f[date_str].attrs['NaN'] = tot_nans
                                 f[date_str].attrs['img_size'] = height * width

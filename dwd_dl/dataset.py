@@ -95,13 +95,16 @@ class RadolanDataset(Dataset):
         nan_days = {}
         std = {}
         mean = {}
+        classes_frequency = {}
         for date in tqdm(timestamps_list):
             tot_pre[date] = h5file_handle[date].attrs['tot_pre']
             nan_days[date] = h5file_handle[date].attrs['NaN']
             std[date] = h5file_handle[date].attrs['std']
             mean[date] = h5file_handle[date].attrs['mean']
+            classes_frequency[date] = h5file_handle[date].attrs['classes_frequency']
 
         self._tot_pre = tot_pre
+        self.classes_frequency = classes_frequency
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(self.sequence)
         self._sequence_timestamps = sorted(self.sequence)

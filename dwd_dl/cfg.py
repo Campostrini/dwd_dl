@@ -159,10 +159,12 @@ class Config:
 
         self._DATE_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
         self._VIDEO_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'VIDEO_RANGES.yml')
+        self._TEST_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'TEST_SET_RANGES.yml')
 
         self._date_ranges = None
         self._files_list = None
         self._video_ranges = None
+        self._test_set_ranges = None
 
         self._ranges_path_dict = {
             'video_ranges':
@@ -173,6 +175,10 @@ class Config:
                 {'path': self.DATE_RANGES_FILE_PATH,
                  'template_file_name': 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml',
                  'file_name': 'DATE_RANGES.yml'},
+            'test_set_ranges':
+                {'path': self.TEST_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'TEST_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'TEST_SET_RANGES.yml'},
         }
 
         self._NW_CORNER_LON_LAT = np.array(cfg_content.NW_CORNER_LON_LAT)
@@ -255,6 +261,10 @@ class Config:
         return self._DATE_RANGES_FILE_PATH
 
     @property
+    def TEST_SET_RANGES_FILE_PATH(self):
+        return self._TEST_SET_RANGES_FILE_PATH
+
+    @property
     def VIDEO_RANGES_FILE_PATH(self):
         return self._VIDEO_RANGES_FILE_PATH
 
@@ -318,6 +328,11 @@ class Config:
             self._video_ranges = read_ranges(self.VIDEO_RANGES_FILE_PATH)
         return self._video_ranges
 
+    @property
+    def test_set_ranges(self):
+        if self._test_set_ranges is None:
+            self._test_set_ranges = read_ranges(self.TEST_SET_RANGES_FILE_PATH)
+        return self._test_set_ranges
     @property
     def date_timestamps_list(self):
         return self._timestamps_list(self.date_ranges)

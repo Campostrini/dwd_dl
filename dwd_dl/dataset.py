@@ -9,7 +9,6 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import h5py
 import hashlib
-from packaging import version
 
 import dwd_dl.cfg as cfg
 import dwd_dl.utils as utils

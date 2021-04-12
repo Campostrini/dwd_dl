@@ -47,7 +47,7 @@ class UNetLitModel(pl.LightningModule):
         self._depth = depth
         self._classes = classes
         self.lr = lr
-        self.cel_weights = torch.tensor([0, 0.1, 1, 2.5])
+        self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
         sizes = [self.init_features * 2 ** n for n in range(depth)]
         if not cat:
             sizes_in_down = sizes.copy()

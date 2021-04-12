@@ -467,7 +467,8 @@ class Config:
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
-                for file in os.listdir(self.RADOLAN_RAW):
+                print("Extracting compressed day files.")
+                for file in tqdm(os.listdir(self.RADOLAN_RAW)):
                     if file.endswith('.gz'):
                         with gzip.open(
                             os.path.join(self.RADOLAN_RAW, file), 'rb'
@@ -476,6 +477,7 @@ class Config:
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
                         os.remove(os.path.join(self.RADOLAN_RAW, file))
+                print("Done.")
 
     def get_timestamps_hash(self):
         raise DeprecationWarning
@@ -640,8 +642,8 @@ def initialize(inside_initialize=True, skip_download=False):
     check_ranges_overlap(CFG.date_ranges)
     check_ranges_overlap(CFG.video_ranges)
     if not skip_download:
-        if (ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE) or
-                ds.check_h5_missing_or_corrupt(CFG.video_ranges, classes=CFG.CLASSES, mode=CFG.MODE)):
+        if (ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES) or
+                ds.check_h5_missing_or_corrupt(CFG.video_ranges, classes=CFG.CLASSES)):
             CFG.download_missing_files()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
@@ -888,29 +890,6 @@ class MonthDateRange(DateRange):
         year, month = utils.next_year_month(year, month)
         end_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
         super().__init__(start_date=start_date, end_date=end_date)
-
-
-class TrainingPeriod:
-    def __init__(self, date_ranges_path):
-        self._path = date_ranges_path
-        self.ranges_list = read_ranges(date_ranges_path)
-        self._file_names_list = []
-        for range_element in self.ranges_list:
-            self._file_names_list += list(used_files(range_element.start, range_element.end))
-
-    @property
-    def path(self):
-        return self._path
-
-    @property
-    def file_names_list(self):
-        return self._file_names_list
-
-    def __iter__(self):
-        return iter(self.ranges_list)
-
-    def __len__(self):
-        return len(self.ranges_list)
 
 
 def file_is_available(url):

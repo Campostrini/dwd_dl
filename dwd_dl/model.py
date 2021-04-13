@@ -359,7 +359,7 @@ class UNetLitModel(pl.LightningModule):
         x, y_true = batch
         y_true = y_true[:, ::4, ...].to(dtype=torch.long)
         y_pred = self(x)
-        cross_entropy_loss = torch.nn.CrossEntropyLoss(weight=self.cel_weights.to(self.device))
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
         loss = cross_entropy_loss(y_pred, y_true)
 
         train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
@@ -378,7 +378,7 @@ class UNetLitModel(pl.LightningModule):
         x, y_true = batch
         y_true = y_true[:, ::4, ...].to(dtype=torch.long)
         y_pred = self(x)
-        cross_entropy_loss = torch.nn.CrossEntropyLoss(weight=self.cel_weights.to(self.device))
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
         loss = cross_entropy_loss(y_pred, y_true)
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)

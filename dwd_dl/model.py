@@ -1,13 +1,17 @@
+import itertools
 import os
 import datetime as dt
 from collections import OrderedDict
+from itertools import product
 
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from pytorch_lightning.core.decorators import auto_move_data
+from torchmetrics import MetricCollection
 
 import dwd_dl.cfg as cfg
+from dwd_dl.metrics import PercentCorrect, HitRate, FalseAlarmRatio, CriticalSuccessIndex, Bias, HeidkeSkillScore
 
 
 class UNetLitModel(pl.LightningModule):
@@ -49,6 +53,17 @@ class UNetLitModel(pl.LightningModule):
         self.lr = lr
         self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
         sizes = [self.init_features * 2 ** n for n in range(depth)]
+
+        self._metrics_to_include = [
+            PercentCorrect,
+            HitRate,
+            FalseAlarmRatio,
+            CriticalSuccessIndex,
+            Bias,
+            HeidkeSkillScore,
+        ]
+        self.metrics, self.persistence_metrics = self._initialize_metrics(self._metrics_to_include)
+
         if not cat:
             sizes_in_down = sizes.copy()
             sizes_in_down.insert(0, self._in_channels)
@@ -383,8 +398,13 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
+        metrics_out = self.metrics(y_pred, y_true)
+        persistence_metrics_out = self.persistence_metrics(x[:, -4, ...], y_true)
+
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
+        self.log_dict(metrics_out)
+        self.log_dict(persistence_metrics_out)
         return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
@@ -392,6 +412,7 @@ class UNetLitModel(pl.LightningModule):
         val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
+        self._reset_metrics()
         # self.logger.experiment.add_hparams(
         #     dict(self.hparams),
         #     {
@@ -483,6 +504,30 @@ class UNetLitModel(pl.LightningModule):
             self.timestamp_string = string
         except ValueError:
             pass
+
+    def _initialize_metrics(self, metrics_to_include):
+        mc = MetricCollection({
+            f'{metric.__name__}/{model_}{class_number}': metric(
+                class_number) for model_, class_number, metric in product(
+                ('',), range(self._classes), metrics_to_include
+            )
+        })
+        pmc = MetricCollection({
+            f'{metric.__name__}/{model_}{class_number}': metric(
+                class_number) for model_, class_number, metric in product(
+                ('persistence_',), range(self._classes), metrics_to_include
+            )
+        })
+        for metric in pmc:
+            pmc[metric].persistence_as_metric = True
+
+        return mc, pmc
+
+    def _reset_metrics(self):
+        for metric in self.metrics:
+            self.metrics[metric].reset()
+        for metric in self.persistence_metrics:
+            self.persistence_metrics[metric].reset()
 
 
 class RadolanLiveEvaluator(UNetLitModel):

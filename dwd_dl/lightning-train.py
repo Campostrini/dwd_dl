@@ -26,7 +26,7 @@ def main(args):
     if args.max_epochs is None:
         args.max_epochs = 100
     trainer = Trainer.from_argparse_args(args, logger=logger,
-                                         flush_logs_every_n_steps=100, callbacks=list(callbacks_list))
+                                         flush_logs_every_n_steps=5, callbacks=list(callbacks_list))
     trainer.fit(unet, dm)
     checkpoint_path = cfg.CFG.create_checkpoint_path_with_name(experiment_timestamp_str)
     trainer.save_checkpoint(checkpoint_path)

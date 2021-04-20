@@ -77,7 +77,6 @@ class VideoDataModule(RadolanDataModule):
         super(VideoDataModule, self).__init__(*args)
 
     def setup(self, stage=None):
-        f = H5Dataset(cfg.CFG.video_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
         self.dataset = Dataset(
             image_size=self.image_size,
             video_or_normal='video'

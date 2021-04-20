@@ -79,15 +79,17 @@ class RadolanDataset(Dataset):
         if video_or_normal == 'normal':
             timestamps_list = cfg.CFG.date_timestamps_list
             print("Using normal mode for dataset.")
+            ranges = cfg.CFG.date_ranges
         else:
             timestamps_list = cfg.CFG.video_timestamps_list
+            ranges = cfg.CFG.video_ranges
         self.min_weights_factor_of_max = min_weights_factor_of_max
         # read radolan files
         self.classes_h5_file_handle = H5Dataset(
-            cfg.CFG.date_ranges, mode='c', classes=cfg.CFG.CLASSES,
+            ranges, mode='c', classes=cfg.CFG.CLASSES,
         )
         self.raw_h5_file_handle = H5Dataset(
-            cfg.CFG.date_ranges, mode='r', classes=cfg.CFG.CLASSES,
+            ranges, mode='r', classes=cfg.CFG.CLASSES,
         )
         self.normalize = normalize
         print("reading images...")
@@ -115,7 +117,7 @@ class RadolanDataset(Dataset):
         )
 
         to_remove = timestamps_at_training_period_end_handler(
-            cfg.CFG.date_ranges, to_remove, in_channels, out_channels
+            ranges, to_remove, in_channels, out_channels
         )
 
         self.to_remove = to_remove

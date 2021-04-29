@@ -37,7 +37,7 @@ class CallbacksList:
     def __init__(self, experiment_timestamp_str):
         val_loss_checkpoint = ModelCheckpoint(
             monitor='val/loss',
-            dirpath=cfg.CFG.create_checkpoint_dir(experiment_timestamp_str),
+            dirpath=cfg.CFG.create_checkpoint_dir(),
             filename=f'{experiment_timestamp_str}' + '-{epoch:02d}-{valid_loss:.2f}',
             save_top_k=2,
             mode='min',

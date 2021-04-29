@@ -14,6 +14,7 @@ class RadolanDataModule(LightningDataModule):
         self.dataset = None
         self.train_dataset = None
         self.valid_dataset = None
+        self.test_dataset = None
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.image_size = image_size
@@ -21,7 +22,7 @@ class RadolanDataModule(LightningDataModule):
     def prepare_data(self):
         create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
 
-    def setup(self, stage=None):
+    def setup(self, stage=None, random_=False):
         self.dataset = Dataset(
             image_size=self.image_size
         )
@@ -29,13 +30,20 @@ class RadolanDataModule(LightningDataModule):
         self.train_dataset = Subset(
             dataset=self.dataset,
             subset='train',
-            valid_cases=20,  # Percentage
+            random_=random_,
+            valid_cases=20,  # Percentage if random_
         )
 
         self.valid_dataset = Subset(
             dataset=self.dataset,
             subset='valid',
-            valid_cases=20  # Percentage
+            random_=random_,
+            valid_cases=20  # Percentage if random_
+        )
+
+        self.test_dataset = Subset(
+            dataset=self.dataset,
+            subset='test',
         )
 
     def train_dataloader(self):
@@ -55,8 +63,8 @@ class RadolanDataModule(LightningDataModule):
         return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
-    def predict_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
     @property
@@ -81,6 +89,10 @@ class VideoDataModule(RadolanDataModule):
             image_size=self.image_size,
             video_or_normal='video'
         )
+
+    def predict_dataloader(self):
+        return DataLoader(self.dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
+                          worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
     def train_dataloader(self):
         raise NotImplementedError("This DataModule should not be used for training.")

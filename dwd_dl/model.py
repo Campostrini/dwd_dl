@@ -63,6 +63,7 @@ class UNetLitModel(pl.LightningModule):
             HeidkeSkillScore,
         ]
         self.metrics, self.persistence_metrics = self._initialize_metrics(self._metrics_to_include)
+        self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(self._metrics_to_include, test=True)
 
         if not cat:
             sizes_in_down = sizes.copy()
@@ -421,6 +422,30 @@ class UNetLitModel(pl.LightningModule):
         #     }
         # )
 
+    def test_step(self, batch, batch_idx):
+        x, y_true = batch
+        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_pred = self(x)
+        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
+        loss = cross_entropy_loss(y_pred, y_true)
+
+        test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
+
+        metrics_out = self.test_metrics(y_pred, y_true)
+        persistence_metrics_out = self.test_persistence_metrics(x[:, -4, ...], y_true)
+
+        self.log_dict({'test/loss': loss, 'test/accuracy': test_acc})
+        self.log_dict({'hp/test_loss': loss, 'hp/test_accuracy': test_acc})
+        self.log_dict(metrics_out)
+        self.log_dict(persistence_metrics_out)
+        return {'loss': loss, 'test_acc': test_acc}
+
+    def test_epoch_end(self, outputs):
+        test_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
+        test_acc = float(sum([batch['test_acc'] for batch in outputs])) / len(outputs)
+        self.log_dict({'test/epoch_loss': test_loss, 'test/epoch_accuracy': test_acc})
+        self._reset_metrics()
+
     def predict(self, batch, batch_idx, data_loader_idx):
         x, y_true = batch
         return self(x)
@@ -505,15 +530,18 @@ class UNetLitModel(pl.LightningModule):
         except ValueError:
             pass
 
-    def _initialize_metrics(self, metrics_to_include):
+    def _initialize_metrics(self, metrics_to_include, test=False):
+        test_prefix = ('',)
+        if test:
+            test_prefix = ('test/',)
         mc = MetricCollection({
-            f'{metric.__name__}/{model_}{class_number}': metric(
+            f'{test_prefix}{metric.__name__}/{model_}{class_number}': metric(
                 class_number) for model_, class_number, metric in product(
                 ('',), range(self._classes), metrics_to_include
             )
         })
         pmc = MetricCollection({
-            f'{metric.__name__}/{model_}{class_number}': metric(
+            f'{test_prefix}{metric.__name__}/{model_}{class_number}': metric(
                 class_number) for model_, class_number, metric in product(
                 ('persistence_',), range(self._classes), metrics_to_include
             )
@@ -523,11 +551,14 @@ class UNetLitModel(pl.LightningModule):
 
         return mc, pmc
 
-    def _reset_metrics(self):
-        for metric in self.metrics:
-            self.metrics[metric].reset()
-        for metric in self.persistence_metrics:
-            self.persistence_metrics[metric].reset()
+    def _reset_metrics(self, test=False):
+        if not test:
+            to_reset = (self.metrics, self.persistence_metrics)
+        else:
+            to_reset = (self.test_metrics, self.test_persistence_metrics)
+        for metric_dict in to_reset:
+            for metric in metric_dict:
+                metric_dict[metric].reset()
 
 
 class RadolanLiveEvaluator(UNetLitModel):

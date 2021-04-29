@@ -160,11 +160,17 @@ class Config:
         self._DATE_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
         self._VIDEO_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'VIDEO_RANGES.yml')
         self._TEST_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'TEST_SET_RANGES.yml')
+        self._VALIDATION_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'),
+                                                             'VALIDATION_SET_RANGES.yml')
+        self._TRAINING_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'),
+                                                           'TRAINING_SET_RANGES.yml')
 
         self._date_ranges = None
         self._files_list = None
         self._video_ranges = None
         self._test_set_ranges = None
+        self._validation_set_ranges = None
+        self._training_set_ranges = None
 
         self._ranges_path_dict = {
             'video_ranges':
@@ -179,6 +185,14 @@ class Config:
                 {'path': self.TEST_SET_RANGES_FILE_PATH,
                  'template_file_name': 'TEST_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
                  'file_name': 'TEST_SET_RANGES.yml'},
+            'valid_set_ranges':
+                {'path': self.VALIDATION_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'VALIDATION_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'VALIDATION_SET_RANGES.yml'},
+            'train_set_ranges':
+                {'path': self.TRAINING_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'TRAINING_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'TRAINING_SET_RANGES.yml'},
         }
 
         self._NW_CORNER_LON_LAT = np.array(cfg_content.NW_CORNER_LON_LAT)
@@ -265,6 +279,14 @@ class Config:
         return self._TEST_SET_RANGES_FILE_PATH
 
     @property
+    def VALIDATION_SET_RANGES_FILE_PATH(self):
+        return self._VALIDATION_SET_RANGES_FILE_PATH
+
+    @property
+    def TRAINING_SET_RANGES_FILE_PATH(self):
+        return self._TRAINING_SET_RANGES_FILE_PATH
+
+    @property
     def VIDEO_RANGES_FILE_PATH(self):
         return self._VIDEO_RANGES_FILE_PATH
 
@@ -333,6 +355,19 @@ class Config:
         if self._test_set_ranges is None:
             self._test_set_ranges = read_ranges(self.TEST_SET_RANGES_FILE_PATH)
         return self._test_set_ranges
+
+    @property
+    def validation_set_ranges(self):
+        if self._validation_set_ranges is None:
+            self._validation_set_ranges = read_ranges(self.VALIDATION_SET_RANGES_FILE_PATH)
+        return self._validation_set_ranges
+
+    @property
+    def training_set_ranges(self):
+        if self._training_set_ranges is None:
+            self._training_set_ranges = read_ranges(self.TRAINING_SET_RANGES_FILE_PATH)
+        return self._training_set_ranges
+
     @property
     def date_timestamps_list(self):
         return self._timestamps_list(self.date_ranges)
@@ -340,6 +375,18 @@ class Config:
     @property
     def video_timestamps_list(self):
         return self._timestamps_list(self.video_ranges)
+
+    @property
+    def test_set_timestamps_list(self):
+        return self._timestamps_list(self.test_set_ranges)
+
+    @property
+    def validation_set_timestamps_list(self):
+        return self._timestamps_list(self.validation_set_ranges)
+
+    @property
+    def training_set_timestamps_list(self):
+        return self._timestamps_list(self.training_set_ranges)
 
     @staticmethod
     def _timestamps_list(ranges):
@@ -360,14 +407,14 @@ class Config:
             self._files_list.remove_duplicates()
         return self._files_list
 
-    def create_checkpoint_dir(self, experiment_timestamp_str):
-        checkpoint_dir = os.path.join(self.RADOLAN_ROOT, 'Models', experiment_timestamp_str)
+    def create_checkpoint_dir(self):
+        checkpoint_dir = os.path.join(self.RADOLAN_ROOT, 'Models')
         os.makedirs(checkpoint_dir, exist_ok=True)
         return checkpoint_dir
 
     def create_checkpoint_path_with_name(self, experiment_timestamp_str):
         checkpoint_name = self._create_raw_checkpoint_name(experiment_timestamp_str)
-        checkpoint_dir = self.create_checkpoint_dir(experiment_timestamp_str)
+        checkpoint_dir = self.create_checkpoint_dir()
         checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
         return checkpoint_path
 
@@ -398,7 +445,7 @@ class Config:
     def make_video_ranges(self):
         self._make_single_range(self._ranges_path_dict['video_ranges'])
 
-    def make_video_and_date_ranges(self):
+    def make_all_ranges(self):
         for range_ in self._ranges_path_dict:
             self._make_single_range(range_dict=self._ranges_path_dict[range_])
 
@@ -478,6 +525,23 @@ class Config:
                             shutil.copyfileobj(f_in, f_out)
                         os.remove(os.path.join(self.RADOLAN_RAW, file))
                 print("Done.")
+
+    def validate_all_ranges(self):
+        for range_list_1, range_list_2 in itertools.combinations(
+                (self.training_set_ranges, self.validation_set_ranges, self.test_set_ranges), 2
+        ):
+            for date_range_1 in range_list_1:
+                for date_range_2 in range_list_2:
+                    assert date_range_1.end < date_range_2.start or date_range_1.start > date_range_2.end
+
+        for range_list in (self.training_set_ranges, self.validation_set_ranges, self.test_set_ranges):
+            for date_range in range_list:
+                found = False
+                for date_range_all in self.date_ranges:
+                    if date_range.start >= date_range_all.start and date_range.end <= date_range_all.end:
+                        found = True
+                if not found:
+                    raise ValueError(f"{date_range} not found in {date_range_all}")
 
     def get_timestamps_hash(self):
         raise DeprecationWarning
@@ -638,9 +702,13 @@ def initialize(inside_initialize=True, skip_download=False):
     radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
-    CFG.make_video_and_date_ranges()
+    CFG.make_all_ranges()
     check_ranges_overlap(CFG.date_ranges)
+    check_ranges_overlap(CFG.training_set_ranges)
+    check_ranges_overlap(CFG.validation_set_ranges)
+    check_ranges_overlap(CFG.test_set_ranges)
     check_ranges_overlap(CFG.video_ranges)
+    CFG.validate_all_ranges()
     if not skip_download:
         if (ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES) or
                 ds.check_h5_missing_or_corrupt(CFG.video_ranges, classes=CFG.CLASSES)):

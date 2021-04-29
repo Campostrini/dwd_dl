@@ -196,6 +196,30 @@ class RadolanDataset(Dataset):
 
         return item_tensors['seq'], item_tensors['tru']
 
+    def indices_of_training(self):
+        indices_list_of_training = []
+        for idx, _ in enumerate(self.indices_tuple):
+            seq, tru = self.indices_tuple[idx]
+            if self.sorted_sequence[seq[0]] in cfg.CFG.training_set_timestamps_list:
+                indices_list_of_training.append(idx)
+        return indices_list_of_training
+
+    def indices_of_validation(self):
+        indices_list_of_validation = []
+        for idx, _ in enumerate(self.indices_tuple):
+            seq, tru = self.indices_tuple[idx]
+            if self.sorted_sequence[seq[0]] in cfg.CFG.validation_set_timestamps_list:
+                indices_list_of_validation.append(idx)
+        return indices_list_of_validation
+
+    def indices_of_test(self):
+        indices_list_of_test = []
+        for idx, _ in enumerate(self.indices_tuple):
+            seq, tru = self.indices_tuple[idx]
+            if self.sorted_sequence[seq[0]] in cfg.CFG.test_set_timestamps_list:
+                indices_list_of_test.append(idx)
+        return indices_list_of_test
+
     def from_timestamp(self, timestamp):
         try:
             index_in_timestamps_list = self.sorted_sequence.index(timestamp)
@@ -223,17 +247,24 @@ class RadolanSubset(RadolanDataset):
 
     """
 
-    def __init__(self, dataset, subset, valid_cases=20, seed=42):
-        assert subset in ['train', 'valid', 'all']
+    def __init__(self, dataset: RadolanDataset, subset, valid_cases=20, seed=42, random_=False):
+        assert subset in ['train', 'valid', 'all', 'test']
         dataset_len = len(dataset)
         indices = [i for i in range(dataset_len)]
-        if not subset == "all":
+        if random_ and not subset == 'test':
             random.seed(seed)
-            valid_indices = random.sample(indices, k=round((valid_cases / 100) * dataset_len))
+            indices = sorted(dataset.indices_of_validation() + dataset.indices_of_training())
+            valid_indices = random.sample(indices, k=round((valid_cases / 100) * len(indices)))
             if subset == "valid":
                 indices = [indices[i] for i in sorted(valid_indices)]
             else:
                 indices = [x for x in indices if indices.index(x) not in valid_indices]
+        elif subset == 'train':
+            indices = dataset.indices_of_training()
+        elif subset == 'valid':
+            indices = dataset.indices_of_validation()
+        elif subset == 'test':
+            indices = dataset.indices_of_test()
         self.dataset = dataset
         self.indices = indices
         self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
@@ -263,7 +294,7 @@ class RadolanSubset(RadolanDataset):
         return torch.tensor(w)
 
     def get_total_pre(self, idx):
-        return self.dataset.get_total_prex[self.indices[idx]]
+        return self.dataset.get_total_pre[self.indices[idx]]
 
 
 @utils.init_safety

@@ -10,14 +10,7 @@ if __name__ == "__main__":
         cfg.initialize()
         ds.create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
 
-    radolan_dataset = ds.RadolanDataset(
-        ds.H5Dataset(
-            cfg.CFG.date_ranges,
-            mode=cfg.CFG.MODE,
-            classes=cfg.CFG.CLASSES,
-        ),
-        cfg.CFG.DATE_RANGES_FILE_PATH,
-    )
+    radolan_dataset = ds.RadolanDataset()
 
     df = pd.DataFrame.from_dict(radolan_dataset.classes_frequency, orient='index')
     df.index = pd.to_datetime(df.index, format=cfg.CFG.TIMESTAMP_DATE_FORMAT)

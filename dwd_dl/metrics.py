@@ -38,6 +38,70 @@ class Contingency(tm.Metric):
         return preds, target
 
 
+class TruePositive(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.true_positive
+
+
+class TrueNegative(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.true_negative
+
+
+class FalsePositive(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.false_positive
+
+
+class FalseNegative(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.false_negative
+
+
+class TruePositiveRatio(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.true_positive / self.numel
+
+
+class TrueNegativeRatio(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.true_negative / self.numel
+
+
+class FalsePositiveRatio(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.false_positive / self.numel
+
+
+class FalseNegativeRatio(Contingency):
+    def __init__(self, class_number):
+        super().__init__(class_number)
+
+    def compute(self):
+        return self.false_negative / self.numel
+
+
 class PercentCorrect(Contingency):
     def __init__(self, class_number):
         super().__init__(class_number)

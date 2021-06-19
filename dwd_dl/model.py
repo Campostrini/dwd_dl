@@ -11,7 +11,22 @@ from pytorch_lightning.core.decorators import auto_move_data
 from torchmetrics import MetricCollection
 
 import dwd_dl.cfg as cfg
-from dwd_dl.metrics import PercentCorrect, HitRate, FalseAlarmRatio, CriticalSuccessIndex, Bias, HeidkeSkillScore
+from dwd_dl.metrics import (
+    TruePositive,
+    TrueNegative,
+    FalsePositive,
+    FalseNegative,
+    TruePositiveRatio,
+    TrueNegativeRatio,
+    FalsePositiveRatio,
+    FalseNegativeRatio,
+    PercentCorrect,
+    HitRate,
+    FalseAlarmRatio,
+    CriticalSuccessIndex,
+    Bias,
+    HeidkeSkillScore
+)
 
 
 class UNetLitModel(pl.LightningModule):
@@ -55,6 +70,14 @@ class UNetLitModel(pl.LightningModule):
         sizes = [self.init_features * 2 ** n for n in range(depth)]
 
         self._metrics_to_include = [
+            TruePositive,
+            TrueNegative,
+            FalsePositive,
+            FalseNegative,
+            TruePositiveRatio,
+            TrueNegativeRatio,
+            FalsePositiveRatio,
+            FalseNegativeRatio,
             PercentCorrect,
             HitRate,
             FalseAlarmRatio,
@@ -531,9 +554,9 @@ class UNetLitModel(pl.LightningModule):
             pass
 
     def _initialize_metrics(self, metrics_to_include, test=False):
-        test_prefix = ('',)
+        test_prefix = ''
         if test:
-            test_prefix = ('test/',)
+            test_prefix = 'test/'
         mc = MetricCollection({
             f'{test_prefix}{metric.__name__}/{model_}{class_number}': metric(
                 class_number) for model_, class_number, metric in product(

@@ -422,7 +422,10 @@ def h5_files_names_list_single_mode(date_ranges, **kwargs):
 
 
 def h5_files_names_list_both_modes(date_ranges, **kwargs):
-    kwargs.pop('mode')
+    try:
+        kwargs.pop('mode')
+    except KeyError:
+        pass
     return h5_files_names_list_single_mode(
         date_ranges, mode='c', **kwargs
     ) + h5_files_names_list_single_mode(

@@ -13,7 +13,7 @@
 module purge
 module load cuda/10.1.168
 
-source activate py37
+source activate py37torch16bit
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 

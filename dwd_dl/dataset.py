@@ -207,17 +207,19 @@ class RadolanDataset(Dataset):
 
     def indices_of_validation(self):
         indices_list_of_validation = []
+        validation_set_timestamps_list = cfg.CFG.validation_set_timestamps_list
         for idx, _ in enumerate(self.indices_tuple):
             seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in cfg.CFG.validation_set_timestamps_list:
+            if self.sorted_sequence[seq[0]] in validation_set_timestamps_list:
                 indices_list_of_validation.append(idx)
         return indices_list_of_validation
 
     def indices_of_test(self):
         indices_list_of_test = []
+        test_set_timestamps_list = cfg.CFG.test_set_timestamps_list
         for idx, _ in enumerate(self.indices_tuple):
             seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in cfg.CFG.test_set_timestamps_list:
+            if self.sorted_sequence[seq[0]] in test_set_timestamps_list:
                 indices_list_of_test.append(idx)
         return indices_list_of_test
 

@@ -198,9 +198,10 @@ class RadolanDataset(Dataset):
 
     def indices_of_training(self):
         indices_list_of_training = []
-        for idx, _ in enumerate(self.indices_tuple):
+        training_set_timestamps_list = cfg.CFG.training_set_timestamps_list
+        for idx, _ in tqdm(enumerate(self.indices_tuple)):
             seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in cfg.CFG.training_set_timestamps_list:
+            if self.sorted_sequence[seq[0]] in training_set_timestamps_list:
                 indices_list_of_training.append(idx)
         return indices_list_of_training
 

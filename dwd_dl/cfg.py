@@ -391,7 +391,7 @@ class Config:
     @staticmethod
     def _timestamps_list(ranges):
         timestamp_list = []
-        for date_range in ranges:
+        for date_range in tqdm(ranges):
             format_cache = date_range.date_format
             date_range.switch_date_format(format_='timestamp_date_format')
             timestamp_list.extend([x for x in date_range.str_date_range()])

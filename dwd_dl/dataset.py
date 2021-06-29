@@ -4,6 +4,7 @@ import datetime as dt
 from contextlib import contextmanager
 
 import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -177,6 +178,45 @@ class RadolanDataset(Dataset):
 
         return tot['seq'], tot['tru']
 
+    def get_total_pre_time_series_with_timestamps(self):
+        time_series_dict = dict()
+        for i in range(len(self)):
+            seq, tru = self.indices_tuple[i]
+            timestamp = dt.datetime.strptime(self.sorted_sequence[seq[0]], cfg.CFG.TIMESTAMP_DATE_FORMAT)
+            time_series_dict[timestamp] = 0
+            for indices in (seq, tru):
+                for t in indices:
+                    time_series_dict[timestamp] += self._tot_pre[self.sorted_sequence[t]]
+        return pd.Series(time_series_dict)
+
+    def get_nonzero_intervals(self):
+        precipitation_series = self.get_total_pre_time_series_with_timestamps()
+        open_ = False
+        start = end = None
+        interval_list = []
+        for i, (index, value) in enumerate(precipitation_series.iteritems()):
+            if value == 0 and not open_:
+                continue
+            elif value > 0 and not open_:
+                start = index
+                end = index
+                open_ = True
+                continue
+            elif value > 0 and open_:
+                if not index - end == dt.timedelta(hours=1):
+                    interval = pd.Interval(start, end, closed='both')
+                    interval_list.append(interval)
+                    open_ = False
+                    continue
+                end = index
+                continue
+            elif value == 0 and open_:
+                interval = pd.Interval(start, end, closed='both')
+                open_ = False
+                interval_list.append(interval)
+                continue
+        return pd.Series(interval_list)
+
     def __len__(self):
         return len(self.indices_tuple)
 
@@ -331,24 +371,24 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                 if date_str not in f.keys():
                                     binary_file_name = cfg.binary_file_name(time_stamp=date)  # TODO: refactor. Not correct for deviations
                                     try:
-                                        data = utils.square_select(date, height=height, width=width, plot=False).data
+                                        raw_data = utils.square_select(date, height=height, width=width, plot=False).data
                                     except OverflowError:
                                         # If not found then treat it as NaN-filled
-                                        data = np.empty((height, width))
-                                        data[:] = np.nan
-                                    tot_nans = np.count_nonzero(np.isnan(data))
-                                    data = np.nan_to_num(data)
+                                        raw_data = np.empty((height, width))
+                                        raw_data[:] = np.nan
+                                    tot_nans = np.count_nonzero(np.isnan(raw_data))
+                                    raw_data = np.nan_to_num(raw_data)
                                     class_frequency = dict()
                                     if m == 'c':  # skipped if in raw mode
-                                        data = np.array(
-                                            [(classes[class_name][0] <= data) &
-                                             (data < classes[class_name][1]) for class_name in classes]
+                                        raw_data = np.array(
+                                            [(classes[class_name][0] <= raw_data) &
+                                             (raw_data < classes[class_name][1]) for class_name in classes]
                                         ).astype(int)
                                         class_frequency = {
-                                            class_name: np.count_nonzero(data[i]) for i, class_name in enumerate(classes)
+                                            class_name: np.count_nonzero(raw_data[i]) for i, class_name in enumerate(classes)
                                         }
-                                        data = utils.to_class_index(data)
-                                    data = np.expand_dims(data, 0)
+                                        raw_data = utils.to_class_index(raw_data)
+                                    raw_data = np.expand_dims(raw_data, 0)
                                     # adding dimension for timestamp and coordinates
                                     normalized_time_of_day = utils.normalized_time_of_day_from_string(
                                         timestamp_string=date_str
@@ -358,16 +398,16 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                         (1, height, width), normalized_time_of_day, dtype=np.float32
                                     )
                                     coordinates_array = cfg.CFG.coordinates_array
-                                    data = np.concatenate((data, timestamps_grid, coordinates_array))
+                                    data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
 
                                     f[date_str] = data
                                     f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
                                     f[date_str].attrs['file_name'] = binary_file_name
                                     f[date_str].attrs['NaN'] = tot_nans
                                     f[date_str].attrs['img_size'] = height * width
-                                    f[date_str].attrs['tot_pre'] = np.nansum(data)
-                                    f[date_str].attrs['mean'] = np.nanmean(data)
-                                    f[date_str].attrs['std'] = np.nanstd(data)
+                                    f[date_str].attrs['tot_pre'] = np.nansum(raw_data)
+                                    f[date_str].attrs['mean'] = np.nanmean(raw_data)
+                                    f[date_str].attrs['std'] = np.nanstd(raw_data)
                             f.attrs['mode'] = m
                             f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
 

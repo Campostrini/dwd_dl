@@ -13,6 +13,9 @@ if __name__ == "__main__":
 
     radolan_dataset = ds.RadolanDataset()
 
+    intervals = radolan_dataset.get_nonzero_intervals()
+    radolan_dataset.close()
+
     df = pd.DataFrame.from_dict(radolan_dataset.classes_frequency, orient='index')
     df.index = pd.to_datetime(df.index, format=cfg.CFG.TIMESTAMP_DATE_FORMAT)
 

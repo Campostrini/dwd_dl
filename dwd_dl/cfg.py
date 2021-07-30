@@ -201,7 +201,7 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.0.6')
+        self._current_h5_version = version.Version('v0.0.7')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
 
         self._mode = cfg_content.MODE

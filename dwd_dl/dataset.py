@@ -178,7 +178,7 @@ class RadolanDataset(Dataset):
 
         return tot['seq'], tot['tru']
 
-    def get_total_pre_time_series_with_timestamps(self):
+    def get_total_pre_time_series_with_timestamps(self) -> pd.Series:
         time_series_dict = dict()
         for i in range(len(self)):
             seq, tru = self.indices_tuple[i]
@@ -216,6 +216,10 @@ class RadolanDataset(Dataset):
                 interval_list.append(interval)
                 continue
         return pd.Series(interval_list)
+
+    def get_nonzero_timestamps(self):
+        precipitation_series = self.get_total_pre_time_series_with_timestamps()
+        return precipitation_series[precipitation_series > 0]
 
     def __len__(self):
         return len(self.indices_tuple)
@@ -346,6 +350,8 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
     default_classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+    histogram_bins = [n * 0.1 for n in range(501)]
+    histogram_bins.append(np.infty)
     if classes is None:
         classes = default_classes
 
@@ -378,7 +384,10 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                         raw_data[:] = np.nan
                                     tot_nans = np.count_nonzero(np.isnan(raw_data))
                                     raw_data = np.nan_to_num(raw_data)
+                                    min_ = np.min(raw_data)
+                                    max_ = np.max(raw_data)
                                     class_frequency = dict()
+                                    histogram_frequency, histogram_edges = np.histogram(raw_data, bins=histogram_bins)
                                     if m == 'c':  # skipped if in raw mode
                                         raw_data = np.array(
                                             [(classes[class_name][0] <= raw_data) &
@@ -402,12 +411,16 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
 
                                     f[date_str] = data
                                     f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
+                                    f[date_str].attrs['histogram_frequency'] = histogram_frequency
+                                    f[date_str].attrs['histogram_edges'] = histogram_edges
                                     f[date_str].attrs['file_name'] = binary_file_name
                                     f[date_str].attrs['NaN'] = tot_nans
                                     f[date_str].attrs['img_size'] = height * width
                                     f[date_str].attrs['tot_pre'] = np.nansum(raw_data)
                                     f[date_str].attrs['mean'] = np.nanmean(raw_data)
                                     f[date_str].attrs['std'] = np.nanstd(raw_data)
+                                    f[date_str].attrs['min'] = min_
+                                    f[date_str].attrs['max'] = max_
                             f.attrs['mode'] = m
                             f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
 

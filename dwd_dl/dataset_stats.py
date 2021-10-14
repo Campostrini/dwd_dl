@@ -1,3 +1,4 @@
+import dask.dataframe
 import xarray
 
 from dwd_dl import cfg
@@ -46,10 +47,12 @@ if __name__ == "__main__":
     print("Classes percentages in non test set: \n{}".format(classes_percentages_non_test_set))
 
     # PANDAS
-    grid = ['/shared1/RadolanData/Radolan/H5/v0.0.5-r-2015010.h5',
-            '/shared1/RadolanData/Radolan/H5/v0.0.5-r-2016010.h5',
-            '/shared1/RadolanData/Radolan/H5/v0.0.5-r-2019001.h5',]
-    ds = open_mfdataset(grid)
+    # grid = ['/shared1/RadolanData/Radolan/H5/v0.0.5-r-2015010.h5',
+    #         '/shared1/RadolanData/Radolan/H5/v0.0.5-r-2016010.h5',
+    #         '/shared1/RadolanData/Radolan/H5/v0.0.5-r-2019001.h5',
+    #         ]
+    dask_dataframe = dd.read_hdf('/shared1/RadolanData/Radolan/H5/v0.0.7-r-2015010.h5', '/*')
+    # ds = open_mfdataset(grid)
     # ds = dd.read_hdf(grid, '*')
     da = ds.to_array()
     da = da.rename({"variable": "time", "phony_dim_0": "channels", "phony_dim_1": "y", "phony_dim_2": "x"})

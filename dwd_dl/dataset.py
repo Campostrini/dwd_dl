@@ -8,7 +8,6 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
-import h5py
 import hashlib
 
 import dwd_dl.cfg as cfg
@@ -19,8 +18,8 @@ def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
     not_for_mean = []
     to_remove = []
     nan_to_num = []
-    for date in nan_days:
-        if nan_days[date] > max_nans:
+    for date, row in nan_days.iterrows():
+        if row.values[0] > max_nans:
             time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
             dr = cfg.daterange(
                 time_stamp - dt.timedelta(hours=in_channels + out_channels - 1),
@@ -100,12 +99,12 @@ class RadolanDataset(Dataset):
         std = {}
         mean = {}
         classes_frequency = {}
-        for date in tqdm(timestamps_list):
-            tot_pre[date] = self.classes_h5_file_handle[date].attrs['tot_pre']
-            nan_days[date] = self.classes_h5_file_handle[date].attrs['NaN']
-            std[date] = self.classes_h5_file_handle[date].attrs['std']
-            mean[date] = self.classes_h5_file_handle[date].attrs['mean']
-            classes_frequency[date] = self.classes_h5_file_handle[date].attrs['classes_frequency']
+
+        tot_pre = self.classes_h5_file_handle['tot_pre']
+        nan_days = self.classes_h5_file_handle['NaN']
+        std = self.classes_h5_file_handle['std']
+        mean = self.classes_h5_file_handle['mean']
+        classes_frequency = self.classes_h5_file_handle['classes_frequency']
 
         self._tot_pre = tot_pre
         self.classes_frequency = classes_frequency
@@ -131,8 +130,8 @@ class RadolanDataset(Dataset):
         for n, date in enumerate(self.sequence):
             n_in_img = self._image_size ** 2
             if date not in not_for_mean:
-                m = mean[date]
-                s = std[date]
+                m = mean.loc[date]
+                s = std.loc[date]
                 self.std = utils.incremental_std(self.std, self.mean, n, n_in_img, s, m)
                 self.mean = utils.incremental_mean(self.mean, n, n_in_img, m)
 
@@ -362,6 +361,22 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
             to_create.append(h5_file)
 
     if to_create:
+        attr_dict = {
+            'classes_frequency': [],
+            'histogram_frequency': [],
+            'histogram_edges': [],
+            'file_name': [],
+            'NaN': [],
+            'img_size': [],
+            'tot_pre': [],
+            'mean': [],
+            'std': [],
+            'min': [],
+            'max': [],
+            'normalized_timestamp': [],
+            'mode': None,
+            'file_name_hash': None,
+        }
         for m in ('c', 'r'):
             for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
                 for year_month, file_name in zip(
@@ -369,7 +384,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                         h5_files_names_list_single_mode(ranges, mode=m),
                 ):
                     if file_name in to_create:
-                        with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
+                        with pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
                             for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
                                 date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
                                 if verbose:
@@ -408,28 +423,35 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                     )
                                     coordinates_array = cfg.CFG.coordinates_array
                                     data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
+                                    data = np.squeeze(raw_data)
 
-                                    f[date_str] = data
-                                    f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
-                                    f[date_str].attrs['histogram_frequency'] = histogram_frequency
-                                    f[date_str].attrs['histogram_edges'] = histogram_edges
-                                    f[date_str].attrs['file_name'] = binary_file_name
-                                    f[date_str].attrs['NaN'] = tot_nans
-                                    f[date_str].attrs['img_size'] = height * width
-                                    f[date_str].attrs['tot_pre'] = np.nansum(raw_data)
-                                    f[date_str].attrs['mean'] = np.nanmean(raw_data)
-                                    f[date_str].attrs['std'] = np.nanstd(raw_data)
-                                    f[date_str].attrs['min'] = min_
-                                    f[date_str].attrs['max'] = max_
-                            f.attrs['mode'] = m
-                            f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
+                                    f[date_str] = pd.DataFrame(data=data)
+                                    attr_dict['classes_frequency'].append([date_str, np.array(list(class_frequency.values()))])
+                                    attr_dict['histogram_frequency'].append([date_str, histogram_frequency])
+                                    attr_dict['histogram_edges'].append([date_str, histogram_edges])
+                                    attr_dict['file_name'].append([date_str, binary_file_name])
+                                    attr_dict['NaN'].append([date_str, tot_nans])
+                                    attr_dict['img_size'].append([date_str, height * width])
+                                    attr_dict['tot_pre'].append([date_str, np.nansum(raw_data)])
+                                    attr_dict['mean'].append([date_str, np.nanmean(raw_data)])
+                                    attr_dict['std'].append([date_str, np.nanstd(raw_data)])
+                                    attr_dict['min'].append([date_str, min_])
+                                    attr_dict['max'].append([date_str, max_])
+                                    attr_dict['normalized_timestamp'].append([date_str, normalized_time_of_day])
+                            attr_dict['mode'] = m
+                            attr_dict['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
+                            for key in attr_dict:
+                                if key not in ('mode', 'file_name_hash'):
+                                    f[key] = pd.DataFrame(attr_dict[key]).set_index(0)
+                                else:
+                                    f[key] = pd.DataFrame(data=[attr_dict[key]])
 
 
 def read_h5(filename):
     if not filename.endswith('.h5'):
         filename += '.h5'
 
-    f = h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), filename), 'a')
+    f = pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), filename), 'a')
 
     return f
 
@@ -503,9 +525,9 @@ def check_h5_missing_or_corrupt(date_ranges, **kwargs):
         if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)
         else:
-            with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
+            with pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
                 try:
-                    hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
+                    hash_check = (f['file_name_hash'].values[0][0] == hashlib.md5(file_name.encode()).hexdigest())
                     assert hash_check
                 except (KeyError, AssertionError):
                     print(f"h5 file name not corresponding to content for file {file_name}")
@@ -525,7 +547,7 @@ class H5Dataset:
         self._date_ranges = date_ranges
         self.year_month_file_names_dictionary = ym_dictionary(date_ranges, mode=mode)
         self.files_dictionary = {
-            ym: h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'r')
+            ym: pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'r')
             for (ym, file_name) in self.year_month_file_names_dictionary.items()
         }
 
@@ -534,8 +556,24 @@ class H5Dataset:
             return self.mode
         elif item == 'classes':
             return self.classes
-        timestamp = dt.datetime.strptime(item, cfg.CFG.TIMESTAMP_DATE_FORMAT)
-        return self.files_dictionary[(timestamp.year, timestamp.month)][item]
+        elif item.isdigit():
+            timestamp = dt.datetime.strptime(item, cfg.CFG.TIMESTAMP_DATE_FORMAT)
+            timestamps_grid = np.full(
+                (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
+                self.files_dictionary[(timestamp.year, timestamp.month)]['normalized_timestamp'],
+                dtype=np.float32
+            )
+            precipitation = self.files_dictionary[(timestamp.year, timestamp.month)][item]
+            coordinates_array = cfg.CFG.coordinates_array
+            return np.concatenate((np.expand_dims(precipitation, 0), timestamps_grid, coordinates_array))
+        else:
+            try:
+                result = []
+                for ym in self.files_dictionary:
+                    result.append(self.files_dictionary[ym][item])
+            except KeyError:
+                raise KeyError(f"{item} is an invalid Key for this H5Dataset")
+            return pd.concat(result)
 
     def close(self):
         for ym in self.files_dictionary:

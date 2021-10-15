@@ -201,7 +201,7 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.0.7')
+        self._current_h5_version = version.Version('v0.1.0')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
 
         self._mode = cfg_content.MODE
@@ -945,7 +945,7 @@ class DateRange:
         return self._date_format
 
     def date_range(self, include_end=True):
-        return daterange(self.start, self.end, include_end=include_end)
+        return list(daterange(self.start, self.end, include_end=include_end))
 
     def str_date_range(self, include_end=True):
         assert self._date_format is not None

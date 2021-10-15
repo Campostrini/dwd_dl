@@ -370,8 +370,13 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                 ):
                     if file_name in to_create:
                         with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
-                            for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
+                            date_range = cfg.MonthDateRange(*year_month).date_range()
+                            data = np.empty((len(date_range), height, width))
+                            data[...] = np.nan
+                            for n, date in tqdm(enumerate(date_range)):
                                 date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
+                                if n == 0:
+                                    first_date_str = date_str
                                 if verbose:
                                     print('Processing {}'.format(date_str))
                                 if date_str not in f.keys():
@@ -382,13 +387,14 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                         # If not found then treat it as NaN-filled
                                         raw_data = np.empty((height, width))
                                         raw_data[:] = np.nan
-                                    tot_nans = np.count_nonzero(np.isnan(raw_data))
-                                    raw_data = np.nan_to_num(raw_data)
-                                    min_ = np.min(raw_data)
-                                    max_ = np.max(raw_data)
-                                    class_frequency = dict()
-                                    histogram_frequency, histogram_edges = np.histogram(raw_data, bins=histogram_bins)
+                                    # tot_nans = np.count_nonzero(np.isnan(raw_data))
+                                    # raw_data = np.nan_to_num(raw_data)
+                                    # min_ = np.min(raw_data)
+                                    # max_ = np.max(raw_data)
+                                    # class_frequency = dict()
+                                    # histogram_frequency, histogram_edges = np.histogram(raw_data, bins=histogram_bins)
                                     if m == 'c':  # skipped if in raw mode
+                                        raw_data = np.nan_to_num(raw_data)
                                         raw_data = np.array(
                                             [(classes[class_name][0] <= raw_data) &
                                              (raw_data < classes[class_name][1]) for class_name in classes]
@@ -397,32 +403,34 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                             class_name: np.count_nonzero(raw_data[i]) for i, class_name in enumerate(classes)
                                         }
                                         raw_data = utils.to_class_index(raw_data)
-                                    raw_data = np.expand_dims(raw_data, 0)
+                                    # raw_data = np.expand_dims(raw_data, 0)
+                                    data[n] = raw_data
                                     # adding dimension for timestamp and coordinates
-                                    normalized_time_of_day = utils.normalized_time_of_day_from_string(
-                                        timestamp_string=date_str
-                                    )
+                                    # normalized_time_of_day = utils.normalized_time_of_day_from_string(
+                                    #     timestamp_string=date_str
+                                    # )
                                     # dim for concat
-                                    timestamps_grid = np.full(
-                                        (1, height, width), normalized_time_of_day, dtype=np.float32
-                                    )
-                                    coordinates_array = cfg.CFG.coordinates_array
-                                    data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
+                                    # timestamps_grid = np.full(
+                                    #     (1, height, width), normalized_time_of_day, dtype=np.float32
+                                    # )
+                                    # coordinates_array = cfg.CFG.coordinates_array
+                                    # data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
 
-                                    f[date_str] = data
-                                    f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
-                                    f[date_str].attrs['histogram_frequency'] = histogram_frequency
-                                    f[date_str].attrs['histogram_edges'] = histogram_edges
-                                    f[date_str].attrs['file_name'] = binary_file_name
-                                    f[date_str].attrs['NaN'] = tot_nans
-                                    f[date_str].attrs['img_size'] = height * width
-                                    f[date_str].attrs['tot_pre'] = np.nansum(raw_data)
-                                    f[date_str].attrs['mean'] = np.nanmean(raw_data)
-                                    f[date_str].attrs['std'] = np.nanstd(raw_data)
-                                    f[date_str].attrs['min'] = min_
-                                    f[date_str].attrs['max'] = max_
-                            f.attrs['mode'] = m
-                            f.attrs['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
+                                    # f[date_str] = raw_data
+                                    # f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
+                                    # f[date_str].attrs['histogram_frequency'] = histogram_frequency
+                                    # f[date_str].attrs['histogram_edges'] = histogram_edges
+                                    # f[date_str].attrs['file_name'] = binary_file_name
+                                    # f[date_str].attrs['NaN'] = tot_nans
+                                    # f[date_str].attrs['img_size'] = height * width
+                                    # f[date_str].attrs['tot_pre'] = np.nansum(raw_data)
+                                    # f[date_str].attrs['mean'] = np.nanmean(raw_data)
+                                    # f[date_str].attrs['std'] = np.nanstd(raw_data)
+                                    # f[date_str].attrs['min'] = min_
+                                    # f[date_str].attrs['max'] = max_
+                            f[first_date_str] = data
+                            # f['mode'] = [0] if m == 'c' else [1]
+                            # f[hashlib.md5(file_name.encode()).hexdigest()] = np.array([1])
 
 
 def read_h5(filename):
@@ -465,7 +473,7 @@ def h5_name(year: int, month: int, version_=None, mode=None, classes=None, with_
         # first number is the number of classes. The next are the left limits of the classes with :05.3 format
         # e.g. v0.0.2-r-201203
         # or v0.0.2-c4000.0000.1001.0002.5-2012004 means 4 classes starting at 0 0.1 1 and 2.5
-    file_name = '-'.join([f"v{version_}", f"{mode}", f"{year}{month:03}"])
+    file_name = '-'.join([f"v{version_}b", f"{mode}", f"{year}{month:03}"])
     if with_extension:
         extension = '.h5'
         file_name += extension
@@ -505,7 +513,7 @@ def check_h5_missing_or_corrupt(date_ranges, **kwargs):
         else:
             with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
                 try:
-                    hash_check = (f.attrs['file_name_hash'] == hashlib.md5(file_name.encode()).hexdigest())
+                    hash_check = True # f[hashlib.md5(file_name.encode()).hexdigest()]
                     assert hash_check
                 except (KeyError, AssertionError):
                     print(f"h5 file name not corresponding to content for file {file_name}")
@@ -521,6 +529,7 @@ def check_h5_missing_or_corrupt(date_ranges, **kwargs):
 class H5Dataset:
     def __init__(self, date_ranges, mode, classes=None):
         self.mode = mode
+        self._keys = []
         self.classes = classes
         self._date_ranges = date_ranges
         self.year_month_file_names_dictionary = ym_dictionary(date_ranges, mode=mode)
@@ -542,13 +551,18 @@ class H5Dataset:
             self.files_dictionary[ym].close()
 
     def keys(self):
-        keys_ = []
-        for ym in self.files_dictionary:
-            keys_.extend(self.files_dictionary[ym].keys())
-        return keys_
+        if not self._keys:
+            for ym in self.files_dictionary:
+                self._keys.extend(self.files_dictionary[ym].keys())
+        return self._keys
 
     def __iter__(self):
-        return iter(self.keys())
+        def string_is_digit(element):
+            if not isinstance(element, str):
+                return False
+            return element.isdigit()
+
+        return filter(string_is_digit, self.keys())
 
 
 @contextmanager

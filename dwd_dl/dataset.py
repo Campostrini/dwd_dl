@@ -371,7 +371,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                     if file_name in to_create:
                         with h5py.File(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
                             date_range = cfg.MonthDateRange(*year_month).date_range()
-                            data = np.empty((len(date_range), height, width))
+                            data = np.empty((len(date_range), height * width))
                             data[...] = np.nan
                             for n, date in tqdm(enumerate(date_range)):
                                 date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
@@ -404,7 +404,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                         }
                                         raw_data = utils.to_class_index(raw_data)
                                     # raw_data = np.expand_dims(raw_data, 0)
-                                    data[n] = raw_data
+                                    # data[n] = raw_data.ravel()
                                     # adding dimension for timestamp and coordinates
                                     # normalized_time_of_day = utils.normalized_time_of_day_from_string(
                                     #     timestamp_string=date_str
@@ -416,6 +416,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                     # coordinates_array = cfg.CFG.coordinates_array
                                     # data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
 
+                                    f.create_dataset(date_str, data=raw_data.ravel())
                                     # f[date_str] = raw_data
                                     # f[date_str].attrs['classes_frequency'] = np.array(list(class_frequency.values()))
                                     # f[date_str].attrs['histogram_frequency'] = histogram_frequency
@@ -428,7 +429,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                                     # f[date_str].attrs['std'] = np.nanstd(raw_data)
                                     # f[date_str].attrs['min'] = min_
                                     # f[date_str].attrs['max'] = max_
-                            f[first_date_str] = data
+                            # f.create_dataset(first_date_str, data=data.T)
                             # f['mode'] = [0] if m == 'c' else [1]
                             # f[hashlib.md5(file_name.encode()).hexdigest()] = np.array([1])
 

@@ -345,7 +345,7 @@ class RadolanSubset(RadolanDataset):
 
 
 @utils.init_safety
-def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, verbose=False):
+def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=256, width=256, verbose=False):
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
@@ -366,7 +366,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
             for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
                 for year_month, file_name in zip(
                         utils.ym_tuples(ranges),
-                        h5_files_names_list_single_mode(ranges, mode=m),
+                        files_names_list_single_mode(ranges, h5_or_ncdf=h5_or_ncdf, mode=m),
                 ):
                     if file_name in to_create:
                         date_range = cfg.MonthDateRange(*year_month).date_range()
@@ -392,7 +392,7 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
 
                         xds = xarray.Dataset(
                             data_vars={
-                                'precipitation': [['time', 'lon', 'lat'], data]
+                                'precipitation': (['time', 'lon', 'lat'], data)
                             }, coords={
                                 'time': time
                             })
@@ -457,62 +457,40 @@ def ncdf4_name(*args, **kwargs):
     return h5
 
 
-def h5_files_names_list_single_mode(date_ranges, **kwargs):
+def files_names_list_single_mode(date_ranges, h5_or_ncdf='N', **kwargs):
+    if h5_or_ncdf == 'N':
+        name_func = ncdf4_name
+    elif h5_or_ncdf == 'H':
+        name_func = h5_name
+    else:
+        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
     year_month_tuples = utils.ym_tuples(date_ranges)
-    return [h5_name(*ym, **kwargs) for ym in year_month_tuples]
+    return [name_func(*ym, **kwargs) for ym in year_month_tuples]
 
 
-def ncdf4_files_names_list_single_mode(date_ranges, **kwargs):
-    year_month_tuples = utils.ym_tuples(date_ranges)
-    return [ncdf4_name(*ym, **kwargs) for ym in year_month_tuples]
-
-
-def h5_files_names_list_both_modes(date_ranges, **kwargs):
+def files_names_list_both_modes(date_ranges, h5_or_ncdf='N', **kwargs):
     try:
         kwargs.pop('mode')
     except KeyError:
         pass
-    return h5_files_names_list_single_mode(
-        date_ranges, mode='c', **kwargs
-    ) + h5_files_names_list_single_mode(
-        date_ranges, mode='r', **kwargs
-    )
-
-
-def ncdf4_files_names_list_both_modes(date_ranges, **kwargs):
-    try:
-        kwargs.pop('mode')
-    except KeyError:
-        pass
-    return ncdf4_files_names_list_single_mode(
-        date_ranges, mode='c', **kwargs
-    ) + h5_files_names_list_single_mode(
-        date_ranges, mode='r', **kwargs
+    return files_names_list_single_mode(
+        date_ranges, h5_or_ncdf=h5_or_ncdf, mode='c', **kwargs
+    ) + files_names_list_single_mode(
+        date_ranges, h5_or_ncdf=h5_or_ncdf, mode='r', **kwargs
     )
 
 
 def ym_dictionary(date_ranges, h5_or_ncdf='N', **kwargs):
     dict_ = {}
-    if h5_or_ncdf == 'N':
-        list_single_mode_func = ncdf4_files_names_list_single_mode
-    elif h5_or_ncdf == 'H':
-        list_single_mode_func = h5_files_names_list_single_mode
-    else:
-        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
-    for ym, file_name in zip(utils.ym_tuples(date_ranges), list_single_mode_func(date_ranges, **kwargs)):
+    for ym, file_name in zip(utils.ym_tuples(date_ranges), files_names_list_single_mode(
+            date_ranges, h5_or_ncdf=h5_or_ncdf, **kwargs)):
         dict_[ym] = file_name
     return dict_
 
 
 def check_datasets_missing_or_corrupt(date_ranges,  h5_or_ncdf='N',**kwargs):
     unavailable = []
-    if h5_or_ncdf == 'N':
-        list_both_modes_func = ncdf4_files_names_list_both_modes
-    elif h5_or_ncdf == 'H':
-        list_both_modes_func = h5_files_names_list_both_modes
-    else:
-        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
-    required = list_both_modes_func(date_ranges, **kwargs)
+    required = files_names_list_both_modes(date_ranges, h5_or_ncdf=h5_or_ncdf, **kwargs)
     for file_name in required:
         if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)

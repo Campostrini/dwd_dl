@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import numpy as np
 import pandas as pd
 import torch
+import xarray
 from torch.utils.data import Dataset
 from tqdm import tqdm
 import hashlib
@@ -354,29 +355,13 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
     if classes is None:
         classes = default_classes
 
-    to_create = check_h5_missing_or_corrupt(cfg.CFG.date_ranges, classes=classes)
-    video_h5_to_create = check_h5_missing_or_corrupt(cfg.CFG.video_ranges, classes=classes)
+    to_create = check_datasets_missing_or_corrupt(cfg.CFG.date_ranges, classes=classes)
+    video_h5_to_create = check_datasets_missing_or_corrupt(cfg.CFG.video_ranges, classes=classes)
     for h5_file in video_h5_to_create:
         if h5_file not in to_create:
             to_create.append(h5_file)
 
     if to_create:
-        attr_dict = {
-            'classes_frequency': [],
-            'histogram_frequency': [],
-            'histogram_edges': [],
-            'file_name': [],
-            'NaN': [],
-            'img_size': [],
-            'tot_pre': [],
-            'mean': [],
-            'std': [],
-            'min': [],
-            'max': [],
-            'normalized_timestamp': [],
-            'mode': None,
-            'file_name_hash': None,
-        }
         for m in ('c', 'r'):
             for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
                 for year_month, file_name in zip(
@@ -384,67 +369,38 @@ def create_h5(mode: str, classes=None, keep_open=True, height=256, width=256, ve
                         h5_files_names_list_single_mode(ranges, mode=m),
                 ):
                     if file_name in to_create:
-                        with pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'a') as f:
-                            for date in tqdm(cfg.MonthDateRange(*year_month).date_range()):
-                                date_str = date.strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
-                                if verbose:
-                                    print('Processing {}'.format(date_str))
-                                if date_str not in f.keys():
-                                    binary_file_name = cfg.binary_file_name(time_stamp=date)  # TODO: refactor. Not correct for deviations
-                                    try:
-                                        raw_data = utils.square_select(date, height=height, width=width, plot=False).data
-                                    except OverflowError:
-                                        # If not found then treat it as NaN-filled
-                                        raw_data = np.empty((height, width))
-                                        raw_data[:] = np.nan
-                                    tot_nans = np.count_nonzero(np.isnan(raw_data))
-                                    raw_data = np.nan_to_num(raw_data)
-                                    min_ = np.min(raw_data)
-                                    max_ = np.max(raw_data)
-                                    class_frequency = dict()
-                                    histogram_frequency, histogram_edges = np.histogram(raw_data, bins=histogram_bins)
-                                    if m == 'c':  # skipped if in raw mode
-                                        raw_data = np.array(
-                                            [(classes[class_name][0] <= raw_data) &
-                                             (raw_data < classes[class_name][1]) for class_name in classes]
-                                        ).astype(int)
-                                        class_frequency = {
-                                            class_name: np.count_nonzero(raw_data[i]) for i, class_name in enumerate(classes)
-                                        }
-                                        raw_data = utils.to_class_index(raw_data)
-                                    raw_data = np.expand_dims(raw_data, 0)
-                                    # adding dimension for timestamp and coordinates
-                                    normalized_time_of_day = utils.normalized_time_of_day_from_string(
-                                        timestamp_string=date_str
-                                    )
-                                    # dim for concat
-                                    timestamps_grid = np.full(
-                                        (1, height, width), normalized_time_of_day, dtype=np.float32
-                                    )
-                                    coordinates_array = cfg.CFG.coordinates_array
-                                    data = np.concatenate((raw_data, timestamps_grid, coordinates_array))
-                                    data = np.squeeze(raw_data)
+                        date_range = cfg.MonthDateRange(*year_month).date_range()
+                        data = np.empty(shape=(len(date_range), height, width))
+                        time = np.array(date_range)
+                        for n, date in tqdm(enumerate(date_range)):
 
-                                    f[date_str] = pd.DataFrame(data=data)
-                                    attr_dict['classes_frequency'].append([date_str, np.array(list(class_frequency.values()))])
-                                    attr_dict['histogram_frequency'].append([date_str, histogram_frequency])
-                                    attr_dict['histogram_edges'].append([date_str, histogram_edges])
-                                    attr_dict['file_name'].append([date_str, binary_file_name])
-                                    attr_dict['NaN'].append([date_str, tot_nans])
-                                    attr_dict['img_size'].append([date_str, height * width])
-                                    attr_dict['tot_pre'].append([date_str, np.nansum(raw_data)])
-                                    attr_dict['mean'].append([date_str, np.nanmean(raw_data)])
-                                    attr_dict['std'].append([date_str, np.nanstd(raw_data)])
-                                    attr_dict['min'].append([date_str, min_])
-                                    attr_dict['max'].append([date_str, max_])
-                                    attr_dict['normalized_timestamp'].append([date_str, normalized_time_of_day])
-                            attr_dict['mode'] = m
-                            attr_dict['file_name_hash'] = hashlib.md5(file_name.encode()).hexdigest()
-                            for key in attr_dict:
-                                if key not in ('mode', 'file_name_hash'):
-                                    f[key] = pd.DataFrame(attr_dict[key]).set_index(0)
-                                else:
-                                    f[key] = pd.DataFrame(data=[attr_dict[key]])
+                            try:
+                                raw_data = utils.square_select(date, height=height, width=width, plot=False).data
+                            except OverflowError:
+                                # If not found then treat it as NaN-filled
+                                raw_data = np.empty((height, width))
+                                raw_data[:] = np.nan
+
+                            if m == 'c':  # skipped if in raw mode
+                                raw_data = np.array(
+                                    [(classes[class_name][0] <= raw_data) &
+                                     (raw_data < classes[class_name][1]) for class_name in classes]
+                                ).astype(int)
+                                raw_data = utils.to_class_index(raw_data)
+
+                            data[n] = raw_data
+
+                        xds = xarray.Dataset(
+                            data_vars={
+                                'precipitation': [['time', 'lon', 'lat'], data]
+                            }, coords={
+                                'time': time
+                            })
+
+                        xds.to_netcdf(
+                            path=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
+                            engine='h5netcdf'
+                        )
 
 
 def read_h5(filename):
@@ -494,9 +450,21 @@ def h5_name(year: int, month: int, version_=None, mode=None, classes=None, with_
     return file_name
 
 
+def ncdf4_name(*args, **kwargs):
+    h5 = h5_name(*args, **kwargs)
+    if h5.endswith('.h5'):
+        h5 = h5.replace('.h5', '.nc')
+    return h5
+
+
 def h5_files_names_list_single_mode(date_ranges, **kwargs):
     year_month_tuples = utils.ym_tuples(date_ranges)
     return [h5_name(*ym, **kwargs) for ym in year_month_tuples]
+
+
+def ncdf4_files_names_list_single_mode(date_ranges, **kwargs):
+    year_month_tuples = utils.ym_tuples(date_ranges)
+    return [ncdf4_name(*ym, **kwargs) for ym in year_month_tuples]
 
 
 def h5_files_names_list_both_modes(date_ranges, **kwargs):
@@ -511,16 +479,40 @@ def h5_files_names_list_both_modes(date_ranges, **kwargs):
     )
 
 
-def ym_dictionary(date_ranges, **kwargs):
+def ncdf4_files_names_list_both_modes(date_ranges, **kwargs):
+    try:
+        kwargs.pop('mode')
+    except KeyError:
+        pass
+    return ncdf4_files_names_list_single_mode(
+        date_ranges, mode='c', **kwargs
+    ) + h5_files_names_list_single_mode(
+        date_ranges, mode='r', **kwargs
+    )
+
+
+def ym_dictionary(date_ranges, h5_or_ncdf='N', **kwargs):
     dict_ = {}
-    for ym, file_name in zip(utils.ym_tuples(date_ranges), h5_files_names_list_single_mode(date_ranges, **kwargs)):
+    if h5_or_ncdf == 'N':
+        list_single_mode_func = ncdf4_files_names_list_single_mode
+    elif h5_or_ncdf == 'H':
+        list_single_mode_func = h5_files_names_list_single_mode
+    else:
+        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
+    for ym, file_name in zip(utils.ym_tuples(date_ranges), list_single_mode_func(date_ranges, **kwargs)):
         dict_[ym] = file_name
     return dict_
 
 
-def check_h5_missing_or_corrupt(date_ranges, **kwargs):
+def check_datasets_missing_or_corrupt(date_ranges,  h5_or_ncdf='N',**kwargs):
     unavailable = []
-    required = h5_files_names_list_both_modes(date_ranges, **kwargs)
+    if h5_or_ncdf == 'N':
+        list_both_modes_func = ncdf4_files_names_list_both_modes
+    elif h5_or_ncdf == 'H':
+        list_both_modes_func = h5_files_names_list_both_modes
+    else:
+        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
+    required = list_both_modes_func(date_ranges, **kwargs)
     for file_name in required:
         if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)

@@ -710,8 +710,8 @@ def initialize(inside_initialize=True, skip_download=False):
     check_ranges_overlap(CFG.video_ranges)
     CFG.validate_all_ranges()
     if not skip_download:
-        if (ds.check_datasets_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES) or
-                ds.check_datasets_missing_or_corrupt(CFG.video_ranges, classes=CFG.CLASSES)):
+        if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
+                ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
             CFG.download_missing_files()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG

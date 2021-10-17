@@ -86,32 +86,21 @@ class RadolanDataset(Dataset):
             ranges = cfg.CFG.video_ranges
         self.min_weights_factor_of_max = min_weights_factor_of_max
         # read radolan files
-        self.classes_h5_file_handle = H5Dataset(
+        self.ds_classes = H5Dataset(
             ranges, mode='c', classes=cfg.CFG.CLASSES,
         )
-        self.raw_h5_file_handle = H5Dataset(
+        self.ds_raw = H5Dataset(
             ranges, mode='r', classes=cfg.CFG.CLASSES,
         )
         self.normalize = normalize
         print("reading images...")
         self._image_size = image_size
-        tot_pre = {}
-        nan_days = {}
-        std = {}
-        mean = {}
-        classes_frequency = {}
 
-        tot_pre = self.classes_h5_file_handle['tot_pre']
-        nan_days = self.classes_h5_file_handle['NaN']
-        std = self.classes_h5_file_handle['std']
-        mean = self.classes_h5_file_handle['mean']
-        classes_frequency = self.classes_h5_file_handle['classes_frequency']
-
-        self._tot_pre = tot_pre
-        self.classes_frequency = classes_frequency
-        self.sequence = sorted(timestamps_list)
-        self.sorted_sequence = sorted(self.sequence)
-        self._sequence_timestamps = sorted(self.sequence)
+        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True)
+        self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"])
+        self.sequence = sorted(ranges)
+        self.sorted_sequence = sorted(ranges)
+        self._sequence_timestamps = sorted(ranges)
 
         to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
             nan_days, max_nans, in_channels, out_channels
@@ -124,19 +113,6 @@ class RadolanDataset(Dataset):
         self.to_remove = to_remove
         self.not_for_mean = not_for_mean
         self.nan_to_num = nan_to_num
-
-        print("Normalizing... Actually just computing incremental std and mean")
-        self.mean = 0
-        self.std = 0
-        for n, date in enumerate(self.sequence):
-            n_in_img = self._image_size ** 2
-            if date not in not_for_mean:
-                m = mean.loc[date]
-                s = std.loc[date]
-                self.std = utils.incremental_std(self.std, self.mean, n, n_in_img, s, m)
-                self.mean = utils.incremental_mean(self.mean, n, n_in_img, m)
-
-        print("done loading dataset")
 
         # create global index for sequence and true_rainfall (idx -> ([s_idxs], [t_idx]))
         self.indices_tuple_raw = [
@@ -355,8 +331,8 @@ def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=25
     if classes is None:
         classes = default_classes
 
-    to_create = check_datasets_missing_or_corrupt(cfg.CFG.date_ranges, classes=classes)
-    video_h5_to_create = check_datasets_missing_or_corrupt(cfg.CFG.video_ranges, classes=classes)
+    to_create = check_datasets_missing(cfg.CFG.date_ranges, classes=classes)
+    video_h5_to_create = check_datasets_missing(cfg.CFG.video_ranges, classes=classes)
     for h5_file in video_h5_to_create:
         if h5_file not in to_create:
             to_create.append(h5_file)
@@ -401,26 +377,6 @@ def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=25
                             path=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
                             engine='h5netcdf'
                         )
-
-
-def read_h5(filename):
-    if not filename.endswith('.h5'):
-        filename += '.h5'
-
-    f = pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), filename), 'a')
-
-    return f
-
-
-@contextmanager
-def h5_handler(*args, **kwargs):
-
-    file = create_h5(**kwargs)
-
-    try:
-        yield file
-    finally:
-        file.close()
 
 
 def h5_name(year: int, month: int, version_=None, mode=None, classes=None, with_extension=True):
@@ -480,33 +436,12 @@ def files_names_list_both_modes(date_ranges, h5_or_ncdf='N', **kwargs):
     )
 
 
-def ym_dictionary(date_ranges, h5_or_ncdf='N', **kwargs):
-    dict_ = {}
-    for ym, file_name in zip(utils.ym_tuples(date_ranges), files_names_list_single_mode(
-            date_ranges, h5_or_ncdf=h5_or_ncdf, **kwargs)):
-        dict_[ym] = file_name
-    return dict_
-
-
-def check_datasets_missing_or_corrupt(date_ranges,  h5_or_ncdf='N',**kwargs):
+def check_datasets_missing(date_ranges,  h5_or_ncdf='N', **kwargs):
     unavailable = []
     required = files_names_list_both_modes(date_ranges, h5_or_ncdf=h5_or_ncdf, **kwargs)
     for file_name in required:
         if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)
-        else:
-            with pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), mode='a') as f:
-                try:
-                    hash_check = (f['file_name_hash'].values[0][0] == hashlib.md5(file_name.encode()).hexdigest())
-                    assert hash_check
-                except (KeyError, AssertionError):
-                    print(f"h5 file name not corresponding to content for file {file_name}")
-                    hash_check = False
-
-            if not hash_check:
-                unavailable.append(file_name)
-                os.remove(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name))
-
     return unavailable
 
 
@@ -515,11 +450,10 @@ class H5Dataset:
         self.mode = mode
         self.classes = classes
         self._date_ranges = date_ranges
-        self.year_month_file_names_dictionary = ym_dictionary(date_ranges, mode=mode)
-        self.files_dictionary = {
-            ym: pd.HDFStore(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name), 'r')
-            for (ym, file_name) in self.year_month_file_names_dictionary.items()
-        }
+        self._files_list = files_names_list_single_mode(self._date_ranges, h5_or_ncdf='N', mode=mode)
+        self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
+        self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': -1, 'lon': 256, 'lat': 256},
+                                        engine='h5netcdf')
 
     def __getitem__(self, item):
         if item == 'mode':
@@ -530,33 +464,17 @@ class H5Dataset:
             timestamp = dt.datetime.strptime(item, cfg.CFG.TIMESTAMP_DATE_FORMAT)
             timestamps_grid = np.full(
                 (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
-                self.files_dictionary[(timestamp.year, timestamp.month)]['normalized_timestamp'],
+                utils.normalized_time_of_day_from_string(item),
                 dtype=np.float32
             )
-            precipitation = self.files_dictionary[(timestamp.year, timestamp.month)][item]
+            precipitation = self.ds.precipitation.loc[timestamp]
             coordinates_array = cfg.CFG.coordinates_array
             return np.concatenate((np.expand_dims(precipitation, 0), timestamps_grid, coordinates_array))
         else:
-            try:
-                result = []
-                for ym in self.files_dictionary:
-                    result.append(self.files_dictionary[ym][item])
-            except KeyError:
-                raise KeyError(f"{item} is an invalid Key for this H5Dataset")
-            return pd.concat(result)
-
-    def close(self):
-        for ym in self.files_dictionary:
-            self.files_dictionary[ym].close()
-
-    def keys(self):
-        keys_ = []
-        for ym in self.files_dictionary:
-            keys_.extend(self.files_dictionary[ym].keys())
-        return keys_
+            raise KeyError(f"{item} is an invalid Key for this H5Dataset")
 
     def __iter__(self):
-        return iter(self.keys())
+        return iter(self.ds.precpitation)
 
 
 @contextmanager

@@ -19,20 +19,21 @@ def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
     not_for_mean = []
     to_remove = []
     nan_to_num = []
-    for date, row in nan_days.iterrows():
-        if row.values[0] > max_nans:
-            time_stamp = dt.datetime.strptime(date, '%y%m%d%H%M')
+    nan_days_computed = nan_days.compute()
+    for timestamp in tqdm(nan_days_computed):
+        datetime_timestamp = pd.Timestamp(timestamp.time.values).to_pydatetime()
+        if timestamp.values > max_nans:
             dr = cfg.daterange(
-                time_stamp - dt.timedelta(hours=in_channels + out_channels - 1),
-                time_stamp,
+                datetime_timestamp - dt.timedelta(hours=in_channels + out_channels - 1),
+                datetime_timestamp,
                 include_end=True
             )
-            not_for_mean.append(time_stamp.strftime('%y%m%d%H%M'))
+            not_for_mean.append(datetime_timestamp)
             for to_remove_ts in dr:
-                if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
-                    to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
+                if to_remove_ts not in to_remove:
+                    to_remove.append(to_remove_ts)
         else:
-            nan_to_num.append(date)
+            nan_to_num.append(datetime_timestamp)
 
     return to_remove, not_for_mean, nan_to_num
 
@@ -52,8 +53,8 @@ def timestamps_at_training_period_end_handler(ranges_list, to_remove, in_channel
         )
 
         for to_remove_ts in dr:
-            if to_remove_ts.strftime('%y%m%d%H%M') not in to_remove:
-                to_remove.append(to_remove_ts.strftime('%y%m%d%H%M'))
+            if to_remove_ts not in to_remove:
+                to_remove.append(to_remove_ts)
 
     return to_remove
 
@@ -98,12 +99,12 @@ class RadolanDataset(Dataset):
 
         self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True)
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"])
-        self.sequence = sorted(ranges)
-        self.sorted_sequence = sorted(ranges)
-        self._sequence_timestamps = sorted(ranges)
+        self.sequence = sorted(timestamps_list)
+        self.sorted_sequence = sorted(timestamps_list)
+        self._sequence_timestamps = sorted(timestamps_list)
 
         to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
-            nan_days, max_nans, in_channels, out_channels
+            self.nan_days.precipitation, max_nans, in_channels, out_channels
         )
 
         to_remove = timestamps_at_training_period_end_handler(
@@ -154,49 +155,6 @@ class RadolanDataset(Dataset):
 
         return tot['seq'], tot['tru']
 
-    def get_total_pre_time_series_with_timestamps(self) -> pd.Series:
-        time_series_dict = dict()
-        for i in range(len(self)):
-            seq, tru = self.indices_tuple[i]
-            timestamp = dt.datetime.strptime(self.sorted_sequence[seq[0]], cfg.CFG.TIMESTAMP_DATE_FORMAT)
-            time_series_dict[timestamp] = 0
-            for indices in (seq, tru):
-                for t in indices:
-                    time_series_dict[timestamp] += self._tot_pre[self.sorted_sequence[t]]
-        return pd.Series(time_series_dict)
-
-    def get_nonzero_intervals(self):
-        precipitation_series = self.get_total_pre_time_series_with_timestamps()
-        open_ = False
-        start = end = None
-        interval_list = []
-        for i, (index, value) in enumerate(precipitation_series.iteritems()):
-            if value == 0 and not open_:
-                continue
-            elif value > 0 and not open_:
-                start = index
-                end = index
-                open_ = True
-                continue
-            elif value > 0 and open_:
-                if not index - end == dt.timedelta(hours=1):
-                    interval = pd.Interval(start, end, closed='both')
-                    interval_list.append(interval)
-                    open_ = False
-                    continue
-                end = index
-                continue
-            elif value == 0 and open_:
-                interval = pd.Interval(start, end, closed='both')
-                open_ = False
-                interval_list.append(interval)
-                continue
-        return pd.Series(interval_list)
-
-    def get_nonzero_timestamps(self):
-        precipitation_series = self.get_total_pre_time_series_with_timestamps()
-        return precipitation_series[precipitation_series > 0]
-
     def __len__(self):
         return len(self.indices_tuple)
 
@@ -206,9 +164,9 @@ class RadolanDataset(Dataset):
         for sub_period, indices in zip(item_tensors, (seq, tru)):
             for t in indices:
                 if sub_period == 'seq' and cfg.CFG.MODE == 'r':
-                    data = self.raw_h5_file_handle[self.sorted_sequence[t]]
+                    data = self.ds_raw.ds.precipitation.loc[self.sorted_sequence[t]].comput().to_numpy()
                 else:
-                    data = self.classes_h5_file_handle[self.sorted_sequence[t]]
+                    data = self.ds_classes.ds.precipitation.loc[self.sorted_sequence[t]].compute().to_numpy()
                 item_tensors[sub_period].append(data)
             item_tensors[sub_period] = torch.from_numpy(
                 np.concatenate(item_tensors[sub_period], axis=0).astype(np.float32)
@@ -217,31 +175,33 @@ class RadolanDataset(Dataset):
         return item_tensors['seq'], item_tensors['tru']
 
     def indices_of_training(self):
-        indices_list_of_training = []
-        training_set_timestamps_list = cfg.CFG.training_set_timestamps_list
-        for idx, _ in tqdm(enumerate(self.indices_tuple)):
-            seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in training_set_timestamps_list:
-                indices_list_of_training.append(idx)
-        return indices_list_of_training
+        return self.indices_of('training')
 
     def indices_of_validation(self):
-        indices_list_of_validation = []
-        validation_set_timestamps_list = cfg.CFG.validation_set_timestamps_list
-        for idx, _ in enumerate(self.indices_tuple):
-            seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in validation_set_timestamps_list:
-                indices_list_of_validation.append(idx)
-        return indices_list_of_validation
+        return self.indices_of('validation')
 
     def indices_of_test(self):
-        indices_list_of_test = []
-        test_set_timestamps_list = cfg.CFG.test_set_timestamps_list
+        return self.indices_of('test')
+
+    def indices_of(self, set):
+        assert set in ('test', 'validation', 'training')
+        indices_list_of = []
+        if set == 'test':
+            set_ranges = cfg.CFG.test_set_ranges
+        elif set == 'validation':
+            set_ranges = cfg.CFG.validation_set_ranges
+        elif set == 'training':
+            set_ranges = cfg.CFG.training_set_ranges
+        else:
+            raise KeyError(f"got {set} but expected either 'test', 'validation' or 'training'")
+        set_timestamps_list = []
+        for range_ in set_ranges:
+            set_timestamps_list += range_.date_range()
         for idx, _ in enumerate(self.indices_tuple):
             seq, tru = self.indices_tuple[idx]
-            if self.sorted_sequence[seq[0]] in test_set_timestamps_list:
-                indices_list_of_test.append(idx)
-        return indices_list_of_test
+            if self.sorted_sequence[seq[0]] in set_timestamps_list:
+                indices_list_of.append(idx)
+        return indices_list_of
 
     def from_timestamp(self, timestamp):
         try:
@@ -259,10 +219,6 @@ class RadolanDataset(Dataset):
             return True
         except ValueError:
             return False
-
-    def close(self):
-        for f in (self.raw_h5_file_handle, self.classes_h5_file_handle):
-            f.close()
 
 
 class RadolanSubset(RadolanDataset):
@@ -315,9 +271,6 @@ class RadolanSubset(RadolanDataset):
         ds_weights = self.dataset.weights
         w = [ds_weights[i] for i in self.indices]
         return torch.tensor(w)
-
-    def get_total_pre(self, idx):
-        return self.dataset.get_total_pre[self.indices[idx]]
 
 
 @utils.init_safety

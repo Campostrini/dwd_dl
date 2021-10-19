@@ -97,7 +97,7 @@ class RadolanDataset(Dataset):
         print("reading images...")
         self._image_size = image_size
 
-        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True)
+        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"])
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(timestamps_list)
@@ -151,7 +151,7 @@ class RadolanDataset(Dataset):
         tot = {'seq': [], 'tru': []}
         for sub_period, indices in zip(tot, (seq, tru)):
             for t in indices:
-                tot[sub_period].append(self._tot_pre[self.sorted_sequence[t]])
+                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]])
 
         return tot['seq'], tot['tru']
 
@@ -164,9 +164,9 @@ class RadolanDataset(Dataset):
         for sub_period, indices in zip(item_tensors, (seq, tru)):
             for t in indices:
                 if sub_period == 'seq' and cfg.CFG.MODE == 'r':
-                    data = self.ds_raw.ds.precipitation.loc[self.sorted_sequence[t]].comput().to_numpy()
+                    data = self.ds_raw[self.sorted_sequence[t]]
                 else:
-                    data = self.ds_classes.ds.precipitation.loc[self.sorted_sequence[t]].compute().to_numpy()
+                    data = self.ds_classes[self.sorted_sequence[t]]
                 item_tensors[sub_period].append(data)
             item_tensors[sub_period] = torch.from_numpy(
                 np.concatenate(item_tensors[sub_period], axis=0).astype(np.float32)
@@ -413,14 +413,14 @@ class H5Dataset:
             return self.mode
         elif item == 'classes':
             return self.classes
-        elif item.isdigit():
-            timestamp = dt.datetime.strptime(item, cfg.CFG.TIMESTAMP_DATE_FORMAT)
+        elif item:
+            timestamp = item
             timestamps_grid = np.full(
                 (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
                 utils.normalized_time_of_day_from_string(item),
                 dtype=np.float32
             )
-            precipitation = self.ds.precipitation.loc[timestamp]
+            precipitation = self.ds.precipitation.loc[timestamp].compute().to_numpy()
             coordinates_array = cfg.CFG.coordinates_array
             return np.concatenate((np.expand_dims(precipitation, 0), timestamps_grid, coordinates_array))
         else:

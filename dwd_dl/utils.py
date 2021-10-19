@@ -325,9 +325,9 @@ def ym_tuples(date_ranges):
     return year_month_tuples
 
 
-def normalized_time_of_day_from_string(timestamp_string):
-    minute = int(timestamp_string[-2:])
-    hour = int(timestamp_string[-4:-2])
+def normalized_time_of_day_from_string(timestamp: dt.datetime):
+    minute = timestamp.minute
+    hour = timestamp.hour
     hour_minute = hour + (minute / 60)
     hours_in_day = 24
     half_day = hours_in_day / 2

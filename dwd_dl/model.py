@@ -614,6 +614,6 @@ class RadolanLiveEvaluator(UNetLitModel):
         )
         return parent_parser
 
-    @auto_move_data
+    @auto_move_data  # TODO: remove. See documentation
     def forward(self, x):
         return super().forward(x)

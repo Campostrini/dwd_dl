@@ -469,7 +469,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'test/epoch_loss': test_loss, 'test/epoch_accuracy': test_acc})
         self._reset_metrics()
 
-    def predict(self, batch, batch_idx, data_loader_idx):
+    def predict_step(self, batch, batch_idx, **kwargs):
         x, y_true = batch
         return self(x)
 

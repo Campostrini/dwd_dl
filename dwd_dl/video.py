@@ -12,6 +12,7 @@ import matplotlib.animation as animation
 from pytorch_lightning import Trainer, LightningModule
 import numpy as np
 import yaml
+from tqdm import tqdm
 
 import dwd_dl.cfg as cfg
 from dwd_dl.data_module import VideoDataModule
@@ -84,13 +85,13 @@ class VideoProducer:
 
     def _make_prediction_array(self):
         prediction = self.predict()
-        prediction_groups = [np.squeeze(np.argmax(batch, axis=1)) for batch in prediction]
+        prediction_groups = [np.squeeze(np.argmax(batch.cpu(), axis=1)) for batch in prediction]
         return np.concatenate(prediction_groups, axis=0)
 
     def _make_true_array(self):
         if not self.datamodule.has_setup_fit:
             self.datamodule.setup()
-        true_groups = [y_true[:, 0, ...].cpu().numpy() for x, y_true in self.datamodule.predict_dataloader()]
+        true_groups = [y_true[:, 0, ...].cpu().numpy() for x, y_true in tqdm(self.datamodule.predict_dataloader())]
         return np.concatenate(true_groups, axis=0)
 
     @staticmethod

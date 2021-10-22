@@ -19,7 +19,7 @@ def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
     not_for_mean = []
     to_remove = []
     nan_to_num = []
-    nan_days_computed = nan_days.compute()
+    nan_days_computed = nan_days
     for timestamp in tqdm(nan_days_computed):
         datetime_timestamp = pd.Timestamp(timestamp.time.values).to_pydatetime()
         if timestamp.values > max_nans:
@@ -97,14 +97,14 @@ class RadolanDataset(Dataset):
         print("reading images...")
         self._image_size = image_size
 
-        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation
-        self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"])
+        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
+        self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"]).precipitation.compute()
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(timestamps_list)
         self._sequence_timestamps = sorted(timestamps_list)
 
         to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
-            self.nan_days.precipitation, max_nans, in_channels, out_channels
+            self.nan_days, max_nans, in_channels, out_channels
         )
 
         to_remove = timestamps_at_training_period_end_handler(
@@ -274,7 +274,7 @@ class RadolanSubset(RadolanDataset):
 
 
 @utils.init_safety
-def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=256, width=256, verbose=False):
+def create_h5(mode: str, classes=None, filetype='Z', keep_open=True, height=256, width=256, verbose=False):
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
@@ -295,7 +295,7 @@ def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=25
             for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
                 for year_month, file_name in zip(
                         utils.ym_tuples(ranges),
-                        files_names_list_single_mode(ranges, h5_or_ncdf=h5_or_ncdf, mode=m),
+                        files_names_list_single_mode(ranges, filetype=filetype, mode=m),
                 ):
                     if file_name in to_create:
                         date_range = cfg.MonthDateRange(*year_month).date_range()
@@ -326,9 +326,9 @@ def create_h5(mode: str, classes=None, h5_or_ncdf='N', keep_open=True, height=25
                                 'time': time
                             })
 
-                        xds.to_netcdf(
-                            path=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
-                            engine='h5netcdf'
+                        xds.to_zarr(
+                            store=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
+                            mode='w', compute=True
                         )
 
 
@@ -366,34 +366,45 @@ def ncdf4_name(*args, **kwargs):
     return h5
 
 
-def files_names_list_single_mode(date_ranges, h5_or_ncdf='N', **kwargs):
-    if h5_or_ncdf == 'N':
+def zarr_name(*args, **kwargs):
+    h5 = h5_name(*args, **kwargs)
+    if h5.endswith('.h5'):
+        h5 = h5.replace('.h5', '.zarr')
+    return h5
+
+
+def files_names_list_single_mode(date_ranges, filetype='Z', **kwargs):
+    if filetype == 'N':
         name_func = ncdf4_name
-    elif h5_or_ncdf == 'H':
+    elif filetype == 'H':
         name_func = h5_name
+    elif filetype == 'Z':
+        name_func = zarr_name
     else:
-        raise ValueError(f'Got an unexpected value for h5_or_ncdf={h5_or_ncdf}. Value must be "N" or "H"')
+        raise ValueError(f'Got an unexpected value for h5_or_ncdf={filetype}. Value must be "N" or "H"')
     year_month_tuples = utils.ym_tuples(date_ranges)
     return [name_func(*ym, **kwargs) for ym in year_month_tuples]
 
 
-def files_names_list_both_modes(date_ranges, h5_or_ncdf='N', **kwargs):
+def files_names_list_both_modes(date_ranges, filetype='Z', **kwargs):
     try:
         kwargs.pop('mode')
     except KeyError:
         pass
-    return files_names_list_single_mode(
-        date_ranges, h5_or_ncdf=h5_or_ncdf, mode='c', **kwargs
-    ) + files_names_list_single_mode(
-        date_ranges, h5_or_ncdf=h5_or_ncdf, mode='r', **kwargs
-    )
+    return files_names_list_single_mode(date_ranges, filetype=filetype, mode='c',
+                                        **kwargs) + files_names_list_single_mode(date_ranges, filetype=filetype,
+                                                                                 mode='r', **kwargs)
 
 
-def check_datasets_missing(date_ranges,  h5_or_ncdf='N', **kwargs):
+def check_datasets_missing(date_ranges,  filetype='Z', **kwargs):
     unavailable = []
-    required = files_names_list_both_modes(date_ranges, h5_or_ncdf=h5_or_ncdf, **kwargs)
+    required = files_names_list_both_modes(date_ranges, filetype=filetype, **kwargs)
     for file_name in required:
-        if not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
+        if filetype == 'Z':
+            if not os.path.isdir(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
+                unavailable.append(file_name)
+            continue
+        elif not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)
     return unavailable
 
@@ -403,10 +414,10 @@ class H5Dataset:
         self.mode = mode
         self.classes = classes
         self._date_ranges = date_ranges
-        self._files_list = files_names_list_single_mode(self._date_ranges, h5_or_ncdf='N', mode=mode)
+        self._files_list = files_names_list_single_mode(self._date_ranges, filetype='Z', mode=mode)
         self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
         self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': -1, 'lon': 256, 'lat': 256},
-                                        engine='h5netcdf')
+                                        engine='zarr')
 
     def __getitem__(self, item):
         if item == 'mode':

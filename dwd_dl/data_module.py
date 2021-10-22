@@ -72,12 +72,10 @@ class RadolanDataModule(LightningDataModule):
         return [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
 
     def legal_datetimes(self):
-        return [
-            dt.datetime.strptime(date_string, cfg.CFG.TIMESTAMP_DATE_FORMAT) for date_string in self.legal_timestamps
-        ]
+        return self.legal_timestamps
 
     def close(self):
-        self.dataset.close()
+        pass
 
 
 class VideoDataModule(RadolanDataModule):

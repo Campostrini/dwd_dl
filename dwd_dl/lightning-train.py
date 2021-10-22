@@ -3,6 +3,8 @@ import datetime as dt
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TestTubeLogger
+import dask
+# from dask.distributed import Client
 
 from dwd_dl import cfg
 import dwd_dl.model as model
@@ -11,6 +13,9 @@ import dwd_dl.data_module as data_module
 import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl.video import VideoProducer
+
+dask.config.set(scheduler='synchronous')
+# client = Client(processes=False)
 
 
 def main(args):

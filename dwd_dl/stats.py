@@ -1,101 +1,122 @@
 # Radolan Stat Abstract Class
+import warnings
 from abc import ABC, abstractmethod
 import datetime as dt
 
 import numpy as np
+import pandas as pd
+import xarray.plot
+from xarray.plot.utils import get_axis, label_from_attrs, _update_axes
+import matplotlib.pyplot as plt
 
 from . import cfg
+from .dataset import H5Dataset
 
 
 class RadolanStatAbstractClass(ABC):
-# Takes numpy histogram as input, with limits
-
 # Hist property
     @abstractmethod
     def hist(self):
         pass
 
-# Bins property
-    @abstractmethod
-    def bins(self):
-        pass
-
 # Whisker preparation for plot
     @abstractmethod
-    def box_plot_dict(self):
+    def boxplot(self):
         pass
 
 
 class RadolanSingleStat(RadolanStatAbstractClass):
-    def __init__(self, histogram_frequencies, histogram_bins, timestamp, name):
-        if not len(histogram_bins) == len(histogram_frequencies) + 1:
-            raise ValueError("histogram_frequencies must be of len len(histogram_bins) - 1 . \n"
-                             f"Got {len(histogram_frequencies)} and {len(histogram_bins)} instead.")
-        self._timestamp = timestamp
-        self._time = dt.datetime.strptime(timestamp, cfg.CFG.TIMESTAMP_DATE_FORMAT)
-        self._histogram_bins = histogram_bins
-        self._histogram_frequencies = histogram_frequencies
-        self._name = name
+    def __init__(self, h5dataset: H5Dataset):
+        self._h5dataset = h5dataset
 
-    def hist(self):
-        return self._histogram_frequencies, self._histogram_bins
+    def hist(self, *args, period=None, **kwargs):
+        if period is None:
+            data_array = self._data_array
+        elif period == 'summer':
+            data_array = self._summer_data_array
+        elif period == 'winter':
+            data_array = self._winter_data_array
+        else:
+            raise ValueError(f"period: {period} argument not recognized.")
+        xarray.plot.hist(data_array, *args, **kwargs)
 
-    def bins(self):
-        return self._histogram_bins
+    def boxplot(
+        self,
+        period=None,
+        custom_periods=None,
+        figsize=None,
+        size=None,
+        aspect=None,
+        ax=None,
+        xincrease=None,
+        yincrease=None,
+        xscale=None,
+        yscale=None,
+        xticks=None,
+        yticks=None,
+        xlim=None,
+        ylim=None,
+        **kwargs,
+    ):
+        """Adapted from xarray
 
-    def box_plot_dict(self):
-        q1, median, q3 = quantiles_calc_from_hist(self.hist(), [0.25, 0.5, 0.75])
-        return {
-            'med': median,
-            'q1': q1,
-            'q3': q3,
-            'whislo': None,
-            'whishi': None,
-            'fliers': None,
-            'label': None,
-        }
+        """
+        if period and custom_periods:
+            raise ValueError(f"period and custom_periods are mutually exclusive. Got {period} and {custom_periods}")
+
+        if period == 'summer':
+            dataarray = self._summer_data_array
+        elif period == 'winter':
+            dataarray = self._winter_data_array
+        elif period is not None:
+            raise ValueError(f"Unexpected input for period: {period}. Either 'summer' or 'winter'.")
+        elif isinstance(custom_periods, list):
+            dataarray = []
+            for period in custom_periods:
+                if not isinstance(custom_periods, pd.DatetimeIndex):
+                    raise ValueError(f"Don't know what to do with element of type {type(period)} in custom_periods "
+                                     f"{custom_periods}.")
+                dataarray += [self._data_array.where(self._data_array['time'] in period)]
+                # TODO: continue implementation
+        elif period is None and custom_periods is None:
+            dataarray = self._data_array
+        else:
+            raise ValueError("Whhoops, something went wrong.")
+
+
+        ax = get_axis(figsize, size, aspect, ax)
+        no_nan = np.ravel(dataarray.to_numpy())
+        no_nan = no_nan[pd.notnull(no_nan)]
+
+        primitive = ax.boxplot(no_nan, **kwargs)
+
+        ax.set_title(self._h5dataset.ds.precipitation._title_for_slice())
+        ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation))
+
+        _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
+
+        return primitive
+
+    @property
+    def _data_array(self):
+        return self._h5dataset.ds.precipitation
+
+    @property
+    def _winter_data_array(self):
+        return self._h5dataset.ds.precipitation.where(
+            (self._h5dataset.ds.precipitation['time.month'] <= 4) |
+            (self._h5dataset.ds.precipitation['time.month'] >= 10)
+        )
+
+    @property
+    def _summer_data_array(self):
+        return self._h5dataset.ds.precipitation.where(
+            (self._h5dataset.ds.precipitation['time.month'] >= 5) &
+            (self._h5dataset.ds.precipitation['time.month'] <= 9)
+        )
 
     def __add__(self, other):
-        assert isinstance(other, (RadolanSingleStat, RadolanMultiStat))
+        assert isinstance(other, RadolanSingleStat)
+        raise NotImplementedError
 
-
-class RadolanMultiStat(RadolanStatAbstractClass):
-
-    # should return whether a timestamp or a datetime is contained in this multistat
-    def __contains__(self, item):
-        pass
-
-    def percentage_with_rain(self):
-        pass
-
-
-def quantile_calc_from_hist(histogram, quantile):
-    assert 0 < quantile < 1
-    frequencies, bins = histogram
-    sum_ = sum(frequencies)
-    frequency_of_quantile = sum_/(1/quantile)
-    partial = 0
-    quantile_value = None
-    for i, freq in enumerate(frequencies):
-        partial += freq
-        if partial > frequency_of_quantile:
-            quantile_index = i
-            width = bins[quantile_index + 1] - bins[quantile_index]
-            lower_limit = bins[quantile_index]
-            cumulative_up_to_group = partial - freq
-            # quantile value estimate (linear interpolation)
-            quantile_value = lower_limit + ((frequency_of_quantile - cumulative_up_to_group) / freq) * width
-            assert bins[quantile_index] < quantile_value < bins[quantile_index + 1]
-            break
-        elif partial == frequency_of_quantile:
-            quantile_index = i
-            quantile_value = bins[quantile_index + 1]
-            break
-    if quantile_value is None:
-        raise ValueError(f"Ooops, no quantile {quantile} was computed. Something went wrong")
-
-
-def quantiles_calc_from_hist(histogram, list_of_quantiles):
-    all(0 < quantile < 1 for quantile in list_of_quantiles)
-    return [quantile_calc_from_hist(histogram, quantile) for quantile in list_of_quantiles]
 

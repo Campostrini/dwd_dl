@@ -169,6 +169,7 @@ class ModelEvaluator:
 
 def get_images_arrays(dates_list: List[dt.datetime], path_to_saved_model, eval_or_train='eval', batch_size=None):
     import dwd_dl.dataset as ds
+    raise NotImplementedError
 
     with ds.h5dataset_context_wrapper(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES) as f:
         evaluator = ModelEvaluator(

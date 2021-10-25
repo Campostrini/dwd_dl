@@ -174,6 +174,10 @@ class RadolanDataset(Dataset):
 
         return item_tensors['seq'], item_tensors['tru']
 
+    @property
+    def tot_pre(self):
+        return self._tot_pre
+
     def indices_of_training(self):
         return self.indices_of('training')
 

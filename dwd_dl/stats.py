@@ -44,6 +44,8 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         self,
         period=None,
         custom_periods=None,
+        transformation=None,
+        condition=None,
         figsize=None,
         size=None,
         aspect=None,
@@ -73,25 +75,44 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         elif isinstance(custom_periods, list):
             dataarray = []
             for period in custom_periods:
-                if not isinstance(custom_periods, pd.DatetimeIndex):
+                if not isinstance(period, pd.DatetimeIndex):
                     raise ValueError(f"Don't know what to do with element of type {type(period)} in custom_periods "
                                      f"{custom_periods}.")
-                dataarray += [self._data_array.where(self._data_array['time'] in period)]
-                # TODO: continue implementation
+                dataarray += [
+                    self._data_array.sel(time=slice(period.min().to_datetime64(), period.max().to_datetime64()))
+                ]
+                # TODO: implement some checks on periods so that there is at least something to plot
         elif period is None and custom_periods is None:
             dataarray = self._data_array
         else:
             raise ValueError("Whhoops, something went wrong.")
 
+        if not isinstance(dataarray, list):
+            dataarray = [dataarray]
 
         ax = get_axis(figsize, size, aspect, ax)
-        no_nan = np.ravel(dataarray.to_numpy())
-        no_nan = no_nan[pd.notnull(no_nan)]
+        arrays = []
+        if condition is not None:
+            assert callable(condition)
+        else:
+            def condition(x): return x
 
-        primitive = ax.boxplot(no_nan, **kwargs)
+        for array in dataarray:
+            no_nan = np.ravel(array.where(condition(array)).to_numpy())
+            no_nan = no_nan[pd.notnull(no_nan)]
+            arrays.append(no_nan)
 
-        ax.set_title(self._h5dataset.ds.precipitation._title_for_slice())
-        ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation))
+        if transformation is not None:
+            assert callable(transformation)
+            arrays = [transformation(array) for array in arrays]
+
+        labels = self._get_labels_from_periods(custom_periods)
+
+        primitive = ax.boxplot(arrays, positions=range(len(arrays)), **kwargs)
+
+        ax.set_title("Precipitation boxplot")
+        ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation).capitalize())
+        ax.set_xticklabels(labels)
 
         _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
 
@@ -115,8 +136,65 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             (self._h5dataset.ds.precipitation['time.month'] <= 9)
         )
 
+    def rainy_pixels_ratio(self, custom_periods=None, threshold=0, compute=False):
+        th = threshold
+        if custom_periods is None:
+            out = [(self._data_array > th).sum() / self._data_array.size]
+        else:
+            assert isinstance(custom_periods, list)
+            for period in custom_periods:
+                assert isinstance(period, pd.DatetimeIndex)
+            out = [
+                (sliced := self._data_array.sel(
+                    time=slice(
+                        period.min().to_datetime64(),
+                        period.max().to_datetime64())
+                )).sum()/sliced.size
+                for period in custom_periods
+            ]
+        if compute:
+            out = [element.compute().values for element in out]
+
+        return out
+
+    def rainy_days_ratio(self, custom_periods=None, threshold=0, compute=False):
+        th = threshold
+        if custom_periods is None:
+            out = [(greater_zero_days := ((self._data_array > th).sum(dim=['lon', 'lat']) > th)).sum() / len(
+                greater_zero_days
+            )]
+        else:
+            assert isinstance(custom_periods, list)
+            for period in custom_periods:
+                assert isinstance(period, pd.DatetimeIndex)
+            out = [
+                (sliced := ((self._data_array.sel(
+                    time=slice(
+                        period.min().to_datetime64(),
+                        period.max().to_datetime64())
+                )).sum(dim=['lon', 'lat']) > th)).sum()/len(sliced)
+                for period in custom_periods
+            ]
+        if compute:
+            out = [element.compute().values for element in out]
+
+        return out
+
+    def _get_labels_from_periods(self, periods=None):
+        def label_from_start_end(start, end):
+            template = "From {} to {}"
+            return [template.format(start, end)]
+
+        if periods is None:
+            min_, max_ = self._data_array.time.min(), self._data_array.time.max()
+            if not isinstance(min_, pd.Timestamp) and not isinstance(min_, pd.Timestamp):
+                min_, max_ = pd.Timestamp(min_.values), pd.Timestamp(max_.values)
+                return label_from_start_end(min_, max_)
+        assert isinstance(periods, list)
+        assert all([isinstance(period, pd.DatetimeIndex) for period in periods])
+
+        return [label_from_start_end(period.min(), period.max()) for period in periods]
+
     def __add__(self, other):
         assert isinstance(other, RadolanSingleStat)
         raise NotImplementedError
-
-

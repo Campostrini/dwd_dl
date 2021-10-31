@@ -5,7 +5,7 @@ import datetime as dt
 
 import numpy as np
 import pandas as pd
-import xarray.plot
+import xarray as xr
 from xarray.plot.utils import get_axis, label_from_attrs, _update_axes
 import matplotlib.pyplot as plt
 
@@ -29,20 +29,64 @@ class RadolanSingleStat(RadolanStatAbstractClass):
     def __init__(self, h5dataset: H5Dataset):
         self._h5dataset = h5dataset
 
-    def hist(self, *args, period=None, **kwargs):
-        if period is None:
-            data_array = self._data_array
-        elif period == 'summer':
-            data_array = self._summer_data_array
-        elif period == 'winter':
-            data_array = self._winter_data_array
+    def hist(self,
+             season=None,
+             custom_periods=None,
+             transformation=None,
+             condition=None,
+             figsize=None,
+             size=None,
+             aspect=None,
+             ax=None,
+             xincrease=None,
+             yincrease=None,
+             xscale=None,
+             yscale=None,
+             xticks=None,
+             yticks=None,
+             xlim=None,
+             ylim=None,
+             **kwargs
+             ):
+        """Adapted from xarray
+
+        """
+        if isinstance(custom_periods, list):
+            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods)
         else:
-            raise ValueError(f"period: {period} argument not recognized.")
-        xarray.plot.hist(data_array, *args, **kwargs)
+            raise ValueError("Whhoops, something went wrong.")
+
+        ax = get_axis(figsize, size, aspect, ax)
+        arrays = []
+        if condition is not None:
+            assert callable(condition)
+        else:
+            def condition(x): return x
+
+        for array in dataarray:
+            no_nan = np.ravel(array.where(condition(array)).to_numpy())
+            no_nan = no_nan[pd.notnull(no_nan)]
+            arrays.append(no_nan)
+
+        if transformation is not None:
+            assert callable(transformation)
+            arrays = [transformation(array) for array in arrays]
+
+        labels = self._get_labels_from_periods(custom_periods)
+
+        primitive = ax.hist(arrays, **kwargs)
+
+        ax.set_title(dataarray[0]._title_for_slice())
+        ax.set_xlabel("Precipitation")
+        ax.set_xticklabels(labels)
+
+        _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
+
+        return primitive
 
     def boxplot(
         self,
-        period=None,
+        season=None,
         custom_periods=None,
         transformation=None,
         condition=None,
@@ -63,32 +107,10 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         """Adapted from xarray
 
         """
-        if period and custom_periods:
-            raise ValueError(f"period and custom_periods are mutually exclusive. Got {period} and {custom_periods}")
-
-        if period == 'summer':
-            dataarray = self._summer_data_array
-        elif period == 'winter':
-            dataarray = self._winter_data_array
-        elif period is not None:
-            raise ValueError(f"Unexpected input for period: {period}. Either 'summer' or 'winter'.")
-        elif isinstance(custom_periods, list):
-            dataarray = []
-            for period in custom_periods:
-                if not isinstance(period, pd.DatetimeIndex):
-                    raise ValueError(f"Don't know what to do with element of type {type(period)} in custom_periods "
-                                     f"{custom_periods}.")
-                dataarray += [
-                    self._data_array.sel(time=slice(period.min().to_datetime64(), period.max().to_datetime64()))
-                ]
-                # TODO: implement some checks on periods so that there is at least something to plot
-        elif period is None and custom_periods is None:
-            dataarray = self._data_array
+        if isinstance(custom_periods, list):
+            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods)
         else:
             raise ValueError("Whhoops, something went wrong.")
-
-        if not isinstance(dataarray, list):
-            dataarray = [dataarray]
 
         ax = get_axis(figsize, size, aspect, ax)
         arrays = []
@@ -135,6 +157,37 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             (self._h5dataset.ds.precipitation['time.month'] >= 5) &
             (self._h5dataset.ds.precipitation['time.month'] <= 9)
         )
+
+    def _get_data_array(self, season):
+        if season is None:
+            return self._data_array
+        elif season == "summer":
+            return self._summer_data_array
+        elif season == "winter":
+            return self._winter_data_array
+        else:
+            raise ValueError(f"Unrecognized value {season=}")
+
+    def _data_array_selection_from_custom_periods(self, season, custom_periods, combine=False):
+        dataarray = []
+        for period in custom_periods:
+            if isinstance(period, list):
+                dataarray = self._data_array_selection_from_custom_periods(season, period, combine=True)
+            elif not isinstance(period, pd.DatetimeIndex):
+                raise ValueError(f"Don't know what to do with element of type {type(period)} in custom_periods "
+                                 f"{custom_periods}.")
+            else:
+                array_for_selection = self._get_data_array(season)
+                dataarray += [
+                    array_for_selection.sel(time=slice(period.min().to_datetime64(), period.max().to_datetime64()))
+                ]
+        if combine:
+            out = dataarray[0]
+            for array in dataarray[1:]:
+                out = out.combine_first(array)
+            return out
+        return dataarray
+        # TODO: implement some checks on periods so that there is at least something to plot
 
     def rainy_pixels_ratio(self, custom_periods=None, threshold=0, compute=False):
         th = threshold

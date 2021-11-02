@@ -20,7 +20,8 @@ class RadolanDataModule(LightningDataModule):
         self.image_size = image_size
 
     def prepare_data(self):
-        create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+        create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES, normal_ranges=cfg.CFG.date_ranges,
+                  video_ranges=cfg.CFG.video_ranges, path_to_folder=cfg.CFG.RADOLAN_H5)
 
     def setup(self, stage=None, random_=False):
         self.dataset = Dataset(

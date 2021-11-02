@@ -70,7 +70,6 @@ class RadolanDataset(Dataset):
         image_size=256,
         in_channels=in_channels,
         out_channels=out_channels,
-        verbose=False,
         normalize=False,
         max_nans=10,
         min_weights_factor_of_max=0.0001,
@@ -278,7 +277,8 @@ class RadolanSubset(RadolanDataset):
 
 
 @utils.init_safety
-def create_h5(mode: str, classes=None, filetype='Z', keep_open=True, height=256, width=256, verbose=False):
+def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, normal_ranges=None, video_ranges=None,
+              path_to_folder=None, path_to_raw=None):
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
@@ -288,52 +288,57 @@ def create_h5(mode: str, classes=None, filetype='Z', keep_open=True, height=256,
     if classes is None:
         classes = default_classes
 
-    to_create = check_datasets_missing(cfg.CFG.date_ranges, classes=classes)
-    video_h5_to_create = check_datasets_missing(cfg.CFG.video_ranges, classes=classes)
-    for h5_file in video_h5_to_create:
-        if h5_file not in to_create:
-            to_create.append(h5_file)
+    to_create = []
+    video_h5_to_create = []
 
-    if to_create:
-        for m in ('c', 'r'):
-            for ranges in (cfg.CFG.date_ranges, cfg.CFG.video_ranges):
-                for year_month, file_name in zip(
-                        utils.ym_tuples(ranges),
-                        files_names_list_single_mode(ranges, filetype=filetype, mode=m),
-                ):
-                    if file_name in to_create:
-                        date_range = cfg.MonthDateRange(*year_month).date_range()
-                        data = np.empty(shape=(len(date_range), height, width))
-                        time = np.array(date_range)
-                        for n, date in tqdm(enumerate(date_range)):
+    if normal_ranges is not None:
+        normal_ranges_files_collection = DatasetFilesCollection(normal_ranges, filetype=filetype, classes=classes)
+        to_create = normal_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode='b')
+    if video_ranges is not None:
+        video_ranges_files_collection = DatasetFilesCollection(video_ranges, filetype=filetype, classes=classes)
+        video_h5_to_create = video_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode='both')
+    if not to_create:
+        to_create += video_h5_to_create
+    else:
+        for h5_file in video_h5_to_create:
+            if h5_file not in to_create:
+                to_create.append(h5_file)
 
-                            try:
-                                raw_data = utils.square_select(date, height=height, width=width, plot=False).data
-                            except OverflowError:
-                                # If not found then treat it as NaN-filled
-                                raw_data = np.empty((height, width))
-                                raw_data[:] = np.nan
+    for file in to_create:
+        year, month, file_name, mode = file.ymfm_tuple
+        date_range = cfg.MonthDateRange(year=year, month=month).date_range()
+        data = np.empty(shape=(len(date_range), height, width))
+        time = np.array(date_range)
+        for n, date in tqdm(enumerate(date_range)):
 
-                            if m == 'c':  # skipped if in raw mode
-                                raw_data = np.array(
-                                    [(classes[class_name][0] <= raw_data) &
-                                     (raw_data < classes[class_name][1]) for class_name in classes]
-                                ).astype(int)
-                                raw_data = utils.to_class_index(raw_data)
+            try:
+                raw_data = utils.square_select(date, height=height, width=width,
+                                               plot=False, custom_path=path_to_raw).data
+            except OverflowError:
+                # If not found then treat it as NaN-filled
+                raw_data = np.empty((height, width))
+                raw_data[:] = np.nan
 
-                            data[n] = raw_data
+            if mode == 'c':  # skipped if in raw mode
+                raw_data = np.array(
+                    [(classes[class_name][0] <= raw_data) &
+                     (raw_data < classes[class_name][1]) for class_name in classes]
+                ).astype(int)
+                raw_data = utils.to_class_index(raw_data)
 
-                        xds = xarray.Dataset(
-                            data_vars={
-                                'precipitation': (['time', 'lon', 'lat'], data)
-                            }, coords={
-                                'time': time
-                            })
+            data[n] = raw_data
 
-                        xds.to_zarr(
-                            store=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
-                            mode='w', compute=True
-                        )
+        xds = xarray.Dataset(
+            data_vars={
+                'precipitation': (['time', 'lon', 'lat'], data)
+            }, coords={
+                'time': time
+            })
+
+        xds.to_zarr(
+            store=os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name),
+            mode='w', compute=True
+        )
 
 
 def h5_name(year: int, month: int, version_=None, mode=None, classes=None, with_extension=True):
@@ -411,6 +416,87 @@ def check_datasets_missing(date_ranges,  filetype='Z', **kwargs):
         elif not os.path.isfile(os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), file_name)):
             unavailable.append(file_name)
     return unavailable
+
+
+class DatasetFilesCollection:
+    def __init__(self, date_ranges, filetype='Z', **kwargs):
+        self._ym_tuples = utils.ym_tuples(date_ranges)
+        self._needed_files = {
+            'raw': [DatasetFile(filetype=filetype, year=y, month=m, mode='r', **kwargs) for y, m in self._ym_tuples],
+            'classes': [DatasetFile(filetype=filetype, year=y, month=m, mode='c', **kwargs) for y, m in self._ym_tuples]
+        }
+
+    def get_needed_files(self, mode='both'):
+        if mode in ('r', 'raw'):
+            return self._needed_files['raw']
+        elif mode in ('c', 'classes'):
+            return self._needed_files['classes']
+        elif mode in ('b', 'both'):
+            return self._needed_files['raw'] + self._needed_files['classes']
+        else:
+            raise ValueError(f"Unknown {mode=}")
+
+    def missing_files(self, path_to_folder, mode):
+        abs_path_to_folder = os.path.abspath(path_to_folder)
+        files_list = self.get_needed_files(mode)
+        missing = []
+        for file in files_list:
+            if not os.path.isfile(os.path.join(abs_path_to_folder, file.file_name)):
+                missing.append(file)
+        return missing
+
+
+class DatasetFile:
+    def __init__(self, filetype, year: int, month: int, version_=None, mode=None, classes=None, with_extension=True):
+        if filetype == 'N':
+            name_func = ncdf4_name
+        elif filetype == 'H':
+            name_func = h5_name
+        elif filetype == 'Z':
+            name_func = zarr_name
+        else:
+            raise ValueError(f'Got an unexpected value for h5_or_ncdf={filetype}. Value must be "N" or "H"')
+        self._file_name = name_func(
+            year, month, version_=version_, mode=mode, classes=classes, with_extension=with_extension
+        )
+        self._year = year
+        self._month = month
+        self._mode = mode
+
+    @property
+    def year(self):
+        return self._year
+
+    @property
+    def month(self):
+        return self._month
+
+    @property
+    def file_name(self):
+        return self._file_name
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @property
+    def ym_tuple(self):
+        return self._year, self._month
+
+    @property
+    def ymf_tuple(self):
+        return self._year, self._month, self._file_name
+
+    @property
+    def ymfm_tuple(self):
+        return self._year, self._month, self._file_name, self._mode
+
+    def __eq__(self, other):
+        if not isinstance(other, DatasetFile):
+            return False
+        elif not other.ymfm_tuple == self.ymfm_tuple:
+            return False
+        return True
 
 
 class H5Dataset:

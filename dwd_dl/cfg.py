@@ -11,6 +11,7 @@ import requests
 import itertools
 import warnings
 import datetime as dt
+import re
 import tempfile
 import sys
 import tarfile
@@ -467,21 +468,7 @@ class Config:
 
     def download_missing_files(self):
         missing_files = self.check_downloaded_files()
-
-        if not missing_files:
-            input_message = "Nothing to download. "
-        else:
-            total_size = missing_files.total_download_size
-            input_message = f'Total size is {total_size} bytes. '
-
-        while True:
-            try:
-                x = input(input_message + 'Proceed? y/[n] ')
-            except EOFError:
-                x = 'y'
-            if x in ('y', 'Y'):
-                break
-            sys.exit()
+        self.missing_files_message(missing_files)
 
         if missing_files:
             with tempfile.TemporaryDirectory() as td:
@@ -511,17 +498,83 @@ class Config:
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
+            with tempfile.TemporaryDirectory() as td:
                 print("Extracting compressed day files.")
                 for file in tqdm(os.listdir(self.RADOLAN_RAW)):
                     if file.endswith('.gz'):
+                        shutil.move(os.path.join(self.RADOLAN_RAW, file), os.path.join(os.path.abspath(td), file))
+                for file in tqdm(os.listdir(os.path.join(os.path.abspath(td)))):
+                    if file.endswith('.gz'):
                         with gzip.open(
-                            os.path.join(self.RADOLAN_RAW, file), 'rb'
+                            os.path.join(os.path.abspath(td), file), 'rb'
                         ) as f_in, open(
                             os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
                         ) as f_out:
-                            shutil.copyfileobj(f_in, f_out)
-                        os.remove(os.path.join(self.RADOLAN_RAW, file))
+                            shutil.copyfileobj(f_in, f_out, -1)
                 print("Done.")
+
+    @staticmethod
+    def missing_files_for_dataset_file(dataset_file: ds.DatasetFile):
+        rfl = RadolanFilesList(date_ranges=MonthDateRange(*dataset_file.ym_tuple))
+        return RadolanFilesList(files_list=[file for file in rfl if not file.exists()])
+
+    @staticmethod
+    def download_and_create_dataset_files_correctly(dataset_file: ds.DatasetFile, path_to_folder):
+        missing_files = Config.missing_files_for_dataset_file(dataset_file)
+        with tempfile.TemporaryDirectory() as td:
+            print('Creating Temporary Directory')
+            if os.path.isdir(os.path.abspath(td)):
+                print(f'Temporary Directory created: {os.path.abspath(td)}')
+            else:
+                raise OSError("The temporary directory was not created.")
+
+            download_files_to_directory(
+                os.path.abspath(td),
+                missing_files.download_list,
+            )
+            while True:
+                listdir = os.listdir(td)
+                if any([file.endswith(('.tar.gz', '.gz')) for file in listdir]):
+                    for file in listdir:
+                        if file.endswith('.tar.gz'):
+                            with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
+                                print(f'Extracting all in {file}.')
+                                tf.extractall(td)
+                                print('All extracted.')
+                            os.remove(os.path.join(td, file))
+                        elif file.endswith('.gz'):
+                            with gzip.open(
+                                    os.path.join(td, file), 'rb'
+                            ) as f_in, open(
+                                os.path.join(td, file.replace('.gz', '')), 'wb'
+                            ) as f_out:
+                                shutil.copyfileobj(f_in, f_out)
+                            os.remove(os.path.join(td, file))
+                    continue
+                else:
+                    break
+
+            ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
+                         path_to_folder=path_to_folder, path_to_raw=td)
+
+
+    @staticmethod
+    def missing_files_message(missing_files):
+        if not missing_files:
+            input_message = "Nothing to download. "
+        else:
+            total_size = missing_files.total_download_size
+            input_message = f'Total size is {total_size} bytes. '
+
+        while True:
+            try:
+                x = input(input_message + 'Proceed? y/[n] ')
+            except EOFError:
+                x = 'y'
+            if x in ('y', 'Y'):
+                break
+            sys.exit()
+
 
     def validate_all_ranges(self):
         for range_list_1, range_list_2 in itertools.combinations(
@@ -670,16 +723,24 @@ class RadolanFile:
         return hash(self.file_name)
 
     def exists(self):
-        if not os.path.isfile(os.path.join(CFG.RADOLAN_RAW, self.file_name)):
+        if not os.path.isfile(path_from_file_name(self.file_name)):
             try:
                 for file_name in binary_file_name_approx_generator(self.date):
-                    file_path = os.path.join(CFG.RADOLAN_RAW, file_name)
+                    file_path = path_from_file_name(file_name)
                     if os.path.isfile(file_path):
                         return True
             except OverflowError:
                 print(f"File {self.file_name} not found even with approximation loop. Sorry.")
                 return False
         return True
+
+
+def path_from_file_name(file_name):
+    p = re.compile('raa01-rw_10000-(\d{10})-dwd---bin')
+    m = p.match(file_name)
+    timestamp_string = m.groups()[0]
+    timestamp = dt.datetime.strptime(timestamp_string, CFG.TIMESTAMP_DATE_FORMAT)
+    return os.path.join(CFG.RADOLAN_RAW, str(timestamp.year), str(timestamp.month), file_name)
 
 
 def get_download_size(url):
@@ -710,6 +771,34 @@ def initialize(inside_initialize=True, skip_download=False):
         if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
                 ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
             CFG.download_missing_files()
+    os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
+    return CFG
+
+
+def initialize2(inside_initialize=True, skip_download=False):
+    global CFG
+    if CFG is not None and not isinstance(CFG, Config):  # The condition after and is redundant. For readability.
+        raise TypeError(
+            "Expected type {} but got {} of type {}. CFG was tampered with.".format(type(Config), CFG, type(CFG))
+        )
+    cfg_content = read_or_make_config_file()
+    radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
+    CFG = radolan_configurator
+    CFG.check_and_make_dir_structures()
+    CFG.make_all_ranges()
+    check_ranges_overlap(CFG.date_ranges)
+    check_ranges_overlap(CFG.training_set_ranges)
+    check_ranges_overlap(CFG.validation_set_ranges)
+    check_ranges_overlap(CFG.test_set_ranges)
+    check_ranges_overlap(CFG.video_ranges)
+    CFG.validate_all_ranges()
+    if not skip_download:
+        if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
+                ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
+            for dataset_file in ds.DatasetFilesCollection(CFG.date_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
+                CFG.download_and_create_dataset_files_correctly(dataset_file, path_to_folder=CFG.RADOLAN_H5)
+            for dataset_file in ds.DatasetFilesCollection(CFG.video_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
+                CFG.download_and_create_dataset_files_correctly(dataset_file, path_to_folder=CFG.RADOLAN_H5)
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 
@@ -952,8 +1041,8 @@ class DateRange:
 class MonthDateRange(DateRange):
     def __init__(self, year: int, month: int):
         start_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50)
-        year, month = utils.next_year_month(year, month)
-        end_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
+        next_year, next_month = utils.next_year_month(year, month)
+        end_date = dt.datetime(year=next_year, month=next_month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
         super().__init__(start_date=start_date, end_date=end_date)
 
 

@@ -28,7 +28,8 @@ def selection(
         bl_coords=None,
         tr_coords=None,
         plot=True,
-        verbose=False
+        verbose=False,
+        custom_path=None,
 ):
     """Selection tool for DWD Radolan data.
 
@@ -51,6 +52,8 @@ def selection(
         Whether a plot should be produced or not.
     verbose : bool
         Suppresses or enables printing statements.
+    custom_path : str
+        Give a custom path where the data can be found.
 
     Returns
     -------
@@ -84,19 +87,22 @@ def selection(
 
     # Open the data
     file_name = cfg.binary_file_name(time_stamp)
-    file_path = os.path.join(cfg.CFG.RADOLAN_RAW, file_name)
-    try:
-        rw_filename = wrl.util.get_wradlib_data_file(file_path)
-    except OSError:
+    if custom_path is None:
+        file_path = os.path.join(cfg.CFG.RADOLAN_RAW, file_name)
+        base_path = cfg.CFG.RADOLAN_RAW
+    else:
+        file_path = os.path.join(custom_path, file_name)
+        base_path = custom_path
+    if not os.path.isfile(file_path):
         print(f"File {file_name} not found. Starting approximation loop.")
         for file_name in cfg.binary_file_name_approx_generator(time_stamp):
-            file_path = os.path.join(cfg.CFG.RADOLAN_RAW, file_name)
-            try:
-                rw_filename = wrl.util.get_wradlib_data_file(file_path)
+            file_path = os.path.join(base_path, file_name)
+            if os.path.isfile(file_path):
                 print(f"Found file {file_name}. Using this for timestamp: {time_stamp}")
+                rw_filename = file_path
                 break
-            except OSError:
-                continue
+    else:
+        rw_filename = file_path
     ds, rwattrs = wrl.io.read_radolan_composite(rw_filename, loaddata='xarray')
 
     if (x_slice, y_slice) != (None, None):

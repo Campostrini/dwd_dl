@@ -76,8 +76,7 @@ class ModelEvaluator:
             self._device = device
         else:
             self._device = 'cpu'
-        self._true_dataset = ds.RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path,
-                                               image_size=256, in_channels=6, out_channels=1)
+        self._true_dataset = ds.RadolanDataset(image_size=256, in_channels=6, out_channels=1)
 
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)
@@ -255,7 +254,7 @@ def incremental_mean(mean, sequence_n, elements_in_image, mean_at_timestamp):
     )
 
 
-def square_select(time_stamp, height=None, width=None, plot=False):
+def square_select(time_stamp, height=None, width=None, plot=False, custom_path=None):
     import dwd_dl.img as img
     """Returns the square selection of an area with NW_CORNER set
 
@@ -271,6 +270,8 @@ def square_select(time_stamp, height=None, width=None, plot=False):
         is a valid reason.)
     plot : bool, optional
         Whether the result should be plotted or not.
+    custom_path : str, optional
+        Gets passed on to img.selection.
 
     Returns
     -------
@@ -284,7 +285,7 @@ def square_select(time_stamp, height=None, width=None, plot=False):
     if not width:
         width = cfg.CFG.WIDTH
 
-    out = img.selection(time_stamp, plot=False).RW[
+    out = img.selection(time_stamp, plot=False, custom_path=custom_path).RW[
           cfg.CFG.NW_CORNER_INDICES[0] - height:cfg.CFG.NW_CORNER_INDICES[0],
           cfg.CFG.NW_CORNER_INDICES[1]:cfg.CFG.NW_CORNER_INDICES[1] + width
           ]
@@ -319,6 +320,8 @@ def next_year_month(year, month):
 
 def ym_tuples(date_ranges):
     year_month_tuples = []
+    if not isinstance(date_ranges, list):
+        date_ranges = [date_ranges]
     for date_range in date_ranges:
         year_month_tuples.extend(
             ym for ym in year_month_tuple_list(date_range.start, date_range.end) if ym not in year_month_tuples

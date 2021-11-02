@@ -102,6 +102,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         yticks=None,
         xlim=None,
         ylim=None,
+        xticklabels=None,
         **kwargs,
     ):
         """Adapted from xarray
@@ -128,13 +129,16 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             assert callable(transformation)
             arrays = [transformation(array) for array in arrays]
 
-        labels = self._get_labels_from_periods(custom_periods)
+        if xticklabels is None:
+            xticklabels = self._get_labels_from_periods(custom_periods)
+        else:
+            assert len(xticklabels) == len(custom_periods)
 
         primitive = ax.boxplot(arrays, positions=range(len(arrays)), **kwargs)
 
         ax.set_title("Precipitation boxplot")
         ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation).capitalize())
-        ax.set_xticklabels(labels)
+        ax.set_xticklabels(xticklabels)
 
         _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
 

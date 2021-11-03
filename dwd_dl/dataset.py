@@ -293,10 +293,10 @@ def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, norm
 
     if normal_ranges is not None:
         normal_ranges_files_collection = DatasetFilesCollection(normal_ranges, filetype=filetype, classes=classes)
-        to_create = normal_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode='b')
+        to_create = normal_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode=mode)
     if video_ranges is not None:
         video_ranges_files_collection = DatasetFilesCollection(video_ranges, filetype=filetype, classes=classes)
-        video_h5_to_create = video_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode='both')
+        video_h5_to_create = video_ranges_files_collection.missing_files(path_to_folder=path_to_folder, mode=mode)
     if not to_create:
         to_create += video_h5_to_create
     else:

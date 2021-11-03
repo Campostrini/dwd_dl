@@ -514,13 +514,14 @@ class Config:
                 print("Done.")
 
     @staticmethod
-    def missing_files_for_dataset_file(dataset_file: ds.DatasetFile):
+    def missing_files_for_dataset_file(dataset_file: ds.DatasetFile, verbose: bool = True):
         rfl = RadolanFilesList(date_ranges=MonthDateRange(*dataset_file.ym_tuple))
-        return RadolanFilesList(files_list=[file for file in rfl if not file.exists()])
+        return RadolanFilesList(files_list=[file for file in rfl if not file.exists(verbose=verbose)])
 
     @staticmethod
-    def download_and_create_dataset_files_correctly(dataset_file: ds.DatasetFile, path_to_folder):
-        missing_files = Config.missing_files_for_dataset_file(dataset_file)
+    def download_and_create_dataset_files_correctly(dataset_file: ds.DatasetFile, path_to_folder, verbose: bool = True):
+        missing_files = Config.missing_files_for_dataset_file(dataset_file, verbose=verbose)
+        Config.missing_files_message(missing_files)
         with tempfile.TemporaryDirectory() as td:
             print('Creating Temporary Directory')
             if os.path.isdir(os.path.abspath(td)):
@@ -552,6 +553,10 @@ class Config:
                             os.remove(os.path.join(td, file))
                     continue
                 else:
+                    for file in listdir:
+                        file_path = path_from_file_name(file_name=file)
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        shutil.move(os.path.join(td, file), file_path)
                     break
 
             ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
@@ -722,7 +727,7 @@ class RadolanFile:
     def __hash__(self):
         return hash(self.file_name)
 
-    def exists(self):
+    def exists(self, verbose=True):
         if not os.path.isfile(path_from_file_name(self.file_name)):
             try:
                 for file_name in binary_file_name_approx_generator(self.date):
@@ -730,7 +735,8 @@ class RadolanFile:
                     if os.path.isfile(file_path):
                         return True
             except OverflowError:
-                print(f"File {self.file_name} not found even with approximation loop. Sorry.")
+                if verbose:
+                    print(f"File {self.file_name} not found even with approximation loop. Sorry.")
                 return False
         return True
 
@@ -741,6 +747,48 @@ def path_from_file_name(file_name):
     timestamp_string = m.groups()[0]
     timestamp = dt.datetime.strptime(timestamp_string, CFG.TIMESTAMP_DATE_FORMAT)
     return os.path.join(CFG.RADOLAN_RAW, str(timestamp.year), str(timestamp.month), file_name)
+
+
+def find_raw_file(time_stamp, custom_path=None, verbose=False):
+
+    def find_with_approx_loop(path, time_stamp_):
+        try:
+            for fname in binary_file_name_approx_generator(time_stamp_):
+                fpath = os.path.join(path, file_name)
+                if os.path.isfile(fpath):
+                    if verbose:
+                        print(f"Found file {fname}. Using this for timestamp: {time_stamp_}")
+                    return fpath
+        except OverflowError:
+            if verbose:
+                print(f"Couldn't find file in {path}")
+        return None
+
+    file_name = binary_file_name(time_stamp)
+    rw_file_path = None
+
+    if custom_path:
+        custom_path_file_name = os.path.join(custom_path, file_name)
+        if not os.path.isfile(custom_path_file_name):
+            if verbose:
+                print(f"File {file_name} not found. Starting approximation loop.")
+            rw_file_path = find_with_approx_loop(custom_path, time_stamp)
+        else:
+            rw_file_path = custom_path_file_name
+
+    if custom_path is None or rw_file_path is None:
+        raw_file_path = path_from_file_name(file_name)
+        if not os.path.isfile(raw_file_path):
+            if verbose:
+                print(f"File {file_name} not found. Starting approximation loop.")
+            rw_file_path = find_with_approx_loop(os.path.dirname(path_from_file_name(file_name)), time_stamp)
+        else:
+            rw_file_path = raw_file_path
+
+    if rw_file_path is None:
+        raise FileNotFoundError(f"Couldn't find file {file_name}")
+
+    return rw_file_path
 
 
 def get_download_size(url):
@@ -796,9 +844,11 @@ def initialize2(inside_initialize=True, skip_download=False):
         if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
                 ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
             for dataset_file in ds.DatasetFilesCollection(CFG.date_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
-                CFG.download_and_create_dataset_files_correctly(dataset_file, path_to_folder=CFG.RADOLAN_H5)
+                CFG.download_and_create_dataset_files_correctly(
+                    dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
             for dataset_file in ds.DatasetFilesCollection(CFG.video_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
-                CFG.download_and_create_dataset_files_correctly(dataset_file, path_to_folder=CFG.RADOLAN_H5)
+                CFG.download_and_create_dataset_files_correctly(
+                    dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 

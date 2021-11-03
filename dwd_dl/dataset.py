@@ -278,7 +278,7 @@ class RadolanSubset(RadolanDataset):
 
 @utils.init_safety
 def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, normal_ranges=None, video_ranges=None,
-              path_to_folder=None, path_to_raw=None):
+              path_to_folder=None, path_to_raw=None, verbose=False):
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
@@ -314,8 +314,10 @@ def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, norm
             try:
                 raw_data = utils.square_select(date, height=height, width=width,
                                                plot=False, custom_path=path_to_raw).data
-            except OverflowError:
+            except FileNotFoundError:
                 # If not found then treat it as NaN-filled
+                if verbose:
+                    print(f"Couldn't find raw data for {date}. Filling with NANs")
                 raw_data = np.empty((height, width))
                 raw_data[:] = np.nan
 

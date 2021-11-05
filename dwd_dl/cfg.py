@@ -2,7 +2,6 @@
 
 """
 import gzip
-import hashlib
 import inspect
 import os
 import shutil
@@ -15,13 +14,16 @@ import re
 import tempfile
 import sys
 import tarfile
+from distutils.dir_util import copy_tree
+
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from packaging import version
 from typing import List
 
+from dwd_dl import log
 import dwd_dl as dl
 import dwd_dl.utils as utils
 import dwd_dl.yaml_utils as yu
@@ -51,6 +53,7 @@ class RadolanConfigFileContent:
             VSC: bool,
             VIDEO: dict,
     ):
+        log.info("Initializing %s", self.__class__.__name__)
         self._BASE_URL = BASE_URL
         self._RADOLAN_ROOT = RADOLAN_ROOT
         self._RANGES_DATE_FORMAT = RANGES_DATE_FORMAT
@@ -452,18 +455,17 @@ class Config:
         if not os.path.isfile(range_dict['path']):
             template_file_path = path_to_resources_folder(range_dict['template_file_name'])
             shutil.copy2(template_file_path, range_dict['path'], follow_symlinks=False)
-            print(f"Created {range_dict['file_name']} in {range_dict['path']}.")
+            log.info("Created %s in %s.", range_dict['file_name'], range_dict['path'])
         else:
-            print(f"{range_dict['path']} already exists. Just edit it!")
+            log.info("%s already exists. Just edit it!", range_dict['path'])
 
     def check_downloaded_files(self):
         # compare with existing
         missing_files = RadolanFilesList(files_list=[file for file in self.files_list if not file.exists()])
         if not missing_files:
-            print("No missing files!")
+            log.info("No missing files.")
         else:
-            print(f"{len(missing_files)} missing files!")
-
+            log.info("%d missing files.", len(missing_files))
         return missing_files
 
     def download_missing_files(self):
@@ -472,9 +474,9 @@ class Config:
 
         if missing_files:
             with tempfile.TemporaryDirectory() as td:
-                print('Creating Temporary Directory')
+                log.info("Creating temporary directory.")
                 if os.path.isdir(os.path.abspath(td)):
-                    print(f'Temporary Directory created: {os.path.abspath(td)}')
+                    log.info('Temporary directory created at: %s', os.path.abspath(td))
                 else:
                     raise OSError("The temporary directory was not created.")
 
@@ -487,9 +489,9 @@ class Config:
                 for file in listdir:
                     if file.endswith('.tar.gz'):
                         with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
-                            print(f'Extracting all in {file}.')
+                            log.info("Extracting all in %s.", file)
                             tf.extractall(self.RADOLAN_RAW)
-                            print('All extracted.')
+                            log.info('Done extracting.')
                     elif file.endswith('.gz'):
                         with gzip.open(
                                 os.path.join(td, file), 'rb'
@@ -499,7 +501,7 @@ class Config:
                             shutil.copyfileobj(f_in, f_out)
 
             with tempfile.TemporaryDirectory() as td:
-                print("Extracting compressed day files.")
+                log.info("Extracting compressed day files.")
                 for file in tqdm(os.listdir(self.RADOLAN_RAW)):
                     if file.endswith('.gz'):
                         shutil.move(os.path.join(self.RADOLAN_RAW, file), os.path.join(os.path.abspath(td), file))
@@ -511,56 +513,74 @@ class Config:
                             os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out, -1)
-                print("Done.")
+                log.info("Done extracting.")
 
     @staticmethod
     def missing_files_for_dataset_file(dataset_file: ds.DatasetFile, verbose: bool = True):
         rfl = RadolanFilesList(date_ranges=MonthDateRange(*dataset_file.ym_tuple))
-        return RadolanFilesList(files_list=[file for file in rfl if not file.exists(verbose=verbose)])
+        return RadolanFilesList(files_list=[file for file in rfl if not file.exists()])
 
     @staticmethod
     def download_and_create_dataset_files_correctly(dataset_file: ds.DatasetFile, path_to_folder, verbose: bool = True):
+        log.info("Processing %s . ", dataset_file)
         missing_files = Config.missing_files_for_dataset_file(dataset_file, verbose=verbose)
-        Config.missing_files_message(missing_files)
-        with tempfile.TemporaryDirectory() as td:
-            print('Creating Temporary Directory')
-            if os.path.isdir(os.path.abspath(td)):
-                print(f'Temporary Directory created: {os.path.abspath(td)}')
-            else:
-                raise OSError("The temporary directory was not created.")
-
-            download_files_to_directory(
-                os.path.abspath(td),
-                missing_files.download_list,
-            )
-            while True:
-                listdir = os.listdir(td)
-                if any([file.endswith(('.tar.gz', '.gz')) for file in listdir]):
-                    for file in listdir:
-                        if file.endswith('.tar.gz'):
-                            with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
-                                print(f'Extracting all in {file}.')
-                                tf.extractall(td)
-                                print('All extracted.')
-                            os.remove(os.path.join(td, file))
-                        elif file.endswith('.gz'):
-                            with gzip.open(
-                                    os.path.join(td, file), 'rb'
-                            ) as f_in, open(
-                                os.path.join(td, file.replace('.gz', '')), 'wb'
-                            ) as f_out:
-                                shutil.copyfileobj(f_in, f_out)
-                            os.remove(os.path.join(td, file))
-                    continue
+        if not missing_files:
+            log.info("No missing files for dataset_file %s", dataset_file)
+            with tempfile.TemporaryDirectory() as td:
+                log.info('Creating temporary directory.')
+                if os.path.isdir(os.path.abspath(td)):
+                    log.info(f'Temporary Directory created: {os.path.abspath(td)}')
                 else:
-                    for file in listdir:
-                        file_path = path_from_file_name(file_name=file)
-                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                        shutil.move(os.path.join(td, file), file_path)
-                    break
+                    raise OSError("The temporary directory was not created.")
 
-            ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
-                         path_to_folder=path_to_folder, path_to_raw=td)
+                path_to_raw = os.path.join(CFG.RADOLAN_RAW, str(dataset_file.year), str(dataset_file.month))
+
+                log.info("Copying files from %s to %s.", path_to_raw, td)
+                copy_tree(path_to_raw, td)
+                log.info("Done copying files from %s to %s.", path_to_raw, td)
+                ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
+                             path_to_folder=path_to_folder, path_to_raw=td)
+        else:
+            log.info("Some missing files for dataset_file %s", dataset_file)
+            with tempfile.TemporaryDirectory() as td:
+                log.info('Creating temporary directory.')
+                if os.path.isdir(os.path.abspath(td)):
+                    log.info(f'Temporary Directory created: {os.path.abspath(td)}')
+                else:
+                    raise OSError("The temporary directory was not created.")
+
+                download_files_to_directory(
+                    os.path.abspath(td),
+                    missing_files.download_list,
+                )
+                while True:
+                    listdir = os.listdir(td)
+                    if any([file.endswith(('.tar.gz', '.gz')) for file in listdir]):
+                        for file in listdir:
+                            if file.endswith('.tar.gz'):
+                                with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
+                                    log.info('Extracting all in %s', file)
+                                    tf.extractall(td)
+                                    log.info('Done extracting.')
+                                os.remove(os.path.join(td, file))
+                            elif file.endswith('.gz'):
+                                with gzip.open(
+                                        os.path.join(td, file), 'rb'
+                                ) as f_in, open(
+                                    os.path.join(td, file.replace('.gz', '')), 'wb'
+                                ) as f_out:
+                                    shutil.copyfileobj(f_in, f_out)
+                                os.remove(os.path.join(td, file))
+                        continue
+                    else:
+                        for file in listdir:
+                            file_path = path_from_file_name(file_name=file)
+                            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                            shutil.move(os.path.join(td, file), file_path)
+                        break
+
+                ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
+                             path_to_folder=path_to_folder, path_to_raw=td)
 
 
     @staticmethod
@@ -597,6 +617,7 @@ class Config:
                         found = True
                 if not found:
                     raise ValueError(f"{date_range} not found in {date_range_all}")
+
 
     def get_timestamps_hash(self):
         raise DeprecationWarning
@@ -656,6 +677,9 @@ class RadolanFilesList:
     def __len__(self):
         return len(self.files_list)
 
+    def __bool__(self):
+        return bool(self.files_list)
+
     def remove_duplicates(self):
         self.files_list = list(dict.fromkeys(self.files_list))
 
@@ -663,14 +687,14 @@ class RadolanFilesList:
     def download_list(self):
         if not self._download_list:
             download_list = []
-            print("Computing download list.")
+            log.info("Computing download list.")
             for file in self.files_list:
                 if file.date not in download_list:
                     download_file = DownloadFile(file.year, file.month, file.date, CFG.BASE_URL)
                     download_list.append(download_file)
-                    print(f"Added {download_file} to the download list.")
+                    log.info(f"Added %s to the download list.", download_file)
             self._download_list = download_list
-            print("Done")
+            log.info("Done computing download list.")
         else:
             download_list = self._download_list
         return download_list
@@ -683,7 +707,7 @@ class RadolanFilesList:
 
         total_size = 0
 
-        print("Computing download size.")
+        log.info("Computing download size.")
         for file in self.download_list:
             total_size += file.size
 
@@ -709,7 +733,7 @@ class RadolanFile:
         return self.date.month
 
     def get_relevant_file_to_download(self):
-        print(f"Getting relevant file to download for {self.year} - {self.month} - {self.date}")
+        log.info("Getting relevant file to download for %d - %d - %s", self.year, self.month, self.date)
         return get_download_url(self.year, self.month, self.date, base_url=CFG.BASE_URL)
 
     def get_file_name(self):
@@ -727,7 +751,7 @@ class RadolanFile:
     def __hash__(self):
         return hash(self.file_name)
 
-    def exists(self, verbose=True):
+    def exists(self):
         if not os.path.isfile(path_from_file_name(self.file_name)):
             try:
                 for file_name in binary_file_name_approx_generator(self.date):
@@ -735,8 +759,7 @@ class RadolanFile:
                     if os.path.isfile(file_path):
                         return True
             except OverflowError:
-                if verbose:
-                    print(f"File {self.file_name} not found even with approximation loop. Sorry.")
+                log.debug("File %s not found even with approximation loop. Sorry.", self.file_name)
                 return False
         return True
 
@@ -756,12 +779,10 @@ def find_raw_file(time_stamp, custom_path=None, verbose=False):
             for fname in binary_file_name_approx_generator(time_stamp_):
                 fpath = os.path.join(path, file_name)
                 if os.path.isfile(fpath):
-                    if verbose:
-                        print(f"Found file {fname}. Using this for timestamp: {time_stamp_}")
+                    log.debug("Found file %s. Using this for timestamp: %s", fname, time_stamp_)
                     return fpath
         except OverflowError:
-            if verbose:
-                print(f"Couldn't find file in {path}")
+            log.debug("Couldn't find file in %s", path)
         return None
 
     file_name = binary_file_name(time_stamp)
@@ -770,8 +791,7 @@ def find_raw_file(time_stamp, custom_path=None, verbose=False):
     if custom_path:
         custom_path_file_name = os.path.join(custom_path, file_name)
         if not os.path.isfile(custom_path_file_name):
-            if verbose:
-                print(f"File {file_name} not found. Starting approximation loop.")
+            log.debug("File %s not found. Starting approximation loop.", file_name)
             rw_file_path = find_with_approx_loop(custom_path, time_stamp)
         else:
             rw_file_path = custom_path_file_name
@@ -779,21 +799,20 @@ def find_raw_file(time_stamp, custom_path=None, verbose=False):
     if custom_path is None or rw_file_path is None:
         raw_file_path = path_from_file_name(file_name)
         if not os.path.isfile(raw_file_path):
-            if verbose:
-                print(f"File {file_name} not found. Starting approximation loop.")
+            log.debug("File %s not found. Starting approximation loop.", file_name)
             rw_file_path = find_with_approx_loop(os.path.dirname(path_from_file_name(file_name)), time_stamp)
         else:
             rw_file_path = raw_file_path
 
     if rw_file_path is None:
-        raise FileNotFoundError(f"Couldn't find file {file_name}")
+        raise FileNotFoundError(f"Couldn't find file {file_name}.")
 
     return rw_file_path
 
 
 def get_download_size(url):
     r = requests.head(url)
-    print(f"Getting download size for: {url}")
+    log.debug("Getting download size for: %s .", url)
     return int(r.headers['Content-Length'])
 
 
@@ -996,7 +1015,7 @@ class DownloadFile:
             return self.contains_date(other)
 
     def __str__(self):
-        return f"<DownloadFile named: {self.file_name} of size: {self.size}.>"
+        return f"<DownloadFile named: {self.file_name} of size: {self.size / 1024 / 1024:.1f} MB.>"
 
 
 def get_monthly_file_name(year, month, date, with_name_discrepancy=False):
@@ -1023,12 +1042,11 @@ def get_download_file_name(year, month, date: dt.datetime):
 
 
 def read_ranges(ranges_path):
-    print('Reading ranges.')
-
+    log.info('Reading ranges at %s', ranges_path)
     date_ranges_data = yu.load_ranges(ranges_path)
     yu.validate_ranges(date_ranges_data)
     date_ranges = [DateRange(start_date, end_date) for start_date, end_date in date_ranges_data[0][0]]
-    print('Finished reading.')
+    log.info('Finished reading ranges.')
 
     return date_ranges
 
@@ -1139,7 +1157,7 @@ def download_files_to_directory(dirpath, downloadable_list: List[DownloadFile]):
         raise OSError('Invalid Path.')
 
     for file in downloadable_list:
-        print(f'Downloading file {file.file_name}')
+        log.info('Downloading file %s', file.file_name)
         r = requests.get(file.url)
         with open(os.path.join(os.path.abspath(dirpath), file.file_name), 'wb') as fd:
             for chunk in r.iter_content(chunk_size=128):
@@ -1337,12 +1355,11 @@ def coords_finder(lon, lat, distances_output=False, verbose=False):
 
     """
     proj_stereo = wrl.georef.create_osr("dwd-radolan")
-    if verbose:
-        print(proj_stereo)
+    log.debug("%s", proj_stereo)
     proj_wgs = osr.SpatialReference()
     proj_wgs.ImportFromEPSG(4326)
-    if verbose:
-        print(proj_wgs)
+
+    log.debug("%s", proj_wgs)
     coords_ll = np.array([lon, lat])
     radolan_grid_xy = wrl.georef.get_radolan_grid(900, 900)
     coords_xy = wrl.georef.reproject(coords_ll, projection_source=proj_wgs, projection_target=proj_stereo)

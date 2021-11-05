@@ -8,9 +8,9 @@ import pandas as pd
 import torch
 import xarray
 from torch.utils.data import Dataset
-from tqdm import tqdm
-import hashlib
+from tqdm.auto import tqdm
 
+from dwd_dl import log
 import dwd_dl.cfg as cfg
 import dwd_dl.utils as utils
 
@@ -76,36 +76,48 @@ class RadolanDataset(Dataset):
         video_or_normal='normal',
     ):
 
+        log.info("Initializing %s", self.__class__.__name__)
         assert video_or_normal in ('normal', 'video')
         if video_or_normal == 'normal':
+            log.info("Using normal mode for dataset.")
             timestamps_list = cfg.CFG.date_timestamps_list
-            print("Using normal mode for dataset.")
             ranges = cfg.CFG.date_ranges
         else:
             timestamps_list = cfg.CFG.video_timestamps_list
             ranges = cfg.CFG.video_ranges
         self.min_weights_factor_of_max = min_weights_factor_of_max
+
         # read radolan files
+        log.info("Instantiating %s for classes mode.", H5Dataset.__name__)
         self.ds_classes = H5Dataset(
             ranges, mode='c', classes=cfg.CFG.CLASSES,
         )
+        log.info("Done instantiating.")
+        log.info("Instantiating %s for raw mode.", H5Dataset.__name__)
         self.ds_raw = H5Dataset(
             ranges, mode='r', classes=cfg.CFG.CLASSES,
         )
+        log.info("Done instantiating")
+
         self.normalize = normalize
-        print("reading images...")
         self._image_size = image_size
 
+        log.info("Computing total precipitation.")
         self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
+
+        log.info("Computing how many nans per day.")
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"]).precipitation.compute()
+
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(timestamps_list)
         self._sequence_timestamps = sorted(timestamps_list)
 
+        log.info("Computing which timestamps not to consider for computations given their nan percentage.")
         to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
             self.nan_days, max_nans, in_channels, out_channels
         )
 
+        log.info("Handling timestamps at the end of the ranges of interest.")
         to_remove = timestamps_at_training_period_end_handler(
             ranges, to_remove, in_channels, out_channels
         )
@@ -135,7 +147,7 @@ class RadolanDataset(Dataset):
     @property
     def weights(self):
         w = []
-        print('Computing weights.')
+        log.info("Computing weights.")
         for i in tqdm(range(self.__len__())):
             seq, tru = self.get_total_pre(i)
 
@@ -146,6 +158,7 @@ class RadolanDataset(Dataset):
         return w + self.min_weights_factor_of_max*torch.max(w)
 
     def get_total_pre(self, idx):
+        log.info("Getting total precipitation.")
         seq, tru = self.indices_tuple[idx]
         tot = {'seq': [], 'tru': []}
         for sub_period, indices in zip(tot, (seq, tru)):
@@ -230,6 +243,7 @@ class RadolanSubset(RadolanDataset):
     """
 
     def __init__(self, dataset: RadolanDataset, subset, valid_cases=20, seed=42, random_=False):
+        log.info("Initializing %s", self.__class__.__name__)
         assert subset in ['train', 'valid', 'all', 'test']
         dataset_len = len(dataset)
         indices = [i for i in range(dataset_len)]
@@ -278,7 +292,7 @@ class RadolanSubset(RadolanDataset):
 
 @utils.init_safety
 def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, normal_ranges=None, video_ranges=None,
-              path_to_folder=None, path_to_raw=None, verbose=False):
+              path_to_folder=None, path_to_raw=None):
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
@@ -309,15 +323,14 @@ def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, norm
         date_range = cfg.MonthDateRange(year=year, month=month).date_range()
         data = np.empty(shape=(len(date_range), height, width))
         time = np.array(date_range)
-        for n, date in tqdm(enumerate(date_range)):
+        for n, date in tqdm(enumerate(list(date_range))):
 
             try:
                 raw_data = utils.square_select(date, height=height, width=width,
                                                plot=False, custom_path=path_to_raw).data
             except FileNotFoundError:
                 # If not found then treat it as NaN-filled
-                if verbose:
-                    print(f"Couldn't find raw data for {date}. Filling with NANs")
+                log.debug(f"Couldn't find raw data for {date}. Filling with NANs")
                 raw_data = np.empty((height, width))
                 raw_data[:] = np.nan
 
@@ -443,7 +456,7 @@ class DatasetFilesCollection:
         files_list = self.get_needed_files(mode)
         missing = []
         for file in files_list:
-            if not os.path.isfile(os.path.join(abs_path_to_folder, file.file_name)):
+            if not os.path.exists(os.path.join(abs_path_to_folder, file.file_name)):
                 missing.append(file)
         return missing
 
@@ -499,6 +512,9 @@ class DatasetFile:
         elif not other.ymfm_tuple == self.ymfm_tuple:
             return False
         return True
+
+    def __str__(self):
+        return f"<{self.__class__.__name__} called {self.file_name}>"
 
 
 class H5Dataset:

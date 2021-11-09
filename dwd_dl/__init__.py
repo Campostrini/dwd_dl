@@ -20,3 +20,4 @@ from . import utils
 from . import yaml_utils
 from . import cli
 from . import unet
+from . import stats

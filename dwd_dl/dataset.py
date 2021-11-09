@@ -524,8 +524,8 @@ class H5Dataset:
         self._date_ranges = date_ranges
         self._files_list = files_names_list_single_mode(self._date_ranges, filetype='Z', mode=mode)
         self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
-        self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': -1, 'lon': 256, 'lat': 256},
-                                        engine='zarr')
+        self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': 20, 'lon': 256, 'lat': 256},
+                                        engine='zarr', parallel=True)
 
     def __getitem__(self, item):
         if item == 'mode':

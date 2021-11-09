@@ -576,7 +576,7 @@ class Config:
                         for file in listdir:
                             file_path = path_from_file_name(file_name=file)
                             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                            shutil.move(os.path.join(td, file), file_path)
+                            shutil.copy2(os.path.join(td, file), file_path)
                         break
 
                 ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),

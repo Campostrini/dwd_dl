@@ -8,9 +8,12 @@ import pandas as pd
 import xarray as xr
 from xarray.plot.utils import get_axis, label_from_attrs, _update_axes
 import matplotlib.pyplot as plt
+import dask
+import dask.array
 
 from . import cfg
 from .dataset import H5Dataset
+from .axes import RadolanAxes as RAxes
 
 
 class RadolanStatAbstractClass(ABC):
@@ -84,6 +87,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         return primitive
 
+#    @dask.delayed
     def boxplot(
         self,
         season=None,
@@ -115,14 +119,14 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         ax = get_axis(figsize, size, aspect, ax)
         arrays = []
-        if condition is not None:
-            assert callable(condition)
-        else:
-            def condition(x): return x
 
         for array in dataarray:
-            no_nan = np.ravel(array.where(condition(array)).to_numpy())
-            no_nan = no_nan[pd.notnull(no_nan)]
+            if condition is not None:
+                assert callable(condition)
+                no_nan = dask.array.ravel(array.where(condition(array)))
+            else:
+                no_nan = dask.array.ravel(array)
+            no_nan = no_nan[dask.array.notnull(no_nan)]
             arrays.append(no_nan)
 
         if transformation is not None:
@@ -134,7 +138,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         else:
             assert len(xticklabels) == len(custom_periods)
 
-        primitive = ax.boxplot(arrays, positions=range(len(arrays)), **kwargs)
+        primitive = RAxes.static_boxplot(ax, arrays, positions=range(len(arrays)), **kwargs)
 
         ax.set_title("Precipitation boxplot")
         ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation).capitalize())

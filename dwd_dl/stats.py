@@ -126,7 +126,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
                 no_nan = dask.array.ravel(array.where(condition(array)))
             else:
                 no_nan = dask.array.ravel(array)
-            no_nan = no_nan[dask.array.notnull(no_nan)]
+            no_nan = dask.array.ma.masked_where(~dask.array.notnull(no_nan), no_nan)
             arrays.append(no_nan)
 
         if transformation is not None:

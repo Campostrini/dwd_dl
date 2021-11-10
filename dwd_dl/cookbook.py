@@ -166,8 +166,9 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
         q1, med, q3 = dask.array.percentile(x, [25, 50, 75])
 
         # interquartile range
-        q3.compute()
-        q1.compute()
+        q3 = q3.compute()
+        q1 = q1.compute()
+        med = med.compute()
         stats['iqr'] = q3 - q1
         max_min = dask.array.max(x).compute() - dask.array.min(x).compute()
         log.info("Interquartile range is %s and max_min is %s", stats["iqr"], max_min)
@@ -199,9 +200,11 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
         else:
             loval, hival = dask.array.percentile(x, whis)
 
+
         # get high extreme
         log.info("Getting high extreme.")
-        wiskhi = x.where(x <= hival)
+        loval, hival = float(loval), float(hival)
+        wiskhi = dask.array.ma.masked_where(x > hival, x)
         max_wiskhi = dask.array.max(wiskhi).compute()
         if wiskhi.size == 0 or max_wiskhi < q3:
             stats['whishi'] = q3
@@ -210,7 +213,7 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
 
         # get low extreme
         log.info("Getting low extreme.")
-        wisklo = x.where(x >= loval)
+        wisklo = dask.array.ma.masked_where(x < loval, x)
         min_wisklo = dask.array.min(wisklo).compute()
         if wisklo.size == 0 or min_wisklo > q1:
             stats['whislo'] = q1
@@ -219,9 +222,9 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
 
         # compute a single array of outliers
         log.info("Computing outliers.")
-        stats['fliers'] = dask.array.hstack([
-            x[x < stats['whislo']],
-            x[x > stats['whishi']],
+        stats['fliers'] = np.hstack([
+            np.array(x[x < stats['whislo']]),
+            np.array(x[x > stats['whishi']]),
         ])
 
         # add in the remaining stats

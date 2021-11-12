@@ -3,6 +3,7 @@ import calendar
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from dask.distributed import Client
 
 from dwd_dl import cfg
 import dwd_dl.dataset as ds
@@ -14,6 +15,8 @@ if __name__ == "__main__":
         cfg.initialize()
         ds.create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES, normal_ranges=cfg.CFG.date_ranges,
                      video_ranges=cfg.CFG.video_ranges, path_to_folder=cfg.CFG.RADOLAN_H5)
+
+    client = Client()
 
     radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
 
@@ -29,24 +32,25 @@ if __name__ == "__main__":
 
     def year_month_custom_periods(start_year_, end_year_):
         out = []
-        for year in range(start_year_, end_year_ + 1):
+        for year_ in range(start_year_, end_year_ + 1):
             for month in range(1, 13):
                 out += [
                     pd.date_range(
                         start=dt.datetime(
-                            year=year, month=1, day=1, hour=0, minute=50
+                            year=year_, month=month, day=1, hour=0, minute=50
                         ), end=dt.datetime(
-                            year=year, month=12, day=calendar.monthrange(year, month)[1], hour=23, minute=50
-                        )
+                            year=year_, month=month, day=calendar.monthrange(year_, month)[1], hour=23, minute=50
+                        ), freq='H'
                     )
                 ]
         return out
 
     for i in range(n_rows):
         for j in range(n_cols):
+            year = start_year + n_cols * i + j
             radolan_stat.boxplot(
-                ax=axs[i, j], custom_periods=year_month_custom_periods(start_year, end_year),
-                xticklabels=list(calendar.month_abbr)[1:]
+                ax=axs[i, j], custom_periods=year_month_custom_periods(year, year),
+                xticklabels=list(calendar.month_abbr)[1:], autorange=True,
             )
 
     fig.show()

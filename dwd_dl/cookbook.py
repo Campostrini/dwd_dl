@@ -163,7 +163,7 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
         stats['mean'] = dask.array.mean(x)
 
         # medians and quartiles
-        q1, med, q3 = dask.array.percentile(x, [25, 50, 75])
+        q1, med, q3 = dask.array.percentile(x[~dask.array.ma.getmaskarray(x)], [25, 50, 75])
 
         # interquartile range
         q3 = q3.compute()

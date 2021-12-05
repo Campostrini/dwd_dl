@@ -20,7 +20,7 @@ class RadolanAxes(Axes):
                        showbox=None, showfliers=None, boxprops=None,
                        labels=None, flierprops=None, medianprops=None,
                        meanprops=None, capprops=None, whiskerprops=None,
-                       manage_ticks=True, autorange=False, zorder=None):
+                       manage_ticks=True, autorange=False, zorder=None, auto_12_months=False):
         """
         Make a box and whisker plot.
 
@@ -289,6 +289,34 @@ class RadolanAxes(Axes):
                                 stats['cilo'] = ci[0]
                             if ci[1] is not None:
                                 stats['cihi'] = ci[1]
+
+        if auto_12_months:
+            if not len(positions) == 12:
+                new_bxpstats = [None for _ in range(12)]
+                assert len(positions) == len(bxpstats)
+                months = set(range(1, 13))
+                positions_set = set(positions)
+                missing = months - positions_set
+                for pos, stats in zip(positions, bxpstats):
+                    new_bxpstats[pos - 1] = stats
+                for pos in missing:
+                    assert new_bxpstats[pos-1] is None
+                    stats = dict()
+                    stats['fliers'] = np.array([])
+                    stats['mean'] = np.nan
+                    stats['med'] = np.nan
+                    stats['q1'] = np.nan
+                    stats['q3'] = np.nan
+                    stats['cilo'] = np.nan
+                    stats['cihi'] = np.nan
+                    stats['whislo'] = np.nan
+                    stats['whishi'] = np.nan
+                    stats['med'] = np.nan
+                    new_bxpstats[pos - 1] = stats
+                for element in new_bxpstats:
+                    assert element is not None
+                bxpstats = new_bxpstats
+                positions = range(1, 13)
 
         artists = axes.bxp(bxpstats, positions=positions, widths=widths,
                            vert=vert, patch_artist=patch_artist,

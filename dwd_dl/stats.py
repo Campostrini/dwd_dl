@@ -49,6 +49,9 @@ class RadolanSingleStat(RadolanStatAbstractClass):
              yticks=None,
              xlim=None,
              ylim=None,
+             xticklabels=None,
+             bins=None,
+             range=None,
              **kwargs
              ):
         """Adapted from xarray
@@ -61,27 +64,29 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         ax = get_axis(figsize, size, aspect, ax)
         arrays = []
-        if condition is not None:
-            assert callable(condition)
-        else:
-            def condition(x): return x
-
         for array in dataarray:
-            no_nan = np.ravel(array.where(condition(array)).to_numpy())
-            no_nan = no_nan[pd.notnull(no_nan)]
+            no_nan = dask.array.ravel(array)
+            if condition is not None:
+                assert callable(condition)
+                no_nan = dask.array.ma.masked_where(~condition(no_nan), no_nan)
+            no_nan = dask.array.ma.masked_where(dask.array.isnan(no_nan), no_nan)
             arrays.append(no_nan)
 
         if transformation is not None:
             assert callable(transformation)
             arrays = [transformation(array) for array in arrays]
 
-        labels = self._get_labels_from_periods(custom_periods)
+        for array in arrays:
+            h, bins = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
+            bins = np.array(bins)
+            h = np.array(h)
+            primitive = ax.bar(bins[1:], h, **kwargs)
 
-        primitive = ax.hist(arrays, **kwargs)
-
-        ax.set_title(dataarray[0]._title_for_slice())
+        ax.set_title("Histogram")
         ax.set_xlabel("Precipitation")
-        ax.set_xticklabels(labels)
+        if xticklabels is not None:
+            assert len(xticklabels) == len(custom_periods)
+            ax.set_xticklabels(xticklabels)
 
         _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
 
@@ -126,7 +131,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
                 no_nan = dask.array.ravel(array.where(condition(array)))
             else:
                 no_nan = dask.array.ravel(array)
-            no_nan = dask.array.ma.masked_where(~dask.array.notnull(no_nan), no_nan)
+            no_nan = dask.array.ma.masked_where(dask.array.isnan(no_nan), no_nan)
             arrays.append(no_nan)
 
         if transformation is not None:
@@ -135,14 +140,17 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         if xticklabels is None:
             xticklabels = self._get_labels_from_periods(custom_periods)
-        else:
-            assert len(xticklabels) == len(custom_periods)
+        # else:
+        #     assert len(xticklabels) == len(custom_periods)
 
-        primitive = RAxes.static_boxplot(ax, arrays, positions=range(len(arrays)), **kwargs)
+        primitive = RAxes.static_boxplot(ax, arrays, **kwargs)
 
         ax.set_title("Precipitation boxplot")
         ax.set_xlabel(label_from_attrs(self._h5dataset.ds.precipitation).capitalize())
-        ax.set_xticklabels(xticklabels)
+        if len(ax.get_xticks()) == 2*len(xticklabels):
+            ax.set_xticklabels(2*xticklabels)
+        else:
+            ax.set_xticklabels(xticklabels)
 
         _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
 

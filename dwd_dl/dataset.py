@@ -74,6 +74,8 @@ class RadolanDataset(Dataset):
         max_nans=10,
         min_weights_factor_of_max=0.0001,
         video_or_normal='normal',
+        threshold=None,
+        mode=None,
     ):
 
         log.info("Initializing %s", self.__class__.__name__)
@@ -102,8 +104,16 @@ class RadolanDataset(Dataset):
         self.normalize = normalize
         self._image_size = image_size
 
-        log.info("Computing total precipitation.")
-        self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
+        if not mode == 'vis':
+            log.info("Computing total precipitation.")
+            self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation
+
+        if threshold is not None:
+            log.info("Finding timestamps where threshold is exceeded.")
+            selection = (self.ds_raw.ds.precipitation > threshold).any(dim=('lon', 'lat')).compute()
+            possible_timestamps = self.ds_raw.ds.time[selection]
+            possible_timestamps = possible_timestamps.compute()
+            self._timestamps_over_threshold = [pd.Timestamp(x.time.values).to_pydatetime() for x in possible_timestamps]
 
         log.info("Computing how many nans per day.")
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"]).precipitation.compute()
@@ -157,13 +167,20 @@ class RadolanDataset(Dataset):
         # Add a constant. Otherwise torch.multinomial complains TODO: is this really true?
         return w + self.min_weights_factor_of_max*torch.max(w)
 
+    @property
+    def timestamps_over_threshold(self):
+        try:
+            return self._timestamps_over_threshold
+        except AttributeError:
+            return None
+
     def get_total_pre(self, idx):
         log.info("Getting total precipitation.")
         seq, tru = self.indices_tuple[idx]
         tot = {'seq': [], 'tru': []}
         for sub_period, indices in zip(tot, (seq, tru)):
             for t in indices:
-                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]])
+                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]].compute())
 
         return tot['seq'], tot['tru']
 
@@ -220,6 +237,8 @@ class RadolanDataset(Dataset):
         return indices_list_of
 
     def from_timestamp(self, timestamp):
+        if isinstance(timestamp, np.datetime64):
+            timestamp = pd.Timestamp(timestamp).to_pydatetime()
         try:
             index_in_timestamps_list = self.sorted_sequence.index(timestamp)
             true_index = self._list_of_firsts.index(index_in_timestamps_list)
@@ -273,6 +292,8 @@ class RadolanSubset(RadolanDataset):
         return len(self.indices)
 
     def from_timestamp(self, timestamp):
+        if isinstance(timestamp, np.datetime64):
+            timestamp = pd.Timestamp(timestamp).to_pydatetime()
         try:
             timestamp_raw_idx = self.dataset.sorted_sequence.index(timestamp)
             index = self.dataset.list_of_firsts.index(timestamp_raw_idx)

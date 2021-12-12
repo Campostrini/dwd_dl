@@ -84,7 +84,12 @@ if __name__ == "__main__":
         end_ym = dt.date(*ym_dict[year][-1], day=calendar.monthrange(*ym_dict[year][-1])[1])
         ym_custom_periods = year_month_custom_periods(start_ym, end_ym)
         for n, ax in enumerate(axs.reshape(-1)):
+            ratio_days_gt_zero = radolan_stat.rainy_days_ratio([ym_custom_periods[n]], 0)
+            ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio([ym_custom_periods[n]], 0)
             radolan_stat.hist(ax=ax, custom_periods=[ym_custom_periods[n]], linewidth=2,
-                              transformation=lambda x: np.log(x + 0.01), bins=200, range=[-5, 10],
+                              transformation=lambda x: np.log(x + 0.01), bins=200, range=[-3, 8],
                               condition=lambda x: x > 0)
+            ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
+                              f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
+                    horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
         fig.show()

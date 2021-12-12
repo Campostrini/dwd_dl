@@ -23,9 +23,11 @@ class RadolanDataModule(LightningDataModule):
         create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES, normal_ranges=cfg.CFG.date_ranges,
                   video_ranges=cfg.CFG.video_ranges, path_to_folder=cfg.CFG.RADOLAN_H5)
 
-    def setup(self, stage=None, random_=False):
+    def setup(self, stage=None, random_=False, threshold=None, mode=None):
         self.dataset = Dataset(
-            image_size=self.image_size
+            image_size=self.image_size,
+            threshold=threshold,
+            mode=mode
         )
 
         self.train_dataset = Subset(
@@ -108,6 +110,9 @@ class RadolanLiveDataModule(RadolanDataModule):
     def legal_timestamps(self):
         return sorted(self.valid_dataset.timestamps + self.train_dataset.timestamps)
 
+    def setup(self, stage=None, random_=False, threshold=300, mode='vis'):
+        super().setup(stage=stage, random_=random_, threshold=threshold, mode=mode)
+
     def all_timestamps(self):
         return self.dataset.sorted_sequence
 
@@ -124,4 +129,8 @@ class RadolanLiveDataModule(RadolanDataModule):
             return 'valid'
         else:
             return 'train'
+
+    @property
+    def timestamps_over_threshold(self):
+        return self.dataset.timestamps_over_threshold
 

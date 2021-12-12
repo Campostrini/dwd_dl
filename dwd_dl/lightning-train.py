@@ -4,7 +4,7 @@ import datetime as dt
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TestTubeLogger
 import dask
-# from dask.distributed import Client
+from dask.distributed import Client
 
 from dwd_dl import cfg
 import dwd_dl.model as model
@@ -15,7 +15,7 @@ from dwd_dl.cli import RadolanParser
 from dwd_dl.video import VideoProducer
 
 dask.config.set(scheduler='synchronous')
-# client = Client(processes=False)
+client = Client(processes=False)
 
 
 def main(args):
@@ -45,10 +45,10 @@ def main(args):
 
 
 if __name__ == "__main__":
-    dl.cfg.initialize()
     parser = RadolanParser()
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
     parser = VideoProducer.add_video_specific_argparse_args(parser)
     args = parser.parse_args()
+    dl.cfg.initialize2()
     main(args)

@@ -2,16 +2,15 @@
 #
 #SBATCH -J download
 #SBATCH -N 1
-#SBATCH --qos normal_binf
-#SBATCH -C binf
-#SBATCH --partition binf
+#SBATCH --qos mem_0384
+#SBATCH --partition mem_0384
 #SBATCH --profile=None
-#SBATCH --ntasks-per-node=16
+#SBATCH --ntasks-per-node=20
 #SBATCH --ntasks-per-core=1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
 #SBATCH --time=04:00:00
-#SBATCH --output=/home/lv71491/stefanoc/project/.out/download_%j.out
+#SBATCH --output=/home/fs71666/csaw2629/.out/download_%j.out
 
 source activate py38
 

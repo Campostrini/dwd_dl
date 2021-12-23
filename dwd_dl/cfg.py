@@ -254,6 +254,7 @@ class Config:
     def RADOLAN_RAW(self):
         if self.VSC:
             root = os.environ['BINFL']
+            root = os.path.join(root, 'Radolan')
         else:
             root = self.RADOLAN_ROOT
         return os.path.join(root, 'Raw')
@@ -262,6 +263,7 @@ class Config:
     def RADOLAN_H5(self):
         if self.VSC:
             root = os.environ['BINFL']
+            root = os.path.join(root, 'Radolan')
         else:
             root = self.RADOLAN_ROOT
         return os.path.join(root, 'H5')

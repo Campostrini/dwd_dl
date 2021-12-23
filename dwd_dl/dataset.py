@@ -266,24 +266,41 @@ class RadolanSubset(RadolanDataset):
         assert subset in ['train', 'valid', 'all', 'test']
         dataset_len = len(dataset)
         indices = [i for i in range(dataset_len)]
+        log.debug(f"With {random_=} and {subset=}")
         if random_ and not subset == 'test':
             random.seed(seed)
+            log.debug("Seed, set.")
+            log.debug("Starting sort of indices.")
             indices = sorted(dataset.indices_of_validation() + dataset.indices_of_training())
+            log.debug("Done sorting.")
+            log.debug("Picking random sample.")
             valid_indices = random.sample(indices, k=round((valid_cases / 100) * len(indices)))
+            log.debug("Done picking random sample.")
+            log.debug("Dividing validation from training.")
             if subset == "valid":
                 indices = [indices[i] for i in sorted(valid_indices)]
             else:
                 indices = [x for x in indices if indices.index(x) not in valid_indices]
+            log.debug("Done dividing.")
         elif subset == 'train':
+            log.debug("Returning indices of training.")
             indices = dataset.indices_of_training()
         elif subset == 'valid':
+            log.debug("Returning indices of validation.")
             indices = dataset.indices_of_validation()
         elif subset == 'test':
+            log.debug("Returning indices of test.")
             indices = dataset.indices_of_test()
+
+        log.debug("Setting dataset.")
         self.dataset = dataset
+        log.debug("Setting indices.")
         self.indices = indices
+        log.debug("Setting timestamps from lists of firsts.")
         self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
+        log.debug("Setting timestamps using indices.")
         self.timestamps = [self.timestamps[self.indices[n]] for n, _ in enumerate(self.indices)]
+        log.debug("Initialization done.")
 
     def __getitem__(self, idx):
         return self.dataset[self.indices[idx]]

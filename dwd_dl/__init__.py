@@ -7,7 +7,7 @@ log.setLevel(logging.DEBUG)
 from .logger import INFOFORMATTER, DEBUGFORMATTER
 
 _ch = logging.StreamHandler(stream=sys.stdout)
-_ch.setLevel(logging.INFO)
+_ch.setLevel(logging.DEBUG)
 _ch.setFormatter(logging.Formatter(INFOFORMATTER))
 
 log.addHandler(_ch)

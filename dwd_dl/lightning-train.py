@@ -14,11 +14,12 @@ import dwd_dl as dl
 from dwd_dl.cli import RadolanParser
 from dwd_dl.video import VideoProducer
 
-dask.config.set(scheduler='synchronous')
-client = Client(processes=False)
+# dask.config.set(scheduler='synchronous')
+# processes=False, scheduler='synchronous')
 
 
 def main(args):
+    client = Client(processes=False)
     experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
     unet = model.UNetLitModel(**vars(args), timestamp_string=experiment_timestamp_str)
     dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)

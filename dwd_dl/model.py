@@ -33,7 +33,7 @@ class UNetLitModel(pl.LightningModule):
 
     def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
                  conv_bias=False, depth=7, cat=False, classes=4, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
-                 timestamp_string=None,
+                 timestamp_string=None, transformation=None,
                  **kwargs):
         super().__init__()
 
@@ -65,6 +65,22 @@ class UNetLitModel(pl.LightningModule):
         self._conv_bias = conv_bias
         self._depth = depth
         self._classes = classes
+
+        if transformation == 'log':
+            def transform(x, **kwargs_):
+                x[:, ::4, ...] = torch.log(x[:, ::4, ...], **kwargs_)
+                return x
+            self._transform = transform
+        elif transformation == 'log_sum':
+            def transform(x, **kwargs_):
+                x[:, ::4, ...] = torch.log(x[:, ::4, ...] + 0.01, **kwargs_)
+                return x
+            self._transform = transform
+        else:
+            def transform(x, **kwargs_):
+                return x
+            self._transform = transform
+
         self.lr = lr
         self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
         sizes = [self.init_features * 2 ** n for n in range(depth)]
@@ -117,6 +133,8 @@ class UNetLitModel(pl.LightningModule):
         self._cat = cat
 
         self.timestamp_string = timestamp_string
+
+        self.initial_transform = self._initial_transform(self._transform)
 
         self.basic1 = self._basic_block(
             in_channels=self._in_channels,
@@ -173,6 +191,16 @@ class UNetLitModel(pl.LightningModule):
         ])
 
         self.softmax = nn.Softmax(dim=2)  # probably not right!
+
+    @staticmethod
+    def _initial_transform(transformation):
+        return nn.Sequential(
+            OrderedDict(
+                [
+                    ("initial_transformation", TransformModule(transformation=transformation))
+                ]
+            )
+        )
 
     @staticmethod
     def _block(in_channels, features, name, conv_bias):
@@ -361,6 +389,7 @@ class UNetLitModel(pl.LightningModule):
             return torch.stack(args, dim=0).sum(dim=0)
 
     def forward(self, x):
+        x = self.initial_transform(x)
         basic1 = self.basic1(x)
         x = self.sum_or_cat(basic1, x)
 
@@ -541,6 +570,12 @@ class UNetLitModel(pl.LightningModule):
             default=False,
             help="Use bias in the convolutions. Might have huge memory footprint. (default: False)"
         )
+        parser.add_argument(
+            "--transformation",
+            type=str,
+            default=None,
+            help="The transformation applied to each input. Either log or log_sum. (default: None)"
+        )
         return parent_parser
 
     def assign_timestamp_string_from_checkpoint_path(self, checkpoint_path):
@@ -617,3 +652,13 @@ class RadolanLiveEvaluator(UNetLitModel):
     @auto_move_data  # TODO: remove. See documentation
     def forward(self, x):
         return super().forward(x)
+
+
+class TransformModule(nn.Module):
+    def __init__(self, transformation):
+        super().__init__()
+        self._transform = transformation
+
+    def forward(self, x):
+        x = self._transform(x)
+        return x

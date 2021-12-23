@@ -117,7 +117,7 @@ class RadolanConfigFileContent:
     @property
     def CLASSES(self):
         # return self._CLASSES  # TODO: Create a validator for this
-        return {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+        return {'0': (0, 0.5), '0.5': (0.5, 2), '2': (2, 5), '5': (5, 10), '10': (10, 30), '30': (30, np.infty)}
 
     @property
     def VSC(self):

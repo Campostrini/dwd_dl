@@ -334,7 +334,7 @@ def create_h5(mode: str, classes=None, filetype='Z', height=256, width=256, norm
 
     if mode not in ('r', 'c'):
         raise ValueError(f"Need either 'r' or 'c' in mode but got {mode}")
-    default_classes = {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
+    default_classes = {'0': (0, 0.5), '0.5': (0.5, 2), '2': (2, 5), '5': (5, 10), '10': (10, 30), '30': (30, np.infty)}
     histogram_bins = [n * 0.1 for n in range(501)]
     histogram_bins.append(np.infty)
     if classes is None:

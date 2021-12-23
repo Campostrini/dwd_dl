@@ -32,7 +32,7 @@ from dwd_dl.metrics import (
 class UNetLitModel(pl.LightningModule):
 
     def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
-                 conv_bias=False, depth=7, cat=False, classes=4, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
+                 conv_bias=False, depth=7, cat=False, classes=6, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
                  timestamp_string=None, transformation=None,
                  **kwargs):
         super().__init__()
@@ -414,7 +414,7 @@ class UNetLitModel(pl.LightningModule):
             x_1, x_2 = torch.split(x, x.size()[1] // 2, dim=1)
             x = x_1 + x_2
 
-        x = x.reshape(x.shape[0], self._out_channels, 4, *x.shape[-2:])
+        x = torch.reshape(x, [x.shape[0], self._out_channels, self._classes, *x.shape[-2:]])
 
         if self._softmax:
             x = self.softmax(x)

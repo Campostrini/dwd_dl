@@ -2,8 +2,8 @@
 #
 #SBATCH -J download
 #SBATCH -N 1
-#SBATCH --qos mem_0384
-#SBATCH --partition mem_0384
+#SBATCH --qos mem_0096
+#SBATCH --partition mem_0096
 #SBATCH --profile=None
 #SBATCH --ntasks-per-node=20
 #SBATCH --ntasks-per-core=1

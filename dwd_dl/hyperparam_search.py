@@ -30,7 +30,7 @@ def main(args):
         create_git_tag=True,
         version=args.hpc_exp_number,
     )
-    callbacks_list = callbacks.CallbacksList()
+    callbacks_list = callbacks.CallbacksList(args.test_tube_exp_name)
 
     if args.max_epochs is None:
         args.max_epochs = 100

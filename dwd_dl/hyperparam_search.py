@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     cluster = SlurmCluster(
         hyperparam_optimizer=args,
-        log_path='/home/fs71666/csaw2629/.out/download_%j.out',
+        log_path='/home/fs71666/csaw2629/.out/',
         python_cmd='python',
     )
 

@@ -45,6 +45,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+    dl.cfg.initialize2(skip_download=True)
     parser = HyperOptArgumentParser()
     parser = RadolanParser.add_arguments(parser)
     parser = Trainer.add_argparse_args(parser)

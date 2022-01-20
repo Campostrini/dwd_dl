@@ -59,7 +59,6 @@ if __name__ == "__main__":
         hyperparam_optimizer=args,
         log_path='/home/fs71666/csaw2629/.out/download_%j.out',
         python_cmd='python',
-        test_tube_exp_name=args.test_tube_exp_name
     )
 
     # let the cluster know where to email for a change in job status (ie: complete, fail, etc...)

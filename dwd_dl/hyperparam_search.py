@@ -48,11 +48,11 @@ if __name__ == "__main__":
     parser = RadolanParser()
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
-    parser_hyper = HyperOptArgumentParser(parents=[parser])
-    parser_hyper.add_argument('--test_tube_exp_name', default='my_test', type=str)
-    parser_hyper.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'))
-    parser_hyper.opt_list('--depth', options=[7, 6], tunable=True)
-    args = parser_hyper.parse_args()
+    parser = HyperOptArgumentParser(parents=[parser])
+    parser.add_argument('--test_tube_exp_name', default='my_test', type=str)
+    parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'))
+    parser.opt_list('--depth', options=[7, 6], tunable=True)
+    args = parser.parse_args()
 
     cluster = SlurmCluster(
         hyperparam_optimizer=args,

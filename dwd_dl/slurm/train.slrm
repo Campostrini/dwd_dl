@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH -J download
+#SBATCH -J training
 #SBATCH -N 1
 #SBATCH --qos mem_0096
 #SBATCH --partition mem_0096
@@ -10,10 +10,10 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
 #SBATCH --time=20:00:00
-#SBATCH --output=/home/fs71666/csaw2629/.out/download_%j.out
+#SBATCH --output=/home/fs71666/csaw2629/.out/training_%j.out
 
 source activate py38
 
 cd $HOME/project/source/dwd-dl-thesis/dwd_dl/
 
-python lightning-train.py --gpus -1 --batch-size 150 --max_epochs 35 --save true --workers 8 --video false --precision 16 --depth 4 --test_tube_exp_name 'first_param_opt'
+python lightning-train.py --gpus -1 --batch-size 150 --max_epochs 35 --save false --workers 8 --video false --precision 16 --depth 4 --test_tube_exp_name 'first_param_opt'

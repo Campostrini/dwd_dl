@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
     parser = HyperOptArgumentParser(parents=[parser])
-    parser.add_argument('--test_tube_exp_name', default='my_test')
+    parser.add_argument('--test_tube_exp_name', default='my_test', type=str)
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'))
     parser.opt_list('--depth', options=[7, 6], tunable=True)
     args = parser.parse_args()

@@ -37,7 +37,7 @@ def main(args):
     trainer = Trainer.from_argparse_args(args, logger=logger,
                                          flush_logs_every_n_steps=100, callbacks=list(callbacks_list))
     trainer.fit(unet, dm)
-    checkpoint_path = cfg.CFG.create_checkpoint_path_with_name()
+    checkpoint_path = cfg.CFG.create_checkpoint_path_with_name(args.test_tube_exp_name)
     trainer.save_checkpoint(checkpoint_path)
     dm.close()
     exp.close()
@@ -67,8 +67,8 @@ if __name__ == "__main__":
     cluster.add_command('source activate py38')
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
-    cluster.per_experiment_nb_cpus = 20
-    cluster.per_experiment_nb_nodes = 10
+    cluster.per_experiment_nb_cpus = 2
+    cluster.per_experiment_nb_nodes = 1
 
     cluster.add_slurm_cmd(
         cmd='qos', value='mem_0096', comment='Quality of Service'

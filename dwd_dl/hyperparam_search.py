@@ -80,4 +80,4 @@ if __name__ == "__main__":
     cluster.job_time = '4:00:00'
 
     # run the models on the cluster
-    cluster.optimize_parallel_cluster_cpu(main, nb_trials=20, job_name='first_tt_batch', job_display_name='my_batch')
+    cluster.optimize_parallel_cluster_cpu(main, nb_trials=2, job_name='first_tt_batch', job_display_name='my_batch')

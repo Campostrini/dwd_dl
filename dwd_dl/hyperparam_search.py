@@ -14,6 +14,7 @@ from dwd_dl.cli import RadolanParser
 
 
 def main(args):
+    print(args)
     dl.cfg.initialize2(skip_download=True)
     exp = Experiment(
         name=args.test_tube_exp_name,

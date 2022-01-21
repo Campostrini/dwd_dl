@@ -54,6 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_tube_exp_name', default='my_test')
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'))
     parser.opt_list('--depth', options=[7, 6], tunable=True)
+    print("Before parsing")
     args = parser.parse_args()
     print(args)
 

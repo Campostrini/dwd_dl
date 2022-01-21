@@ -72,6 +72,7 @@ if __name__ == "__main__":
     cluster.per_experiment_nb_cpus = 96
     cluster.per_experiment_nb_nodes = 1
     cluster.memory_mb_per_node = 96000
+    cluster.cores_per_srun = 96
 
     cluster.add_slurm_cmd(
         cmd='mail-type', value='ALL', comment='Mail Type'
@@ -81,9 +82,6 @@ if __name__ == "__main__":
     )
     cluster.add_slurm_cmd(
         cmd='partition', value='mem_0096', comment='Partition'
-    )
-    cluster.add_slurm_cmd(
-        cmd='mem-per-cpu', value='1G', comment='Mem'
     )
 
     cluster.job_time = '10:00'

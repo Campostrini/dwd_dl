@@ -50,7 +50,7 @@ if __name__ == "__main__":
     print("Very first line")
     dl.cfg.initialize2(skip_download=True)
     print("Initialized")
-    parser = HyperOptArgumentParser(add_help=False)
+    parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False)
     parser = RadolanParser.add_arguments(parser)
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)

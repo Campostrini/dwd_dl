@@ -72,7 +72,7 @@ if __name__ == "__main__":
     cluster.per_experiment_nb_cpus = 96
     cluster.per_experiment_nb_nodes = 1
     cluster.memory_mb_per_node = 96000
-    cluster.cores_per_srun = 96
+    # cluster.cores_per_srun = 96
 
     cluster.add_slurm_cmd(
         cmd='mail-type', value='ALL', comment='Mail Type'

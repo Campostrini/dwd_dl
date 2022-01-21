@@ -21,6 +21,7 @@ def main(args):
         version=args.hpc_exp_number,
         autosave=False,
     )
+    exp.argparse(args)
     client = Client(processes=False)
     unet = model.UNetLitModel(**vars(args), timestamp_string=args.test_tube_exp_name)
     dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)

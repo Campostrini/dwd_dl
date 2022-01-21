@@ -62,7 +62,7 @@ if __name__ == "__main__":
     )
 
     # let the cluster know where to email for a change in job status (ie: complete, fail, etc...)
-    cluster.notify_job_status(email='stefano.campostrini@studenti.unitn.it', on_done=False, on_fail=False)
+    cluster.add_slurm_cmd(cmd='mail-user', value='stefano.campostrini@studenti.unitn.it', comment='Mail user')
 
     cluster.add_command('source activate py38')
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')

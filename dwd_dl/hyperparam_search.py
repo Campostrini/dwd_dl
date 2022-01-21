@@ -36,7 +36,8 @@ def main(args):
     if args.max_epochs is None:
         args.max_epochs = 100
     trainer = Trainer.from_argparse_args(args, logger=logger,
-                                         flush_logs_every_n_steps=100, callbacks=list(callbacks_list))
+                                         flush_logs_every_n_steps=100, callbacks=list(callbacks_list),
+                                         strategy="ddp")
     trainer.fit(unet, dm)
     checkpoint_path = cfg.CFG.create_checkpoint_path_with_name(args.test_tube_exp_name)
     trainer.save_checkpoint(checkpoint_path)
@@ -68,7 +69,7 @@ if __name__ == "__main__":
     cluster.add_command('source activate py38')
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
-    cluster.per_experiment_nb_cpus = 4
+    cluster.per_experiment_nb_cpus = 8
     cluster.per_experiment_nb_nodes = 1
     cluster.memory_mb_per_node = 96000
 

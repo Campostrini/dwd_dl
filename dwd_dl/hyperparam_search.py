@@ -14,7 +14,6 @@ from dwd_dl.cli import RadolanParser
 
 
 def main(args):
-    print(args)
     dl.cfg.initialize2(skip_download=True)
     exp = Experiment(
         name=args.test_tube_exp_name,
@@ -56,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'))
     parser.opt_list('--depth', options=[7, 6], tunable=True)
     args = parser.parse_args()
+    print(args)
 
     cluster = SlurmCluster(
         hyperparam_optimizer=args,

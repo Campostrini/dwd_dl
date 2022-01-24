@@ -513,19 +513,19 @@ class UNetLitModel(pl.LightningModule):
         else:
             parser = parent_parser
         parser.add_argument(
-            "--in-channels",
+            "--in_channels",
             type=int,
             default=6,
             help="Number of input channels. (default: 6)",
         )
         parser.add_argument(
-            "--out-channels",
+            "--out_channels",
             type=int,
             default=1,
             help="Number of output channels. (default: 1)"
         )
         parser.add_argument(
-            "--batch-size",
+            "--batch_size",
             type=int,
             default=6,
             help="Input batch size for training. (default: 6)",
@@ -543,7 +543,7 @@ class UNetLitModel(pl.LightningModule):
             help="Initial learning rate. (default: 0.001)",
         )
         parser.add_argument(
-            "--image-size",
+            "--image_size",
             type=int,
             default=256,
             help="Target input image size. (default: 256)",
@@ -556,7 +556,7 @@ class UNetLitModel(pl.LightningModule):
                  "False (default) means sum."
         )
         parser.add_argument(
-            "--init-features",
+            "--init_features",
             type=int,
             default=32,
             help="Number of features fo the first convolutional layer. (default: 32)"
@@ -568,7 +568,7 @@ class UNetLitModel(pl.LightningModule):
             help="Number of layer-groups of the UNet. (default: 7)"
         )
         parser.add_argument(
-            "--conv-bias",
+            "--conv_bias",
             type=bool,
             default=False,
             help="Use bias in the convolutions. Might have huge memory footprint. (default: False)"

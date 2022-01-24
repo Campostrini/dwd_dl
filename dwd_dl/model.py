@@ -509,68 +509,68 @@ class UNetLitModel(pl.LightningModule):
     @staticmethod
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("UNet")
-        parent_parser.add_argument(
+        parser.add_argument(
             "--in-channels",
             type=int,
             default=6,
             help="Number of input channels. (default: 6)",
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--out-channels",
             type=int,
             default=1,
             help="Number of output channels. (default: 1)"
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--batch-size",
             type=int,
             default=6,
             help="Input batch size for training. (default: 6)",
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--epochs",
             type=int,
             default=100,
             help="Number of epochs to train. (default: 100)",
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--lr",
             type=float,
             default=0.001,
             help="Initial learning rate. (default: 0.001)",
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--image-size",
             type=int,
             default=256,
             help="Target input image size. (default: 256)",
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--cat",
             type=bool,
             default=False,
             help="Whether the skips should be implemented with torch.cat or with a simple sum. "
                  "False (default) means sum."
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--init-features",
             type=int,
             default=32,
             help="Number of features fo the first convolutional layer. (default: 32)"
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--depth",
             type=int,
             default=7,
             help="Number of layer-groups of the UNet. (default: 7)"
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--conv-bias",
             type=bool,
             default=False,
             help="Use bias in the convolutions. Might have huge memory footprint. (default: False)"
         )
-        parent_parser.add_argument(
+        parser.add_argument(
             "--transformation",
             type=str,
             default=None,

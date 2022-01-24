@@ -13,8 +13,8 @@ class RadolanParser(argparse.ArgumentParser):
         self.add_arguments(self)
 
     @staticmethod
-    def add_arguments(parent_parser, argument_grup=False):
-        if argument_grup:
+    def add_arguments(parent_parser, argument_group=False):
+        if argument_group:
             parser = parent_parser.add_argument_group("Radolan Parser")
         else:
             parser = parent_parser
@@ -51,7 +51,7 @@ class RadolanParser(argparse.ArgumentParser):
             default=False,
             help="Verbose setting. Either true or false."
         )
-        if argument_grup:
+        if argument_group:
             return parent_parser
         else:
             return parser

@@ -52,7 +52,7 @@ if __name__ == "__main__":
     print("Initialized")
     parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False)
     parser = RadolanParser.add_arguments(parser)
-    parser = Trainer.add_argparse_args(parser)
+    parser = Trainer.add_argparse_args(parser, use_argument_group=False)
     parser = model.UNetLitModel.add_model_specific_args(parser)
     print("Now adding new arguments")
     parser.add_argument('--test_tube_exp_name', default='my_test')

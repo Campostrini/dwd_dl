@@ -13,8 +13,11 @@ class RadolanParser(argparse.ArgumentParser):
         self.add_arguments(self)
 
     @staticmethod
-    def add_arguments(parent_parser):
-        parser = parent_parser.add_argument_group("Radolan Parser")
+    def add_arguments(parent_parser, argument_grup=False):
+        if argument_grup:
+            parser = parent_parser.add_argument_group("Radolan Parser")
+        else:
+            parser = parent_parser
         parser.add_argument(
             "--device",
             type=str,
@@ -48,7 +51,10 @@ class RadolanParser(argparse.ArgumentParser):
             default=False,
             help="Verbose setting. Either true or false."
         )
-        return parent_parser
+        if argument_grup:
+            return parent_parser
+        else:
+            return parser
 
 
 class DeprecatedRadolanParser(argparse.ArgumentParser):

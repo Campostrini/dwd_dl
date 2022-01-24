@@ -507,8 +507,11 @@ class UNetLitModel(pl.LightningModule):
         return optimizer
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = parent_parser.add_argument_group("UNet")
+    def add_model_specific_args(parent_parser, argument_group=False):
+        if argument_group:
+            parser = parent_parser.add_argument_group("UNet")
+        else:
+            parser = parent_parser
         parser.add_argument(
             "--in-channels",
             type=int,
@@ -576,7 +579,10 @@ class UNetLitModel(pl.LightningModule):
             default=None,
             help="The transformation applied to each input. Either log or log_sum. (default: None)"
         )
-        return parent_parser
+        if argument_group:
+            return parent_parser
+        else:
+            return parser
 
     def assign_timestamp_string_from_checkpoint_path(self, checkpoint_path):
         name = os.path.split(checkpoint_path)[-1]

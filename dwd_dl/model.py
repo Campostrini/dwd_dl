@@ -576,7 +576,7 @@ class UNetLitModel(pl.LightningModule):
             default=None,
             help="The transformation applied to each input. Either log or log_sum. (default: None)"
         )
-        return parser
+        return parent_parser
 
     def assign_timestamp_string_from_checkpoint_path(self, checkpoint_path):
         name = os.path.split(checkpoint_path)[-1]

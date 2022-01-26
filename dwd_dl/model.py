@@ -7,7 +7,6 @@ from itertools import product
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from pytorch_lightning.core.decorators import auto_move_data
 from torchmetrics import MetricCollection
 
 import dwd_dl.cfg as cfg
@@ -655,7 +654,6 @@ class RadolanLiveEvaluator(UNetLitModel):
         )
         return parent_parser
 
-    @auto_move_data  # TODO: remove. See documentation
     def forward(self, x):
         return super().forward(x)
 

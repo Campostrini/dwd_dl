@@ -63,7 +63,7 @@ class UNetLitModel(pl.LightningModule):
         self._permute_output = permute_output
         self._softmax = softmax_output
         self._conv_bias = conv_bias
-        self._depth = depth
+        self._depth = int(depth)
         self._classes = classes
 
         if transformation == 'log':
@@ -83,7 +83,6 @@ class UNetLitModel(pl.LightningModule):
 
         self.lr = lr
         self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
-        print(type(depth))
         sizes = [self.init_features * 2 ** n for n in range(depth)]
 
         self._metrics_to_include = [

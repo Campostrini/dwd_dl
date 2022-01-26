@@ -83,6 +83,7 @@ class UNetLitModel(pl.LightningModule):
 
         self.lr = lr
         self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
+        print(self.init_features)
         sizes = [self.init_features * 2 ** n for n in range(depth)]
 
         self._metrics_to_include = [

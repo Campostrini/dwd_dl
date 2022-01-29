@@ -91,7 +91,7 @@ if __name__ == "__main__":
         cmd='partition', value='mem_0096', comment='Partition'
     )
 
-    cluster.job_time = '10:00'
+    cluster.job_time = '1:00:00'
 
     # run the models on the cluster
     cluster.optimize_parallel_cluster_cpu(main, nb_trials=2, job_name='first_tt_batch', job_display_name='my_batch')

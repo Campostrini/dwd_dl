@@ -19,7 +19,7 @@ from dwd_dl.video import VideoProducer
 
 
 def main(args):
-    client = Client(processes=False)
+    client = Client()  # processes=False)
     experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
     unet = model.UNetLitModel(**vars(args), timestamp_string=experiment_timestamp_str)
     dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
@@ -38,18 +38,18 @@ def main(args):
     trainer.save_checkpoint(checkpoint_path)
     dm.close()
 
-    if args.video:
-        video_trainer = Trainer.from_argparse_args(args)
-        dm = data_module.VideoDataModule(args.batch_size, args.workers, args.image_size)
-        producer = VideoProducer(video_trainer, unet, dm, args.video_mode, args.frame_rate)
-        producer.produce()
+    # if args.video:
+    #     video_trainer = Trainer.from_argparse_args(args)
+    #     dm = data_module.VideoDataModule(args.batch_size, args.workers, args.image_size)
+    #     producer = VideoProducer(video_trainer, unet, dm, args.video_mode, args.frame_rate)
+    #     producer.produce()
 
 
 if __name__ == "__main__":
     parser = RadolanParser()
     parser = Trainer.add_argparse_args(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
-    parser = VideoProducer.add_video_specific_argparse_args(parser)
+    # parser = VideoProducer.add_video_specific_argparse_args(parser)
     args = parser.parse_args()
     dl.cfg.initialize2()
     main(args)

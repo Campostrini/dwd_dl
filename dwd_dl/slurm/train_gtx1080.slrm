@@ -13,4 +13,4 @@ source activate py38
 
 cd $HOME/dwd-dl-thesis/dwd_dl/
 
-python lightning-train.py --batch-size 6 --max_epochs 35 --save false --workers 4 --video false --precision 16 --depth 4 --gpus -1
+python lightning-train.py --batch_size 6 --max_epochs 35 --save false --workers 4 --precision 16 --depth 4 --gpus -1

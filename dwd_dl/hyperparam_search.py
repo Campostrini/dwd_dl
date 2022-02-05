@@ -47,22 +47,15 @@ def main(args, cluster):
 
 
 if __name__ == "__main__":
-    print("Very first line")
     dl.cfg.initialize2(skip_download=True)
-    print("Initialized")
     parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False)
-    print(parser)
     parser = Trainer.add_argparse_args(parser, use_argument_group=True)
-    print(parser)
     parser = RadolanParser.add_arguments(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
-    print("Now adding new arguments")
     parser.add_argument('--test_tube_exp_name', default='my_test')
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs')[1:])
     parser.opt_list('--depth', options=[7, 6], tunable=True)
-    print("Before parsing")
     args = parser.parse_args()
-    print(args)
 
     cluster = SlurmCluster(
         hyperparam_optimizer=args,

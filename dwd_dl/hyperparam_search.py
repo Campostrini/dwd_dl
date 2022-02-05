@@ -24,7 +24,7 @@ def main(args, cluster):
     exp.argparse(args)
     client = Client(processes=False)
     unet = model.UNetLitModel(**vars(args), timestamp_string=args.test_tube_exp_name)
-    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
+    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size, args.dask)
     logger = TestTubeLogger(
         save_dir=args.log_path,
         name=args.test_tube_exp_name,

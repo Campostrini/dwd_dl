@@ -9,6 +9,7 @@ import torch
 import xarray
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
+import zarr
 
 from dwd_dl import log
 import dwd_dl.cfg as cfg
@@ -76,6 +77,7 @@ class RadolanDataset(Dataset):
         video_or_normal='normal',
         threshold=None,
         mode=None,
+        use_dask=True,
     ):
 
         log.info("Initializing %s", self.__class__.__name__)
@@ -106,7 +108,7 @@ class RadolanDataset(Dataset):
 
         if not mode == 'vis':
             log.info("Computing total precipitation.")
-            self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation
+            self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
 
         if threshold is not None:
             log.info("Finding timestamps where threshold is exceeded.")
@@ -150,6 +152,13 @@ class RadolanDataset(Dataset):
 
         self._list_of_firsts = [row[0][0] for row in self.indices_tuple]
 
+        log.info(f"{use_dask=}")
+        if not use_dask:
+            log.info("Initializing Datasets with Zarr only.")
+            self.ds_raw = ZarrDataset(ranges, mode='r', classes=cfg.CFG.CLASSES)
+            self.ds_classes = ZarrDataset(ranges, mode='c', classes=cfg.CFG.CLASSES)
+            log.info("Initialization done.")
+
     @property
     def list_of_firsts(self):
         return self._list_of_firsts
@@ -175,12 +184,12 @@ class RadolanDataset(Dataset):
             return None
 
     def get_total_pre(self, idx):
-        log.info("Getting total precipitation.")
+        log.debug("Getting total precipitation.")
         seq, tru = self.indices_tuple[idx]
         tot = {'seq': [], 'tru': []}
         for sub_period, indices in zip(tot, (seq, tru)):
             for t in indices:
-                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]].compute())
+                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]])
 
         return tot['seq'], tot['tru']
 
@@ -563,7 +572,7 @@ class H5Dataset:
         self._files_list = files_names_list_single_mode(self._date_ranges, filetype='Z', mode=mode)
         self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
         self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': 20, 'lon': 256, 'lat': 256},
-                                        engine='zarr', parallel=True)
+                                        engine='zarr') #, parallel=True)
 
     def __getitem__(self, item):
         if item == 'mode':
@@ -577,14 +586,85 @@ class H5Dataset:
                 utils.normalized_time_of_day_from_string(item),
                 dtype=np.float32
             )
-            precipitation = self.ds.precipitation.loc[timestamp].compute().to_numpy()
+            precipitation = self.ds.precipitation.loc[timestamp] #.to_numpy()  # .compute().to_numpy()
+            precipitation = precipitation.compute()
             coordinates_array = cfg.CFG.coordinates_array
             return np.concatenate((np.expand_dims(precipitation, 0), timestamps_grid, coordinates_array))
         else:
             raise KeyError(f"{item} is an invalid Key for this H5Dataset")
 
-    def __iter__(self):
-        return iter(self.ds.precpitation)
+    # def __iter__(self):
+    #     return iter(self.ds.precpitation)
+
+
+class ZarrDataset:
+    def __init__(self, date_ranges, mode, classes=None):
+        self.mode = mode
+        self.classes = classes
+        self._date_ranges = date_ranges
+        self._files_list = files_names_list_single_mode(self._date_ranges, filetype='Z', mode=mode)
+        self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
+        self._zarr_files = [PureZarrFile(file_name) for file_name in self._files_paths]
+        self._index_of_last_checked = 0
+
+    def __getitem__(self, item):
+        out = None
+        try:
+            out = self._zarr_files[self._index_of_last_checked][item]
+        except KeyError:
+            pass
+
+        if out is None:
+            for i, zarr_file in enumerate(self._zarr_files):
+                try:
+                    out = zarr_file[item]
+                    self._index_of_last_checked = i
+                    break
+                except KeyError:
+                    pass
+        if out is not None:
+            return self.wrap_with_coordinates_and_time(out, item)
+        raise KeyError(f"Key {item} is not in this {self.__class__.__name__}")
+
+    @staticmethod
+    def wrap_with_coordinates_and_time(out, item):
+        coordinates_array = cfg.CFG.coordinates_array
+        timestamps_grid = np.full(
+            (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
+            utils.normalized_time_of_day_from_string(item),
+            dtype=np.float32
+        )
+        return np.concatenate((np.expand_dims(out, 0), timestamps_grid, coordinates_array))
+
+
+class PureZarrFile:
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self._zarr_file = zarr.open(file_name, mode='r')
+        self.start_time = dt.datetime.fromisoformat(self._zarr_file.time.attrs.get('units').split(' ', maxsplit=2)[2])
+        self.max_hours_after_start = self._zarr_file.time[-1]
+
+    def __getitem__(self, item):
+        if not isinstance(item, dt.datetime):
+            raise TypeError(f"Item must be of type {type(dt.datetime)} but got {type(item)}.")
+
+        difference = item - self.start_time
+        difference_hours = difference.seconds / 3600
+        if not 0 <= difference_hours <= self.max_hours_after_start:
+            raise KeyError(f"Key {item} is not in this {self.__class__.__name__}")
+
+        index_ = int(difference_hours)
+        return self._zarr_file.precipitation[index_]
+
+    def __contains__(self, item):
+        if not isinstance(item, dt.datetime):
+            return False
+        difference = item - self.start_time
+        difference_hours = difference.seconds / 3600
+        if not 0 <= difference_hours <= self.max_hours_after_start:
+            return False
+        return True
+
 
 
 @contextmanager

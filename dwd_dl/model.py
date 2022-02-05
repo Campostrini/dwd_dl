@@ -578,6 +578,13 @@ class UNetLitModel(pl.LightningModule):
             default=None,
             help="The transformation applied to each input. Either log or log_sum. (default: None)"
         )
+        parser.add_argument(
+            "--dask",
+            type=bool,
+            default=False,
+            help="Whether to use Dask or a pure Zarr implementation of the Radolan Datset class."
+                 "It might solve multiprocessing issues."
+        )
         if argument_group:
             return parent_parser
         else:

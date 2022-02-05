@@ -19,10 +19,11 @@ from dwd_dl.video import VideoProducer
 
 
 def main(args):
-    client = Client(processes=False)
+    client = Client() #processes=False)
     experiment_timestamp_str = dt.datetime.now().strftime(cfg.CFG.TIMESTAMP_DATE_FORMAT)
     unet = model.UNetLitModel(**vars(args), timestamp_string=experiment_timestamp_str)
-    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size)
+    print(f"{args.dask=}")
+    dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size, args.dask, client=client)
     logger = TestTubeLogger(
         os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
         experiment_timestamp_str,

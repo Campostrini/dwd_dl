@@ -9,7 +9,7 @@ from dwd_dl import cfg
 
 
 class RadolanDataModule(LightningDataModule):
-    def __init__(self, batch_size, num_workers, image_size):
+    def __init__(self, batch_size, num_workers, image_size, use_dask, client=None):
         super().__init__()
         self.dataset = None
         self.train_dataset = None
@@ -18,16 +18,17 @@ class RadolanDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.image_size = image_size
+        self.use_dask = use_dask
+        self.client = client
 
-    def prepare_data(self):
+    def prepare_data(self, stage=None, random_=False, threshold=None, mode=None):
         create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES, normal_ranges=cfg.CFG.date_ranges,
                   video_ranges=cfg.CFG.video_ranges, path_to_folder=cfg.CFG.RADOLAN_H5)
-
-    def setup(self, stage=None, random_=False, threshold=None, mode=None):
         self.dataset = Dataset(
             image_size=self.image_size,
             threshold=threshold,
-            mode=mode
+            mode=mode,
+            use_dask=self.use_dask,
         )
 
         self.train_dataset = Subset(
@@ -48,6 +49,9 @@ class RadolanDataModule(LightningDataModule):
             dataset=self.dataset,
             subset='test',
         )
+
+        if self.client is not None and not self.use_dask:
+            self.client.close()
 
     def train_dataloader(self):
         weighted_random_sampler = WeightedRandomSampler(
@@ -110,7 +114,7 @@ class RadolanLiveDataModule(RadolanDataModule):
     def legal_timestamps(self):
         return sorted(self.valid_dataset.timestamps + self.train_dataset.timestamps)
 
-    def setup(self, stage=None, random_=False, threshold=300, mode='vis'):
+    def prepare_data(self, stage=None, random_=False, threshold=300, mode='vis'):
         super().setup(stage=stage, random_=random_, threshold=threshold, mode=mode)
 
     def all_timestamps(self):

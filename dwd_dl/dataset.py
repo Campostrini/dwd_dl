@@ -581,15 +581,22 @@ class H5Dataset:
             return self.classes
         elif item:
             timestamp = item
-            timestamps_grid = np.full(
+            time_of_day_grid = np.full(
                 (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
-                utils.normalized_time_of_day_from_string(item),
+                utils.normalized_time_of_day(item),
                 dtype=np.float32
             )
-            precipitation = self.ds.precipitation.loc[timestamp] #.to_numpy()  # .compute().to_numpy()
+            day_of_year_grid = np.full(
+                (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
+                utils.normalized_day_of_year(item),
+                dtype=np.float32
+            )
+            precipitation = self.ds.precipitation.loc[timestamp]  #.to_numpy()  # .compute().to_numpy()
             precipitation = precipitation.compute()
             coordinates_array = cfg.CFG.coordinates_array
-            return np.concatenate((np.expand_dims(precipitation, 0), timestamps_grid, coordinates_array))
+            return np.concatenate(
+                (np.expand_dims(precipitation, 0), time_of_day_grid, day_of_year_grid, coordinates_array)
+            )
         else:
             raise KeyError(f"{item} is an invalid Key for this H5Dataset")
 
@@ -629,12 +636,17 @@ class ZarrDataset:
     @staticmethod
     def wrap_with_coordinates_and_time(out, item):
         coordinates_array = cfg.CFG.coordinates_array
-        timestamps_grid = np.full(
+        time_of_day_grid = np.full(
             (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
-            utils.normalized_time_of_day_from_string(item),
+            utils.normalized_time_of_day(item),
             dtype=np.float32
         )
-        return np.concatenate((np.expand_dims(out, 0), timestamps_grid, coordinates_array))
+        day_of_year_grid = np.full(
+            (1, cfg.CFG.HEIGHT, cfg.CFG.WIDTH),
+            utils.normalized_day_of_year(item),
+            dtype=np.float32
+        )
+        return np.concatenate((np.expand_dims(out, 0), time_of_day_grid, day_of_year_grid, coordinates_array))
 
 
 class PureZarrFile:

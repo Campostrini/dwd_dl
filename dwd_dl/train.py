@@ -62,7 +62,7 @@ def main(device, verbose, batch_size, workers,
                 for step, data in enumerate(loaders[phase]):
 
                     x, y_true = data
-                    y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+                    y_true = y_true[:, ::5, ...].to(dtype=torch.long)
                     x, y_true = x.to(device), y_true.to(device)
 
                     optimizer.zero_grad()

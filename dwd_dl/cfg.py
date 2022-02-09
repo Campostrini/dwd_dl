@@ -1,6 +1,7 @@
 """Module for checking requirements and downloading the radar data.
 
 """
+import distutils.dir_util
 import gzip
 import inspect
 import os
@@ -15,6 +16,7 @@ import tempfile
 import sys
 import tarfile
 from distutils.dir_util import copy_tree
+from distutils.errors import DistutilsFileError
 
 import numpy as np
 import wradlib as wrl
@@ -248,25 +250,24 @@ class Config:
 
     @property
     def RADOLAN_ROOT(self):
-        return self._RADOLAN_ROOT
+        if self.VSC:
+            root = os.environ["DATA"]
+            try:
+                root = os.environ["LOCAL"]
+            except OSError:
+                pass
+            root = os.path.join(root, 'Radolan')
+        else:
+            root = self._RADOLAN_ROOT
+        return root
 
     @property
     def RADOLAN_RAW(self):
-        if self.VSC:
-            root = os.environ['DATA']
-            root = os.path.join(root, 'Radolan')
-        else:
-            root = self.RADOLAN_ROOT
-        return os.path.join(root, 'Raw')
+        return os.path.join(self.RADOLAN_ROOT, 'Raw')
 
     @property
     def RADOLAN_H5(self):
-        if self.VSC:
-            root = os.environ['DATA']
-            root = os.path.join(root, 'Radolan')
-        else:
-            root = self.RADOLAN_ROOT
-        return os.path.join(root, 'H5')
+        return os.path.join(self.RADOLAN_ROOT, 'H5')
 
     @property
     def MIN_START_DATE(self):
@@ -441,6 +442,8 @@ class Config:
         for dir_ in (self.RADOLAN_ROOT, self.RADOLAN_RAW, self.RADOLAN_H5):
             if not os.path.isdir(dir_):
                 os.makedirs(dir_)
+        if self.VSC:
+            os.makedirs("/local/Radolan/")
 
     def make_date_ranges(self):
         self._make_single_range(self._ranges_path_dict['date_ranges'])
@@ -602,7 +605,6 @@ class Config:
                 break
             sys.exit()
 
-
     def validate_all_ranges(self):
         for range_list_1, range_list_2 in itertools.combinations(
                 (self.training_set_ranges, self.validation_set_ranges, self.test_set_ranges), 2
@@ -620,6 +622,17 @@ class Config:
                 if not found:
                     raise ValueError(f"{date_range} not found in {date_range_all}")
 
+    def try_move_local(self):
+        if not os.path.isdir("/local/"):
+            return
+        try:
+            os.makedirs("/local/Radolan/H5/")
+            log.info("Found local. Try copy.")
+            distutils.dir_util.copy_tree(self.RADOLAN_H5, "/local/Radolan/H5/", verbose=1)
+        except (OSError, DistutilsFileError):
+            return
+        os.environ["LOCAL"] = "/local"
+        log.info("Copy complete. $LOCAL set to '/local'")
 
     def get_timestamps_hash(self):
         raise DeprecationWarning
@@ -870,6 +883,7 @@ def initialize2(inside_initialize=True, skip_download=False):
             for dataset_file in ds.DatasetFilesCollection(CFG.video_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
                 CFG.download_and_create_dataset_files_correctly(
                     dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
+    CFG.try_move_local()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 

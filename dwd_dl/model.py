@@ -67,12 +67,12 @@ class UNetLitModel(pl.LightningModule):
 
         if transformation == 'log':
             def transform(x, **kwargs_):
-                x[:, ::4, ...] = torch.log(x[:, ::4, ...], **kwargs_)
+                x[:, ::5, ...] = torch.log(x[:, ::5, ...], **kwargs_)
                 return x
             self._transform = transform
         elif transformation == 'log_sum':
             def transform(x, **kwargs_):
-                x[:, ::4, ...] = torch.log(x[:, ::4, ...] + 0.01, **kwargs_)
+                x[:, ::5, ...] = torch.log(x[:, ::5, ...] + 0.01, **kwargs_)
                 return x
             self._transform = transform
         else:
@@ -424,7 +424,7 @@ class UNetLitModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y_true = batch
-        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
         loss = cross_entropy_loss(y_pred, y_true)
@@ -443,7 +443,7 @@ class UNetLitModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y_true = batch
-        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
         loss = cross_entropy_loss(y_pred, y_true)
@@ -475,7 +475,7 @@ class UNetLitModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y_true = batch
-        y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+        y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
         cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
         loss = cross_entropy_loss(y_pred, y_true)
@@ -647,7 +647,7 @@ class RadolanLiveEvaluator(UNetLitModel):
         x, y_true = self.dm.dataset.from_timestamp(timestamp)
         x, y_true = torch.unsqueeze(x, 0), torch.unsqueeze(y_true, 0)
         y = self(x)
-        x, y, y_true = x[:, ::4], torch.argmax(y, dim=1), y_true[:, ::4]
+        x, y, y_true = x[:, ::5], torch.argmax(y, dim=1), y_true[:, ::5]
         return x.cpu().numpy(), y.cpu().numpy(), y_true.cpu().numpy()
 
     @staticmethod

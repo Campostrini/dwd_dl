@@ -5,6 +5,7 @@
 import datetime as dt
 import os
 from typing import List
+import calendar
 
 import torch
 from torch.utils.data import DataLoader
@@ -137,7 +138,7 @@ class ModelEvaluator:
         x, y_true = x.to(device), y_true.to(device)
         y = model(x)
 
-        x, y, y_true = x[:, ::4], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[:, ::4]
+        x, y, y_true = x[:, ::5], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[:, ::5]
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
 
         return x, y, y_true
@@ -329,10 +330,19 @@ def ym_tuples(date_ranges):
     return year_month_tuples
 
 
-def normalized_time_of_day_from_string(timestamp: dt.datetime):
+def normalized_time_of_day(timestamp: dt.datetime):
     minute = timestamp.minute
     hour = timestamp.hour
     hour_minute = hour + (minute / 60)
     hours_in_day = 24
     half_day = hours_in_day / 2
     return (hour_minute - half_day) / half_day
+
+
+def normalized_day_of_year(timestamp: dt.datetime):
+    def days_in_year(year):
+        return 365 + calendar.isleap(year)
+
+    total_days = days_in_year(timestamp.year)
+    day_of_year = timestamp.timetuple().tm_yday
+    return (day_of_year - total_days/2) / (total_days/2)

@@ -442,8 +442,6 @@ class Config:
         for dir_ in (self.RADOLAN_ROOT, self.RADOLAN_RAW, self.RADOLAN_H5):
             if not os.path.isdir(dir_):
                 os.makedirs(dir_)
-        if self.VSC:
-            os.makedirs("/local/Radolan/")
 
     def make_date_ranges(self):
         self._make_single_range(self._ranges_path_dict['date_ranges'])

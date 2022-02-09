@@ -55,9 +55,10 @@ class UNetLitModel(pl.LightningModule):
         self.train_dataset = None
         self.init_features = init_features
         lon_lat_channels = 2
-        timestamp_channel = 1
+        time_of_day_channel = 1
+        day_of_year_channel = 1
         image_channel = 1
-        self._in_channels = in_channels * (image_channel + timestamp_channel + lon_lat_channels)
+        self._in_channels = in_channels * (image_channel + time_of_day_channel + day_of_year_channel + lon_lat_channels)
         self._out_channels = out_channels
         self._permute_output = permute_output
         self._softmax = softmax_output

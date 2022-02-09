@@ -626,7 +626,7 @@ class Config:
         if not os.path.isdir("/local/"):
             return
         try:
-            os.makedirs("/local/Radolan/H5/")
+            os.makedirs("/local/Radolan/H5/", exist_ok=True)
             log.info("Found local. Try copy.")
             distutils.dir_util.copy_tree(self.RADOLAN_H5, "/local/Radolan/H5/", verbose=1)
         except (OSError, DistutilsFileError):

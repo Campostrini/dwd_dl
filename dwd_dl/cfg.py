@@ -254,7 +254,7 @@ class Config:
             root = os.environ["DATA"]
             try:
                 root = os.environ["LOCAL"]
-            except OSError:
+            except KeyError:
                 pass
             root = os.path.join(root, 'Radolan')
         else:

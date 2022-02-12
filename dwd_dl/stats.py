@@ -10,9 +10,11 @@ from xarray.plot.utils import get_axis, label_from_attrs, _update_axes
 import matplotlib.pyplot as plt
 import dask
 import dask.array
+from tqdm import tqdm
 
 from . import cfg
 from .dataset import H5Dataset
+from dwd_dl import log
 from .axes import RadolanAxes as RAxes
 
 
@@ -52,28 +54,37 @@ class RadolanSingleStat(RadolanStatAbstractClass):
              xticklabels=None,
              bins=None,
              range=None,
+             combine=False,
+             title='',
              **kwargs
              ):
         """Adapted from xarray
 
         """
+        log.info(f"Computing histogram for {custom_periods=}")
         if isinstance(custom_periods, list):
-            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods)
+            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods, combine)
         else:
             raise ValueError("Whhoops, something went wrong.")
 
+        log.info(f"Gettin axis for histogram.")
         ax = get_axis(figsize, size, aspect, ax)
         arrays = []
+        if not isinstance(dataarray, list):
+            dataarray = [dataarray]
+
         for array in dataarray:
-            no_nan = dask.array.ravel(array)
             if condition is not None:
                 assert callable(condition)
-                no_nan = dask.array.ma.masked_where(~condition(no_nan), no_nan)
+                no_nan = dask.array.ravel(array.where(condition(array)))
+            else:
+                no_nan = dask.array.ravel(array)
             no_nan = dask.array.ma.masked_where(dask.array.isnan(no_nan), no_nan)
             arrays.append(no_nan)
 
         if transformation is not None:
             assert callable(transformation)
+            log.info("Apply transformations.")
             arrays = [transformation(array) for array in arrays]
 
         for array in arrays:
@@ -82,7 +93,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             h = np.array(h)
             primitive = ax.bar(bins[1:], h, **kwargs)
 
-        ax.set_title("Histogram")
+        ax.set_title("Histogram" + title)
         ax.set_xlabel("Precipitation")
         if xticklabels is not None:
             assert len(xticklabels) == len(custom_periods)
@@ -117,6 +128,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         """Adapted from xarray
 
         """
+        log.info(f"Computing boxplot for {custom_periods=}")
         if isinstance(custom_periods, list):
             dataarray = self._data_array_selection_from_custom_periods(season, custom_periods)
         else:

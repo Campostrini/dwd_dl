@@ -226,6 +226,7 @@ def boxplot_stats(X, whis=1.5, bootstrap=None, labels=None,
             np.array(x[x < stats['whislo']]),
             np.array(x[x > stats['whishi']]),
         ])
+        log.info("Done computing outliers.")
 
         # add in the remaining stats
         stats['q1'], stats['med'], stats['q3'] = q1, med, q3

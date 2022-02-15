@@ -261,6 +261,24 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         return out
 
+    def number_of_days_over_threshold(self, custom_periods=None, threshold=0):
+        th = threshold
+        if custom_periods is None:
+            out = [((self._data_array > th).sum(dim=['lon', 'lat']) > th).sum()]
+        else:
+            assert isinstance(custom_periods, list)
+            for period in custom_periods:
+                assert isinstance(period, pd.DatetimeIndex)
+            out = [
+                ((self._data_array.sel(
+                    time=slice(
+                        period.min().to_datetime64(),
+                        period.max().to_datetime64())
+                )).sum(dim=['lon', 'lat']) > th).sum()
+                for period in custom_periods
+            ]
+        return [element.compute().values for element in out]
+
     def _get_labels_from_periods(self, periods=None):
         def label_from_start_end(start, end):
             template = "From {} to {}"

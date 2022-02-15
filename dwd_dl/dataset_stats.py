@@ -169,4 +169,6 @@ if __name__ == "__main__":
                 ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
                                   f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                print(f"Rainy days in {period.name}, {sub_period_name} are "
+                      f"{radolan_stat.number_of_days_over_threshold(sub_period, 0)}")
                 fig.show()

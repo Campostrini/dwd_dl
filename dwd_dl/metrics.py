@@ -3,6 +3,11 @@ from typing import Tuple
 import torch
 import torchmetrics as tm
 
+from torchmetrics import Precision, Recall, F1, PrecisionRecallCurve, ConfusionMatrix
+
+import dwd_dl.cfg as cfg
+import dwd_dl.utils as utils
+
 
 class Contingency(tm.Metric):
     def __init__(self, class_number, persistence_as_metric=False):
@@ -152,3 +157,52 @@ class HeidkeSkillScore(Contingency):
         fn = self.false_negative
         tn = self.true_negative
         return 2 * (tp*tn + fp*fn) / ((tp + fn)*(fn + tn) + (tp + fp)*(fp + tn))
+
+
+def modified_metric(cls):
+    def new_update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        if len(preds.shape) == 3:
+            preds = torch.unsqueeze(preds, dim=1)  # to go from N, 256, 256 to N, 1, 256, 256 for persistence
+            if preds.is_floating_point():
+                device=preds.device
+                preds = torch.cat(
+                    [(cfg.CFG.CLASSES[class_name][0] <= preds) &
+                     (preds < cfg.CFG.CLASSES[class_name][1]) for class_name in cfg.CFG.CLASSES],
+                    dim=1)
+                zeros = torch.zeros(size=(*preds.shape[:1], 1, *preds.shape[2:]), device=device)
+                for n in range(preds.shape[1]):
+                    zeros += n * torch.unsqueeze(preds[:, n, ...], dim=1)
+                preds = zeros.to(dtype=torch.int).to(device=device)
+        super(cls, self).update(preds, target)
+    cls.update = new_update
+    return cls
+
+
+@modified_metric
+class Precision(Precision):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, mdmc_average='samplewise')
+
+
+@modified_metric
+class Recall(Recall):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, mdmc_average='samplewise')
+
+
+@modified_metric
+class F1(F1):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, mdmc_average='samplewise')
+
+
+# @modified_metric
+class PrecisionRecallCurve(PrecisionRecallCurve):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs,)
+
+
+# @modified_metric
+class ConfusionMatrix(ConfusionMatrix):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, multilabel=True)

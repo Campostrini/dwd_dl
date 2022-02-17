@@ -54,15 +54,15 @@ class RadolanDataModule(LightningDataModule):
             self.client.close()
 
     def train_dataloader(self):
-        weighted_random_sampler = WeightedRandomSampler(
-            weights=self.train_dataset.weights,
-            num_samples=len(self.train_dataset),
-            replacement=False
-        )
+        # weighted_random_sampler = WeightedRandomSampler(
+        #     weights=self.train_dataset.weights,
+        #     num_samples=len(self.train_dataset),
+        #     replacement=False
+        # )
 
         return DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.num_workers,
-            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), sampler=weighted_random_sampler,
+            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id),  # sampler=weighted_random_sampler,
             pin_memory=True
         )
 

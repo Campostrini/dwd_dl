@@ -24,7 +24,12 @@ from dwd_dl.metrics import (
     FalseAlarmRatio,
     CriticalSuccessIndex,
     Bias,
-    HeidkeSkillScore
+    HeidkeSkillScore,
+    ConfusionMatrix,
+    Precision,
+    Recall,
+    F1,
+    PrecisionRecallCurve,
 )
 
 
@@ -101,8 +106,17 @@ class UNetLitModel(pl.LightningModule):
             Bias,
             HeidkeSkillScore,
         ]
-        self.metrics, self.persistence_metrics = self._initialize_metrics(self._metrics_to_include)
-        self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(self._metrics_to_include, test=True)
+        self._multiclass_metrics = [
+            F1, Precision, Recall
+        ]
+        self.metrics, self.persistence_metrics = self._initialize_metrics(
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=False,
+            precision_recall_curve=False,
+        )
+        self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=False,
+            precision_recall_curve=False,
+        )
 
         if not cat:
             sizes_in_down = sizes.copy()
@@ -601,7 +615,8 @@ class UNetLitModel(pl.LightningModule):
         except ValueError:
             pass
 
-    def _initialize_metrics(self, metrics_to_include, test=False):
+    def _initialize_metrics(self, metrics_to_include, multiclass_metrics, test=False, confusion_matrix=True,
+                            precision_recall_curve=True):
         test_prefix = ''
         if test:
             test_prefix = 'test/'
@@ -611,12 +626,49 @@ class UNetLitModel(pl.LightningModule):
                 ('',), range(self._classes), metrics_to_include
             )
         })
+        if confusion_matrix:
+            mc.add_metrics({
+                f'{test_prefix}{ConfusionMatrix.__name__}': ConfusionMatrix(self._classes),
+            })
+        if precision_recall_curve:
+            mc.add_metrics({
+                f'{test_prefix}{PrecisionRecallCurve.__name__}/'
+                f'{pos_label}': PrecisionRecallCurve(
+                    num_classes=self._classes, pos_label=pos_label) for pos_label in range(self._classes)
+            })
+        mc.add_metrics({
+            f'{test_prefix}{metric.__name__}{average}': metric(
+                self._classes, average=average
+            ) for metric, average in product(
+                multiclass_metrics, ('micro', 'macro', 'weighted')
+            )
+        })
+
+        # PersistenceMetricCollection
         pmc = MetricCollection({
             f'{test_prefix}{metric.__name__}/{model_}{class_number}': metric(
                 class_number) for model_, class_number, metric in product(
                 ('persistence_',), range(self._classes), metrics_to_include
             )
         })
+        if confusion_matrix:
+            pmc.add_metrics({
+                f'{test_prefix}{ConfusionMatrix.__name__}/persistence': ConfusionMatrix(self._classes, multilabel=True),
+            })
+        if precision_recall_curve:
+            pmc.add_metrics({
+                f'{test_prefix}{PrecisionRecallCurve.__name__}/persistence/'
+                f'{pos_label}': PrecisionRecallCurve(
+                    self._classes, pos_label=pos_label) for pos_label in range(self._classes)
+            })
+        pmc.add_metrics({
+            f'{test_prefix}{metric.__name__}{average}/persistence': metric(
+                self._classes, average=average
+            ) for metric, average in product(
+                multiclass_metrics, ('micro', 'macro', 'weighted')
+            )
+        })
+
         for metric in pmc:
             pmc[metric].persistence_as_metric = True
 

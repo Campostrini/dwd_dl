@@ -1,6 +1,6 @@
 from typing import Any
 
-from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor, EarlyStopping
 from pytorch_lightning import LightningModule
 
 from dwd_dl import cfg
@@ -47,7 +47,9 @@ class CallbacksList:
 
         learning_rate_monitor = LearningRateMonitor(logging_interval='step')
 
-        self.callback_list = [val_loss_checkpoint, logger_callback, learning_rate_monitor]
+        early_stopping = EarlyStopping(monitor="val_loss")
+
+        self.callback_list = [val_loss_checkpoint, logger_callback, learning_rate_monitor, early_stopping]
 
     def __list__(self):
         return self.callback_list

@@ -47,7 +47,7 @@ class CallbacksList:
 
         learning_rate_monitor = LearningRateMonitor(logging_interval='step')
 
-        early_stopping = EarlyStopping(monitor="val_loss")
+        early_stopping = EarlyStopping(monitor="val/epoch_loss")
 
         self.callback_list = [val_loss_checkpoint, logger_callback, learning_rate_monitor, early_stopping]
 

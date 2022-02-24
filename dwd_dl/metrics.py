@@ -196,7 +196,7 @@ class F1(F1):
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
-# @modified_metric
+@modified_metric
 class PrecisionRecallCurve(PrecisionRecallCurve):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs,)

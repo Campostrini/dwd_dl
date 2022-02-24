@@ -21,15 +21,16 @@ if __name__ == "__main__":
     client = Client()
 
     radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
+    radolan_dataset_classes = ds.H5Dataset(cfg.CFG.date_ranges, mode='c')
 
     radolan_stat = stats.RadolanSingleStat(radolan_dataset)
+    class_counter = stats.ClassCounter(radolan_dataset_classes)
 
     start_year_month = dt.date(2018, 9, 1)  # attention! If mismatch with DATE_RANGES.yml it gets confusing.
     end_year_month = dt.date(2021, 10, 31)
 
     n_rows = 9
     n_cols = 2
-
 
     only_winter_and_summer = True
 
@@ -171,4 +172,6 @@ if __name__ == "__main__":
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
                 print(f"Rainy days in {period.name}, {sub_period_name} are "
                       f"{radolan_stat.number_of_days_over_threshold(sub_period, 0)}")
+                print(f"The classes are subdivided in "
+                      f"{class_counter.sum_on_all_periods(class_counter.count_all_classes(sub_period))}")
                 fig.show()

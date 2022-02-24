@@ -111,11 +111,9 @@ class UNetLitModel(pl.LightningModule):
         ]
         self.metrics, self.persistence_metrics = self._initialize_metrics(
             self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=False,
-            precision_recall_curve=False,
         )
         self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(
             self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=False,
-            precision_recall_curve=False,
         )
 
         if not cat:
@@ -205,6 +203,19 @@ class UNetLitModel(pl.LightningModule):
         ])
 
         self.softmax = nn.Softmax(dim=2)  # probably not right!
+
+        self.apply(self.initialize_weights)
+
+    @staticmethod
+    def initialize_weights(layer: nn.Module):
+        kwargs = {
+            'a': 0.01,
+            'nonlinearity': 'leaky_relu'
+        }
+        if isinstance(layer, nn.Conv2d):
+            nn.init.kaiming_normal_(layer.weight, **kwargs)
+            if layer.bias is not None:
+                nn.init.constant_(layer.bias, 0)
 
     @staticmethod
     def _initial_transform(transformation):

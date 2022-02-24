@@ -264,20 +264,20 @@ class RadolanSingleStat(RadolanStatAbstractClass):
     def number_of_days_over_threshold(self, custom_periods=None, threshold=0):
         th = threshold
         if custom_periods is None:
-            out = [((self._data_array > th).sum(dim=['lon', 'lat']) > th).sum()]
+            out = {'all': ((self._data_array > th).sum(dim=['lon', 'lat']) > th).sum()}
         else:
             assert isinstance(custom_periods, list)
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
-            out = [
-                ((self._data_array.sel(
+            out = {
+                period.min().to_pydatetime().date(): ((self._data_array.sel(
                     time=slice(
                         period.min().to_datetime64(),
                         period.max().to_datetime64())
                 )).sum(dim=['lon', 'lat']) > th).sum()
                 for period in custom_periods
-            ]
-        return [element.compute().values for element in out]
+            }
+        return {element: int(out[element].compute().values) for element in out}
 
     def _get_labels_from_periods(self, periods=None):
         def label_from_start_end(start, end):
@@ -297,3 +297,43 @@ class RadolanSingleStat(RadolanStatAbstractClass):
     def __add__(self, other):
         assert isinstance(other, RadolanSingleStat)
         raise NotImplementedError
+
+
+class ClassCounter:
+    def __init__(self, h5_dataset: H5Dataset):
+        self._h5_dataset = h5_dataset
+        self._count_class_out = {}
+
+    def count_class(self, class_index: int, custom_periods=None):
+        if custom_periods is None:
+            out = {'all': ((self._h5_dataset.ds.precipitation == class_index).sum(dim=['lon', 'lat'])).sum()}
+        else:
+            assert isinstance(custom_periods, list)
+            for period in custom_periods:
+                assert isinstance(period, pd.DatetimeIndex)
+            out = {
+                period.min().to_pydatetime().date(): (self._h5_dataset.ds.precipitation.sel(
+                    time=slice(
+                        period.min().to_datetime64(),
+                        period.max().to_datetime64()
+                    )) == class_index).sum(dim=['lon', 'lat']).sum() for period in custom_periods
+            }
+        return {element: int(out[element].compute()) for element in out}
+
+    def count_all_classes(self, custom_periods=None):
+        out = {}
+        for n, c in enumerate(cfg.CFG.CLASSES):
+            out[c] = self.count_class(class_index=n, custom_periods=custom_periods)
+        return out
+
+    @staticmethod
+    def sum_on_all_periods(classes_dict_out):
+        out = {}
+        for c in classes_dict_out:
+            out[c] = sum(classes_dict_out[c].values())
+        return out
+
+    @property
+    def classes(self):
+        return cfg.CFG.CLASSES
+

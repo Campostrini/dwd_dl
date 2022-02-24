@@ -2,7 +2,7 @@ from typing import Tuple
 
 import torch
 import torchmetrics as tm
-
+import sklearn.metrics as sklm
 from torchmetrics import Precision, Recall, F1, PrecisionRecallCurve, ConfusionMatrix
 
 import dwd_dl.cfg as cfg
@@ -21,7 +21,9 @@ class Contingency(tm.Metric):
         self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
-        preds, target = self._format_input(preds, target, self.persistence_as_metric)
+        preds, target = self.format_input(preds, target, self.persistence_as_metric)
+        preds = self.class_number == preds
+        target = self.class_number == target
         assert preds.shape == target.shape
         self.true_positive += torch.sum(preds & target)
         self.false_positive += torch.sum(preds & ~target)
@@ -33,123 +35,133 @@ class Contingency(tm.Metric):
     def compute(self):
         raise NotImplementedError
 
-    def _format_input(self, preds: torch.Tensor, target: torch.Tensor, persistence=False):
+    @staticmethod
+    def format_input(preds: torch.Tensor, target: torch.Tensor, persistence=False):
         if not persistence:
             preds = torch.argmax(preds, dim=1)
         else:
-            preds = torch.unsqueeze(preds, dim=1)
-        preds = self.class_number == preds
-        target = self.class_number == target
+            if len(preds.shape) == 3:
+                preds = torch.unsqueeze(preds, dim=1)  # to go from N, 256, 256 to N, 1, 256, 256 for persistence
+                if preds.is_floating_point():
+                    device = preds.device
+                    preds = torch.cat(
+                        [(cfg.CFG.CLASSES[class_name][0] <= preds) &
+                         (preds < cfg.CFG.CLASSES[class_name][1]) for class_name in cfg.CFG.CLASSES],
+                        dim=1)
+                    zeros = torch.zeros(size=(*preds.shape[:1], 1, *preds.shape[2:]), device=device)
+                    for n in range(preds.shape[1]):
+                        zeros += n * torch.unsqueeze(preds[:, n, ...], dim=1)
+                    preds = zeros.to(dtype=torch.int).to(device=device)
         return preds, target
 
 
 class TruePositive(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_positive
 
 
 class TrueNegative(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_negative
 
 
 class FalsePositive(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.false_positive
 
 
 class FalseNegative(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.false_negative
 
 
 class TruePositiveRatio(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_positive / self.numel
 
 
 class TrueNegativeRatio(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_negative / self.numel
 
 
 class FalsePositiveRatio(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.false_positive / self.numel
 
 
 class FalseNegativeRatio(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.false_negative / self.numel
 
 
 class PercentCorrect(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return (self.true_positive + self.true_negative) / self.numel
 
 
 class HitRate(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_positive / (self.true_positive + self.false_negative)
 
 
 class FalseAlarmRatio(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.false_positive / (self.true_positive + self.false_positive)
 
 
 class CriticalSuccessIndex(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return self.true_positive / (self.true_positive + self.false_negative + self.false_positive)
 
 
 class Bias(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         return (self.true_positive + self.false_positive) / (self.true_positive + self.false_negative)
 
 
 class HeidkeSkillScore(Contingency):
-    def __init__(self, class_number):
-        super().__init__(class_number)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def compute(self):
         tp = self.true_positive
@@ -202,7 +214,28 @@ class PrecisionRecallCurve(PrecisionRecallCurve):
         super().__init__(*args, **kwargs,)
 
 
-# @modified_metric
+@modified_metric
 class ConfusionMatrix(ConfusionMatrix):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, multilabel=True)
+        super().__init__(*args, **kwargs)
+
+
+class ConfusionMatrixScikit(tm.Metric):
+    def __init__(self, persistence_as_metric=False):
+        super().__init__()
+        self.persistence_as_metric = persistence_as_metric
+        self.add_state("confusion_matrix", default=torch.zeros((6, 6), dtype=torch.int64), dist_reduce_fx="sum")
+        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        preds, target = Contingency.format_input(preds, target, self.persistence_as_metric)
+        assert preds.shape == target.shape
+        # tn, fp, fn, tp
+        device = preds.device
+        cm = sklm.confusion_matrix(
+            preds.cpu().numpy().ravel(), target.cpu().numpy().ravel(), range(len(cfg.CFG.CLASSES)))
+        self.numel += torch.numel(preds)
+        self.confusion_matrix += torch.tensor(cm, device=device)
+
+    def compute(self):
+        return self.confusion_matrix

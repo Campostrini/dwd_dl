@@ -30,6 +30,8 @@ from dwd_dl.metrics import (
     Recall,
     F1,
     PrecisionRecallCurve,
+    Contingency,
+    ConfusionMatrixScikit
 )
 
 
@@ -110,10 +112,10 @@ class UNetLitModel(pl.LightningModule):
             F1, Precision, Recall
         ]
         self.metrics, self.persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=False,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=True,
         )
         self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=False,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=True,
         )
 
         if not cat:
@@ -641,12 +643,14 @@ class UNetLitModel(pl.LightningModule):
             mc.add_metrics({
                 f'{test_prefix}{ConfusionMatrix.__name__}': ConfusionMatrix(self._classes),
             })
-        if precision_recall_curve:
             mc.add_metrics({
-                f'{test_prefix}{PrecisionRecallCurve.__name__}/'
-                f'{pos_label}': PrecisionRecallCurve(
-                    num_classes=self._classes, pos_label=pos_label) for pos_label in range(self._classes)
+                f'{test_prefix}{ConfusionMatrixScikit.__name__}': ConfusionMatrixScikit(),
             })
+        # if precision_recall_curve:
+        #     mc.add_metrics({
+        #         f'{test_prefix}{PrecisionRecallCurve.__name__}': PrecisionRecallCurve(
+        #             num_classes=self._classes)
+        #     })
         mc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}': metric(
                 self._classes, average=average
@@ -658,20 +662,23 @@ class UNetLitModel(pl.LightningModule):
         # PersistenceMetricCollection
         pmc = MetricCollection({
             f'{test_prefix}{metric.__name__}/{model_}{class_number}': metric(
-                class_number) for model_, class_number, metric in product(
+                class_number, persistence_as_metric=True) for model_, class_number, metric in product(
                 ('persistence_',), range(self._classes), metrics_to_include
             )
         })
         if confusion_matrix:
             pmc.add_metrics({
-                f'{test_prefix}{ConfusionMatrix.__name__}/persistence': ConfusionMatrix(self._classes, multilabel=True),
+                f'{test_prefix}{ConfusionMatrix.__name__}/persistence': ConfusionMatrix(self._classes),
             })
-        if precision_recall_curve:
             pmc.add_metrics({
-                f'{test_prefix}{PrecisionRecallCurve.__name__}/persistence/'
-                f'{pos_label}': PrecisionRecallCurve(
-                    self._classes, pos_label=pos_label) for pos_label in range(self._classes)
+                f'{test_prefix}{ConfusionMatrixScikit.__name__}/persistence': ConfusionMatrixScikit(True),
             })
+        # if precision_recall_curve:
+        #     pmc.add_metrics({
+        #         f'{test_prefix}{PrecisionRecallCurve.__name__}/persistence/'
+        #         f'{pos_label}': PrecisionRecallCurve(
+        #             self._classes, pos_label=pos_label) for pos_label in range(self._classes)
+        #     })
         pmc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}/persistence': metric(
                 self._classes, average=average

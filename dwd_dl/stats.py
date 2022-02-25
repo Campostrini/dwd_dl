@@ -249,11 +249,11 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
             out = [
-                (sliced := ((self._data_array.sel(
+                (sliced := (self._data_array.sel(
                     time=slice(
                         period.min().to_datetime64(),
                         period.max().to_datetime64())
-                )).sum(dim=['lon', 'lat']) > th)).sum()/len(sliced)
+                ).sum(dim=['lon', 'lat']) > th)).sum()/len(sliced)
                 for period in custom_periods
             ]
         if compute:

@@ -129,9 +129,23 @@ if __name__ == "__main__":
                  ('summer', self.date_range_summer)]
             )
 
+    def rainy_timestamps_format(period_, sub_period_name_, sub_period_, threshold, radolan_stat_: stats.RadolanSingleStat):
+        out = f"Rainy timestamps in {period_.name} ({sub_period_name_} months) are "
+        out += f"{sum(radolan_stat_.number_of_days_over_threshold(sub_period_, threshold).values())}"
+        out += f"\n over a total of {sum([len(cp) for cp in sub_period_])} timestamps."
+        return out
+
+    def rainy_classes_format(class_counter_, sub_period_):
+        counted_classes = class_counter_.sum_on_all_periods(class_counter.count_all_classes(sub_period_))
+        out = f"The classes are subdivided in "
+        out += f"{counted_classes}"
+        out += f"\nover a total of {sum([len(cp) for cp in sub_period_]) * 256 * 256} tiles."
+        out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
+        return out
+
     ranges_list = [
         {
-            'name': 'Entire Period',
+            'name': 'Training + Validation + Test',
             'start': dt.date(2005, 10, 1),
             'end': dt.date(2021, 12, 31)
         },
@@ -170,8 +184,9 @@ if __name__ == "__main__":
                 ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
                                   f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
-                print(f"Rainy days in {period.name}, {sub_period_name} are "
-                      f"{radolan_stat.number_of_days_over_threshold(sub_period, 0)}")
-                print(f"The classes are subdivided in "
-                      f"{class_counter.sum_on_all_periods(class_counter.count_all_classes(sub_period))}")
+                rainy_days_string = rainy_timestamps_format(period, sub_period_name, sub_period,
+                                                            threshold=0, radolan_stat_=radolan_stat)
+                rainy_classes_string = rainy_classes_format(class_counter, sub_period)
+                print(rainy_days_string)
+                print(rainy_classes_string)
                 fig.show()

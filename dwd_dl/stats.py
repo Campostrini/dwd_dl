@@ -230,7 +230,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
                     time=slice(
                         period.min().to_datetime64(),
                         period.max().to_datetime64())
-                )).sum()/sliced.size
+                ) > th).sum()/sliced.size
                 for period in custom_periods
             ]
         if compute:
@@ -304,7 +304,7 @@ class ClassCounter:
         self._h5_dataset = h5_dataset
         self._count_class_out = {}
 
-    def count_class(self, class_index: int, custom_periods=None):
+    def count_class(self, class_index: int, custom_periods=None, threshold=None):
         if custom_periods is None:
             out = {'all': ((self._h5_dataset.ds.precipitation == class_index).sum(dim=['lon', 'lat'])).sum()}
         else:
@@ -320,10 +320,10 @@ class ClassCounter:
             }
         return {element: int(out[element].compute()) for element in out}
 
-    def count_all_classes(self, custom_periods=None):
+    def count_all_classes(self, custom_periods=None, threshold=None):
         out = {}
         for n, c in enumerate(cfg.CFG.CLASSES):
-            out[c] = self.count_class(class_index=n, custom_periods=custom_periods)
+            out[c] = self.count_class(class_index=n, custom_periods=custom_periods, threshold=threshold)
         return out
 
     @staticmethod

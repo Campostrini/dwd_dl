@@ -135,8 +135,9 @@ if __name__ == "__main__":
         out += f"\n over a total of {sum([len(cp) for cp in sub_period_])} timestamps."
         return out
 
-    def rainy_classes_format(class_counter_, sub_period_):
-        counted_classes = class_counter_.sum_on_all_periods(class_counter.count_all_classes(sub_period_))
+    def rainy_classes_format(class_counter_, sub_period_, threshold=None):
+        counted_classes = class_counter_.sum_on_all_periods(class_counter.count_all_classes(
+            sub_period_, threshold=threshold))
         out = f"The classes are subdivided in "
         out += f"{counted_classes}"
         out += f"\nover a total of {sum([len(cp) for cp in sub_period_]) * 256 * 256} tiles."
@@ -186,7 +187,7 @@ if __name__ == "__main__":
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
                 rainy_days_string = rainy_timestamps_format(period, sub_period_name, sub_period,
                                                             threshold=0, radolan_stat_=radolan_stat)
-                rainy_classes_string = rainy_classes_format(class_counter, sub_period)
+                rainy_classes_string = rainy_classes_format(class_counter, sub_period, threshold=0)
                 print(rainy_days_string)
                 print(rainy_classes_string)
                 fig.show()

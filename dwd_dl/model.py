@@ -4,6 +4,8 @@ import datetime as dt
 from collections import OrderedDict
 from itertools import product
 
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -207,6 +209,9 @@ class UNetLitModel(pl.LightningModule):
         self.softmax = nn.Softmax(dim=2)  # probably not right!
 
         self.apply(self.initialize_weights)
+
+        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, device=self.device, dtype=torch.float)
+        self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
 
     @staticmethod
     def initialize_weights(layer: nn.Module):
@@ -454,8 +459,8 @@ class UNetLitModel(pl.LightningModule):
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
-        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
-        loss = cross_entropy_loss(y_pred, y_true)
+
+        loss = self.loss(y_pred, y_true)
 
         train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -473,8 +478,8 @@ class UNetLitModel(pl.LightningModule):
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
-        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
-        loss = cross_entropy_loss(y_pred, y_true)
+
+        loss = self.loss(y_pred, y_true)
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -492,6 +497,7 @@ class UNetLitModel(pl.LightningModule):
         val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
+        self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
         self._reset_metrics()
         # self.logger.experiment.add_hparams(
         #     dict(self.hparams),
@@ -501,12 +507,17 @@ class UNetLitModel(pl.LightningModule):
         #     }
         # )
 
+    def on_validation_end(self) -> None:
+        confusion_matrix_display = ConfusionMatrixDisplay(self.last_confusion_matrix)
+        confusion_matrix_display.plot()
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT, 'confmatrix.png'))
+
     def test_step(self, batch, batch_idx):
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
-        cross_entropy_loss = torch.nn.CrossEntropyLoss()  # weight=self.cel_weights.to(self.device))
-        loss = cross_entropy_loss(y_pred, y_true)
+
+        loss = self.loss(y_pred, y_true)
 
         test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 

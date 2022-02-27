@@ -121,6 +121,11 @@ class RadolanConfigFileContent:
         # return self._CLASSES  # TODO: Create a validator for this
         return {'0': (0, 0.5), '0.5': (0.5, 2), '2': (2, 5), '5': (5, 10), '10': (10, 30), '30': (30, np.infty)}
 
+    # using weights from https://arxiv.org/abs/1706.03458
+    @property
+    def WEIGHTS(self):
+        return np.array((1, 1, 2, 5, 10, 30))
+
     @property
     def VSC(self):
         return self._VSC
@@ -152,6 +157,7 @@ class Config:
 
     def __init__(self, cfg_content: RadolanConfigFileContent, inside_initialize: bool = False):
         check_date_format(cfg_content)
+        self._cfg_content = cfg_content
         self._RANGES_DATE_FORMAT = cfg_content.RANGES_DATE_FORMAT
         self._TIMESTAMP_DATE_FORMAT = cfg_content.TIMESTAMP_DATE_FORMAT
 
@@ -344,6 +350,23 @@ class Config:
     @property
     def VIDEO_END(self):
         return self._VIDE_END
+
+    # This is a tentative implementation of
+    # https://towardsdatascience.com/handling-class-imbalanced-data-using-a-loss-specifically-made-for-it-6e58fd65ffab
+    @property
+    def SAMPLES_PER_CLASS(self):
+        return np.array([39567524425, 155115168, 25789215, 2150782, 192035, 16471])
+
+    def effective_number_of_samples(self, beta):
+        return (1.0 - np.power(beta, self.SAMPLES_PER_CLASS))/(1.0 - beta)
+
+    def effective_weights(self, beta):
+        return 1 / self.effective_number_of_samples(beta=beta)
+    # The implementation ends here
+
+    @property
+    def WEIGHTS(self):
+        return self._cfg_content.WEIGHTS
 
     @property
     def date_ranges(self):

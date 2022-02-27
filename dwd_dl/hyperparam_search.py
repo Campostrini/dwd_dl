@@ -14,7 +14,7 @@ from dwd_dl.cli import RadolanParser
 
 
 def main(args, cluster):
-    dl.cfg.initialize2(skip_download=True)
+    dl.cfg.initialize2(skip_download=True, skip_move=False)
     exp = Experiment(
         name=args.test_tube_exp_name,
         save_dir=args.log_path,
@@ -47,7 +47,7 @@ def main(args, cluster):
 
 
 if __name__ == "__main__":
-    dl.cfg.initialize2(skip_download=True)
+    dl.cfg.initialize2(skip_download=True, skip_move=True)
     parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False, strategy='grid_search')
     parser = Trainer.add_argparse_args(parser, use_argument_group=True)
     parser = RadolanParser.add_arguments(parser)

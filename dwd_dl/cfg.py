@@ -878,7 +878,7 @@ def initialize(inside_initialize=True, skip_download=False):
     return CFG
 
 
-def initialize2(inside_initialize=True, skip_download=False):
+def initialize2(inside_initialize=True, skip_download=False, skip_move=True):
     global CFG
     if CFG is not None and not isinstance(CFG, Config):  # The condition after and is redundant. For readability.
         raise TypeError(
@@ -904,7 +904,8 @@ def initialize2(inside_initialize=True, skip_download=False):
             for dataset_file in ds.DatasetFilesCollection(CFG.video_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
                 CFG.download_and_create_dataset_files_correctly(
                     dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
-    CFG.try_move_local()
+    if not skip_move:
+        CFG.try_move_local()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 

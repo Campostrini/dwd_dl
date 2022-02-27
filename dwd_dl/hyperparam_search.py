@@ -70,7 +70,7 @@ if __name__ == "__main__":
     cluster.add_command('source activate py38')
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
-    cluster.per_experiment_nb_cpus = 96*4
+    cluster.per_experiment_nb_cpus = 96
     cluster.per_experiment_nb_nodes = 4
     cluster.memory_mb_per_node = 96000
     # cluster.cores_per_srun = 96

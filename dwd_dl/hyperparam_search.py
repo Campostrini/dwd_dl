@@ -48,13 +48,14 @@ def main(args, cluster):
 
 if __name__ == "__main__":
     dl.cfg.initialize2(skip_download=True)
-    parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False)
+    parser = HyperOptArgumentParser(conflict_handler='resolve', add_help=False, strategy='grid_search')
     parser = Trainer.add_argparse_args(parser, use_argument_group=True)
     parser = RadolanParser.add_arguments(parser)
     parser = model.UNetLitModel.add_model_specific_args(parser)
     parser.add_argument('--test_tube_exp_name', default='my_test')
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs')[1:])
-    parser.opt_list('--depth', options=[7, 6], tunable=True)
+    parser.opt_list('--depth', options=[7, 6, 5, 4], tunable=True)
+    parser.opt_list('--init_features', options=[8, 16, 32], tunable=True)
     args = parser.parse_args()
 
     cluster = SlurmCluster(
@@ -69,8 +70,8 @@ if __name__ == "__main__":
     cluster.add_command('source activate py38')
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
-    cluster.per_experiment_nb_cpus = 96
-    cluster.per_experiment_nb_nodes = 1
+    cluster.per_experiment_nb_cpus = 96*4
+    cluster.per_experiment_nb_nodes = 4
     cluster.memory_mb_per_node = 96000
     # cluster.cores_per_srun = 96
 
@@ -87,4 +88,5 @@ if __name__ == "__main__":
     cluster.job_time = '1:00:00'
 
     # run the models on the cluster
-    cluster.optimize_parallel_cluster_cpu(main, nb_trials=2, job_name='first_tt_batch', job_display_name='my_batch')
+    cluster.optimize_parallel_cluster_cpu(
+        main, nb_trials=1, job_name='radnet-batch', job_display_name='radnet-training')

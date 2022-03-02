@@ -303,7 +303,8 @@ class UNetLitModel(pl.LightningModule):
 
     @staticmethod
     def _downsample_block(in_channels, out_channels, name, conv_bias):
-        print(type(in_channels), in_channels, type(out_channels), out_channels)
+        in_channels = int(in_channels)
+        out_channels = int(out_channels)
         return nn.Sequential(
             OrderedDict(
                 [

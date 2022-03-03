@@ -305,6 +305,7 @@ class UNetLitModel(pl.LightningModule):
     def _downsample_block(in_channels, out_channels, name, conv_bias):
         in_channels = int(in_channels)
         out_channels = int(out_channels)
+        print(in_channels, out_channels)
         return nn.Sequential(
             OrderedDict(
                 [

@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser = model.UNetLitModel.add_model_specific_args(parser)
     parser.add_argument('--test_tube_exp_name', default='my_test')
     parser.add_argument('--log_path', default=os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs')[1:])
-    parser.opt_list('--depth', options=[7, 6, 5, 4], tunable=True)
+    parser.opt_list('--depth', options=[4], tunable=True)
     parser.opt_list('--init_features', options=[8, 16, 32], tunable=True)
     args = parser.parse_args()
 

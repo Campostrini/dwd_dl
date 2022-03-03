@@ -220,7 +220,7 @@ class VideoProducer:
                                       interval=interval, init_func=init)
 
         path_to_mp4 = os.path.join(self.dir_path, self.video_name())
-        ani.save(path_to_mp4, fps=self.frame_rate)  # , extra_args=['-vcodec', 'libx264'])
+        ani.save(path_to_mp4, fps=self.frame_rate, writer=animation.FFMpegFileWriter())  # , extra_args=['-vcodec', 'libx264'])
 
     def _make_dirs(self):
         os.makedirs(self.dir_path, exist_ok=True)

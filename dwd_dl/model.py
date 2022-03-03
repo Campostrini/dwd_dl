@@ -44,7 +44,9 @@ class UNetLitModel(pl.LightningModule):
                  timestamp_string=None, transformation=None,
                  **kwargs):
         super().__init__()
-
+        assert isinstance(in_channels, int)
+        assert isinstance(out_channels, int)
+        assert isinstance(init_features, int)
         self.save_hyperparameters(
             'in_channels',
             'out_channels',
@@ -166,14 +168,14 @@ class UNetLitModel(pl.LightningModule):
                 name=name_,
                 conv_bias=conv_bias,
             ) for in_channels_, out_channels_, name_ in zip(
-                sizes_in_down, sizes_out_down, (f"down{i + 1}" for i in range(self._depth))
+                self._sizes_in_down, self._sizes_out_down, (f"down{i + 1}" for i in range(self._depth))
             )
         ])
 
         self.down_skips = nn.ModuleList([
             self._downskip(in_channels=in_channels_, out_channels=out_channels_, name=name_, conv_bias=conv_bias) for
             in_channels_, out_channels_, name_ in zip(
-                sizes_in_down, sizes_out_down, (f"down_skip{i + 1}" for i in range(self._depth))
+                self._sizes_in_down, self._sizes_out_down, (f"down_skip{i + 1}" for i in range(self._depth))
             )
         ])
 
@@ -303,9 +305,6 @@ class UNetLitModel(pl.LightningModule):
 
     @staticmethod
     def _downsample_block(in_channels, out_channels, name, conv_bias):
-        in_channels = int(in_channels)
-        out_channels = int(out_channels)
-        print(in_channels, out_channels)
         return nn.Sequential(
             OrderedDict(
                 [

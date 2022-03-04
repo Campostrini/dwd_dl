@@ -44,12 +44,6 @@ class UNetLitModel(pl.LightningModule):
                  timestamp_string=None, transformation=None,
                  **kwargs):
         super().__init__()
-        print(type(in_channels), in_channels)
-        print(type(out_channels), out_channels)
-        print(type(init_features), init_features)
-        assert isinstance(in_channels, int)
-        assert isinstance(out_channels, int)
-        assert isinstance(init_features, int)
         self.save_hyperparameters(
             'in_channels',
             'out_channels',
@@ -67,7 +61,7 @@ class UNetLitModel(pl.LightningModule):
         self.dataset = None
         self.valid_dataset = None
         self.train_dataset = None
-        self.init_features = init_features
+        self.init_features = int(init_features)
         lon_lat_channels = 2
         time_of_day_channel = 1
         day_of_year_channel = 1

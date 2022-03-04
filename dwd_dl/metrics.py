@@ -224,7 +224,7 @@ class ConfusionMatrixScikit(tm.Metric):
     def __init__(self, persistence_as_metric=False):
         super().__init__()
         self.persistence_as_metric = persistence_as_metric
-        self.add_state("confusion_matrix", default=torch.zeros((6, 6), dtype=torch.int64), dist_reduce_fx="sum")
+        self.add_state("confusion_matrix", default=torch.zeros((6, 6), dtype=torch.double), dist_reduce_fx="sum")
         self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:

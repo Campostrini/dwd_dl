@@ -37,7 +37,7 @@ def main(args, cluster):
         args.max_epochs = 100
     trainer = Trainer.from_argparse_args(args, logger=logger,
                                          flush_logs_every_n_steps=100, callbacks=list(callbacks_list),
-                                         strategy="ddp", accelerator="cpu", replace_sampler_ddp=False)
+                                         strategy="ddp", accelerator="cpu", replace_sampler_ddp=True)
     trainer.fit(unet, dm)
     checkpoint_path = cfg.CFG.create_checkpoint_path_with_name(args.test_tube_exp_name)
     trainer.save_checkpoint(checkpoint_path)

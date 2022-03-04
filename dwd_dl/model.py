@@ -5,6 +5,8 @@ from collections import OrderedDict
 from itertools import product
 
 from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib
+matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn

@@ -484,13 +484,13 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        metrics_out = self.metrics(y_pred, y_true)
-        persistence_metrics_out = self.persistence_metrics(x[:, -4, ...], y_true)
+        # metrics_out = self.metrics(y_pred, y_true)
+        # persistence_metrics_out = self.persistence_metrics(x[:, -4, ...], y_true)
 
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
-        self.log_dict(metrics_out)
-        self.log_dict(persistence_metrics_out)
+        # self.log_dict(metrics_out)
+        # self.log_dict(persistence_metrics_out)
         return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):

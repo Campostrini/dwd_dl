@@ -33,7 +33,6 @@ from dwd_dl.metrics import (
     Precision,
     Recall,
     F1,
-    PrecisionRecallCurve,
     Contingency,
     ConfusionMatrixScikit
 )
@@ -212,7 +211,7 @@ class UNetLitModel(pl.LightningModule):
         self.apply(self.initialize_weights)
 
         self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, device=self.device, dtype=torch.bfloat16)
-        self.loss = torch.nn.CrossEntropyLoss()  # weight=self._loss_weights)
+        self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
 
     @staticmethod
     def initialize_weights(layer: nn.Module):

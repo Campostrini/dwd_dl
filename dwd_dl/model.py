@@ -115,10 +115,10 @@ class UNetLitModel(pl.LightningModule):
             F1, Precision, Recall
         ]
         self.metrics, self.persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=True,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=False,
         )
         self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=True,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=False,
         )
 
         if not cat:
@@ -484,12 +484,12 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        # metrics_out = self.metrics(y_pred, y_true)
+        metrics_out = self.metrics(y_pred, y_true)
         # persistence_metrics_out = self.persistence_metrics(x[:, -4, ...], y_true)
 
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
-        # self.log_dict(metrics_out)
+        self.log_dict(metrics_out)
         # self.log_dict(persistence_metrics_out)
         return {'loss': loss, 'val_acc': val_acc}
 
@@ -498,7 +498,7 @@ class UNetLitModel(pl.LightningModule):
         val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
-        self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
+        # self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
         self._reset_metrics()
         # self.logger.experiment.add_hparams(
         #     dict(self.hparams),
@@ -640,8 +640,7 @@ class UNetLitModel(pl.LightningModule):
         except ValueError:
             pass
 
-    def _initialize_metrics(self, metrics_to_include, multiclass_metrics, test=False, confusion_matrix=True,
-                            precision_recall_curve=True):
+    def _initialize_metrics(self, metrics_to_include, multiclass_metrics, test=False, confusion_matrix=True,):
         test_prefix = ''
         if test:
             test_prefix = 'test/'
@@ -658,11 +657,6 @@ class UNetLitModel(pl.LightningModule):
             mc.add_metrics({
                 f'{test_prefix}{ConfusionMatrixScikit.__name__}': ConfusionMatrixScikit(),
             })
-        # if precision_recall_curve:
-        #     mc.add_metrics({
-        #         f'{test_prefix}{PrecisionRecallCurve.__name__}': PrecisionRecallCurve(
-        #             num_classes=self._classes)
-        #     })
         mc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}': metric(
                 self._classes, average=average
@@ -685,12 +679,6 @@ class UNetLitModel(pl.LightningModule):
             pmc.add_metrics({
                 f'{test_prefix}{ConfusionMatrixScikit.__name__}/persistence': ConfusionMatrixScikit(True),
             })
-        # if precision_recall_curve:
-        #     pmc.add_metrics({
-        #         f'{test_prefix}{PrecisionRecallCurve.__name__}/persistence/'
-        #         f'{pos_label}': PrecisionRecallCurve(
-        #             self._classes, pos_label=pos_label) for pos_label in range(self._classes)
-        #     })
         pmc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}/persistence': metric(
                 self._classes, average=average

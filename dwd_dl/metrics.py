@@ -21,7 +21,7 @@ class Contingency(tm.Metric):
         self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
-        preds, target = self.format_input(preds, target, self.persistence_as_metric)
+        # preds, target = self.format_input(preds, target, self.persistence_as_metric)
         preds = self.class_number == preds
         target = self.class_number == target
         assert preds.shape == target.shape
@@ -190,31 +190,31 @@ def modified_metric(cls):
     return cls
 
 
-@modified_metric
+# @modified_metric
 class Precision(Precision):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
-@modified_metric
+# @modified_metric
 class Recall(Recall):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
-@modified_metric
+# @modified_metric
 class F1(F1):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
-@modified_metric
+# @modified_metric
 class PrecisionRecallCurve(PrecisionRecallCurve):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs,)
 
 
-@modified_metric
+# @modified_metric
 class ConfusionMatrix(ConfusionMatrix):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -228,7 +228,7 @@ class ConfusionMatrixScikit(tm.Metric):
         self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
-        preds, target = Contingency.format_input(preds, target, self.persistence_as_metric)
+        # preds, target = Contingency.format_input(preds, target, self.persistence_as_metric)
         assert preds.shape == target.shape
         # tn, fp, fn, tp
         device = preds.device

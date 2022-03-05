@@ -484,7 +484,7 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        metrics_out = self.metrics(y_pred, y_true)
+        metrics_out = self.metrics(*Contingency.format_input(y_pred, y_true))
         # persistence_metrics_out = self.persistence_metrics(x[:, -4, ...], y_true)
 
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})

@@ -71,7 +71,7 @@ if __name__ == "__main__":
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
     cluster.per_experiment_nb_cpus = 96
-    cluster.per_experiment_nb_nodes = 4
+    cluster.per_experiment_nb_nodes = 5
     cluster.memory_mb_per_node = 96000
     # cluster.cores_per_srun = 96
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         cmd='partition', value='mem_0096', comment='Partition'
     )
 
-    cluster.job_time = '3:00:00'
+    cluster.job_time = '5:00:00'
 
     # run the models on the cluster
     cluster.optimize_parallel_cluster_cpu(

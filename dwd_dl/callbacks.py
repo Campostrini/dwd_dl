@@ -6,33 +6,6 @@ from pytorch_lightning import LightningModule
 from dwd_dl import cfg
 
 
-class LoggerCallbkack(Callback):
-    def __init__(self, *args, **kwargs):
-        self._something = None
-
-    def on_train_start(self, trainer, pl_module: LightningModule) -> None:
-        # pl_module.logger.log_hyperparams(pl_module.hparams)
-        pl_module.logger.experiment.add_hparams(
-            dict(pl_module.hparams),
-            {"hp/valid_loss": 2, "hp/valid_accuracy": 0}
-        )
-
-    def on_train_epoch_end(self, trainer, pl_module: LightningModule, outputs: Any) -> None:
-        # TODO: implement when available
-        # pl_module.logger.experiment.add_hparams(
-        #     dict(pl_module.hparams),
-        #     {
-        #         'hparam/train_loss': train_loss,
-        #         'hparam/train_acc': train_acc,
-        #     },
-        # )
-        pass
-
-    def on_validation_epoch_end(self, trainer, pl_module: LightningModule) -> None:
-        # TODO: move from model to here when available.
-        pass
-
-
 class CallbacksList:
     def __init__(self, experiment_timestamp_str):
         val_loss_checkpoint = ModelCheckpoint(
@@ -42,8 +15,6 @@ class CallbacksList:
             save_top_k=2,
             mode='min',
         )
-
-        logger_callback = LoggerCallbkack()
 
         learning_rate_monitor = LearningRateMonitor(logging_interval='step')
 

@@ -115,10 +115,10 @@ class UNetLitModel(pl.LightningModule):
             F1, Precision, Recall
         ]
         self.metrics, self.persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=False,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, confusion_matrix=True,
         )
         self.test_metrics, self.test_persistence_metrics = self._initialize_metrics(
-            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=False,
+            self._metrics_to_include, multiclass_metrics=self._multiclass_metrics, test=True, confusion_matrix=True,
         )
 
         if not cat:

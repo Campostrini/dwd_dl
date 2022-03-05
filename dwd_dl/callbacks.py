@@ -20,7 +20,7 @@ class CallbacksList:
 
         early_stopping = EarlyStopping(monitor="val/epoch_loss")
 
-        self.callback_list = [val_loss_checkpoint, logger_callback, learning_rate_monitor, early_stopping]
+        self.callback_list = [val_loss_checkpoint, learning_rate_monitor, early_stopping]
 
     def __list__(self):
         return self.callback_list

@@ -106,9 +106,9 @@ class RadolanDataset(Dataset):
         self.normalize = normalize
         self._image_size = image_size
 
-        if not mode == 'vis':
-            log.info("Computing total precipitation.")
-            self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
+        # if not mode == 'vis':
+        #     log.info("Computing total precipitation.")
+        #     self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
 
         if threshold is not None:
             log.info("Finding timestamps where threshold is exceeded.")
@@ -183,15 +183,15 @@ class RadolanDataset(Dataset):
         except AttributeError:
             return None
 
-    def get_total_pre(self, idx):
-        log.debug("Getting total precipitation.")
-        seq, tru = self.indices_tuple[idx]
-        tot = {'seq': [], 'tru': []}
-        for sub_period, indices in zip(tot, (seq, tru)):
-            for t in indices:
-                tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]])
-
-        return tot['seq'], tot['tru']
+    # def get_total_pre(self, idx):
+    #     log.debug("Getting total precipitation.")
+    #     seq, tru = self.indices_tuple[idx]
+    #     tot = {'seq': [], 'tru': []}
+    #     for sub_period, indices in zip(tot, (seq, tru)):
+    #         for t in indices:
+    #             tot[sub_period].append(self._tot_pre.loc[self.sorted_sequence[t]])
+    #
+    #     return tot['seq'], tot['tru']
 
     def __len__(self):
         return len(self.indices_tuple)
@@ -211,10 +211,6 @@ class RadolanDataset(Dataset):
             )
 
         return item_tensors['seq'], item_tensors['tru']
-
-    @property
-    def tot_pre(self):
-        return self._tot_pre
 
     def indices_of_training(self):
         return self.indices_of('training')

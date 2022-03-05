@@ -67,7 +67,7 @@ class RadolanDataModule(LightningDataModule):
         )
 
     def val_dataloader(self):
-        return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=False, num_workers=self.num_workers,
+        return DataLoader(self.valid_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.num_workers,
                           worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id), pin_memory=True)
 
     def test_dataloader(self):

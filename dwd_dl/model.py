@@ -210,7 +210,8 @@ class UNetLitModel(pl.LightningModule):
 
         self.apply(self.initialize_weights)
 
-        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, dtype=torch.half)
+        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS)
+        self._loss_weights = self._loss_weights.to(torch.bfloat16)
         self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
 
     @staticmethod

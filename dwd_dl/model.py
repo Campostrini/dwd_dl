@@ -210,8 +210,10 @@ class UNetLitModel(pl.LightningModule):
 
         self.apply(self.initialize_weights)
 
-        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS)
-        self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
+        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, dtype=torch.bfloat16)
+        self.log_softmax = nn.LogSoftmax()
+        self.loss = torch.nn.NLLLoss(weight=self._loss_weights)
+        # self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
 
     @staticmethod
     def initialize_weights(layer: nn.Module):
@@ -460,7 +462,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(y_pred, y_true)
+        loss = self.loss(self.log_softmax(y_pred), y_true)
 
         train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -479,7 +481,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(y_pred, y_true)
+        loss = self.loss(self.log_softmax(y_pred), y_true)
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -518,7 +520,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(y_pred, y_true)
+        loss = self.loss(self.log_softmax(y_pred), y_true)
 
         test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 

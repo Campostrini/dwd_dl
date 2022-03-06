@@ -71,7 +71,7 @@ if __name__ == "__main__":
     cluster.add_command('cd $HOME/dwd-dl-thesis/dwd_dl/')
 
     cluster.per_experiment_nb_cpus = 96
-    cluster.per_experiment_nb_nodes = 5
+    cluster.per_experiment_nb_nodes = 1
     cluster.memory_mb_per_node = 96000
     # cluster.cores_per_srun = 96
 

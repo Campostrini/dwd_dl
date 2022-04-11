@@ -211,9 +211,9 @@ class UNetLitModel(pl.LightningModule):
         self.apply(self.initialize_weights)
 
         self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, dtype=torch.float16)
-        self.log_softmax = nn.LogSoftmax()
-        self.loss = torch.nn.NLLLoss(weight=self._loss_weights)
-        # self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
+        # self.log_softmax = nn.LogSoftmax()
+        # self.loss = torch.nn.NLLLoss(weight=self._loss_weights)
+        self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
 
     @staticmethod
     def initialize_weights(layer: nn.Module):
@@ -377,11 +377,14 @@ class UNetLitModel(pl.LightningModule):
                         nn.Conv2d(
                             in_channels=in_channels,
                             out_channels=out_channels,
-                            kernel_size=3,
-                            stride=2,
-                            padding=1,
+                            kernel_size=1,
+                            stride=1,
                             bias=conv_bias,
                         )
+                    ),
+                    (
+                        name + "avgpool",
+                        nn.AvgPool2d(kernel_size=2, stride=2)
                     ),
                     (name + "norm", nn.BatchNorm2d(num_features=out_channels, momentum=0.01))
                 ]
@@ -400,7 +403,6 @@ class UNetLitModel(pl.LightningModule):
                             mode="nearest"
                         )
                     ),
-                    (name + "norm", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
                     (
                         name + "conv",
                         nn.Conv2d(
@@ -411,7 +413,8 @@ class UNetLitModel(pl.LightningModule):
                             padding=0,
                             bias=conv_bias
                         )
-                    )
+                    ),
+                    (name + "norm", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
                 ]
             )
         )
@@ -422,17 +425,52 @@ class UNetLitModel(pl.LightningModule):
         else:
             return torch.stack(args, dim=0).sum(dim=0)
 
+    # def forward(self, x):
+    #     x = self.initial_transform(x)
+    #     basic1 = self.basic1(x)
+    #     x = self.sum_or_cat(basic1, x)
+    #
+    #     trace = []
+    #
+    #     for encoding_layer, down_skip_layer in zip(self.encoder, self.down_skips):
+    #         x_encoded = encoding_layer(x)
+    #         trace.append(x_encoded)
+    #         x = self.sum_or_cat(x_encoded, down_skip_layer(x))
+    #
+    #     trace[-1] = x
+    #     x = self.bottleneck(x)
+    #
+    #     for decoding_layer, up_skip_layer, trace_ in zip(
+    #             reversed(self.decoder), reversed(self.up_skips), reversed(trace)
+    #     ):
+    #         x = self.sum_or_cat(x, trace_)
+    #         x = self.sum_or_cat(decoding_layer(x), up_skip_layer(x))
+    #
+    #     # sum at the end is always needed otherwise we have too many channels.
+    #     if self._cat:
+    #         x_1, x_2 = torch.split(x, x.size()[1] // 2, dim=1)
+    #         x = x_1 + x_2
+    #
+    #     x = torch.reshape(x, [x.shape[0], self._out_channels, self._classes, *x.shape[-2:]])
+    #
+    #     if self._softmax:
+    #         x = self.softmax(x)
+    #     if self._permute_output:
+    #         x = x.permute(0, 2, 1, 3, 4)
+    #
+    #     return x
+
     def forward(self, x):
         x = self.initial_transform(x)
         basic1 = self.basic1(x)
-        x = self.sum_or_cat(basic1, x)
+        x = basic1 + x
 
         trace = []
 
         for encoding_layer, down_skip_layer in zip(self.encoder, self.down_skips):
             x_encoded = encoding_layer(x)
             trace.append(x_encoded)
-            x = self.sum_or_cat(x_encoded, down_skip_layer(x))
+            x = x_encoded + down_skip_layer(x)
 
         trace[-1] = x
         x = self.bottleneck(x)
@@ -440,8 +478,8 @@ class UNetLitModel(pl.LightningModule):
         for decoding_layer, up_skip_layer, trace_ in zip(
                 reversed(self.decoder), reversed(self.up_skips), reversed(trace)
         ):
-            x = self.sum_or_cat(x, trace_)
-            x = self.sum_or_cat(decoding_layer(x), up_skip_layer(x))
+            x = x + trace_
+            x = decoding_layer(x) + up_skip_layer(x)
 
         # sum at the end is always needed otherwise we have too many channels.
         if self._cat:
@@ -462,7 +500,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(self.log_softmax(y_pred), y_true)
+        loss = self.loss(y_pred, y_true)
 
         train_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -481,7 +519,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(self.log_softmax(y_pred), y_true)
+        loss = self.loss(y_pred, y_true)
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
@@ -520,7 +558,7 @@ class UNetLitModel(pl.LightningModule):
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
-        loss = self.loss(self.log_softmax(y_pred), y_true)
+        loss = self.loss(y_pred, y_true)
 
         test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 

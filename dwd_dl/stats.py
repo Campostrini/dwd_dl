@@ -10,10 +10,11 @@ from xarray.plot.utils import get_axis, label_from_attrs, _update_axes
 import matplotlib.pyplot as plt
 import dask
 import dask.array
+import dask.dataframe
 from tqdm import tqdm
 
 from . import cfg
-from .dataset import H5Dataset
+from .dataset import H5Dataset, RadolanDataset, RadolanSubset
 from dwd_dl import log
 from .axes import RadolanAxes as RAxes
 
@@ -31,8 +32,8 @@ class RadolanStatAbstractClass(ABC):
 
 
 class RadolanSingleStat(RadolanStatAbstractClass):
-    def __init__(self, h5dataset: H5Dataset):
-        self._h5dataset = h5dataset
+    def __init__(self, radolan_datset: RadolanDataset):
+        self._radolan_dataset = radolan_datset
 
     def hist(self,
              season=None,
@@ -91,9 +92,140 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             h, bins = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
             bins = np.array(bins)
             h = np.array(h)
-            primitive = ax.bar(bins[1:], h, **kwargs)
+            print(h, bins)
+            # primitive = ax.bar(bins[1:], h, **kwargs)
+            primitive = ax.bar(bins[:-1], h, width=np.diff(bins), ec="k", align="edge",)
 
-        ax.set_title("Histogram" + title)
+        ax.set_title("Histogram " + title)
+        ax.set_xlabel("Precipitation")
+        if xticklabels is not None:
+            assert len(xticklabels) == len(custom_periods)
+            ax.set_xticklabels(xticklabels)
+
+        _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
+
+        return primitive
+
+    def hist_results(self,
+             season=None,
+             custom_periods=None,
+             transformation=None,
+             condition=None,
+             figsize=None,
+             size=None,
+             aspect=None,
+             xincrease=None,
+             yincrease=None,
+             xscale=None,
+             yscale=None,
+             xticks=None,
+             yticks=None,
+             xlim=None,
+             ylim=None,
+             xticklabels=None,
+             bins=None,
+             range=None,
+             combine=False,
+             title='',
+             **kwargs
+             ):
+        """Adapted from xarray
+
+        """
+        log.info(f"Computing histogram for {custom_periods=}")
+        if isinstance(custom_periods, list):
+            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods, combine)
+        else:
+            raise ValueError("Whhoops, something went wrong.")
+
+        log.info(f"Gettin axis for histogram results.")
+        arrays = []
+        if not isinstance(dataarray, list):
+            dataarray = [dataarray]
+
+        for array in dataarray:
+            if condition is not None:
+                assert callable(condition)
+                no_nan = dask.array.ravel(array.where(condition(array)))
+            else:
+                no_nan = dask.array.ravel(array)
+            no_nan = dask.array.ma.masked_where(dask.array.isnan(no_nan), no_nan)
+            arrays.append(no_nan)
+
+        if transformation is not None:
+            assert callable(transformation)
+            log.info("Apply transformations.")
+            arrays = [transformation(array) for array in arrays]
+
+        h_list = []
+        bins_list = []
+        for array in arrays:
+            h_, bins_ = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
+            bins_ = np.array(bins_)
+            h_ = np.array(h_)
+            h_list.append(h_)
+            bins_list.append(bins_)
+        return h_list, bins_list
+
+    def scatter(self,
+                season=None,
+                custom_periods=None,
+                transformation=None,
+                condition=None,
+                figsize=None,
+                size=None,
+                aspect=None,
+                ax=None,
+                xincrease=None,
+                yincrease=None,
+                xscale=None,
+                yscale=None,
+                xticks=None,
+                yticks=None,
+                xlim=None,
+                ylim=None,
+                xticklabels=None,
+                bins=None,
+                range=None,
+                combine=False,
+                title='',
+                **kwargs
+                ):
+        """Adapted from xarray
+
+        """
+        log.info(f"Computing histogram for {custom_periods=}")
+        if isinstance(custom_periods, list):
+            dataarray = self._data_array_selection_from_custom_periods(season, custom_periods, combine)
+        else:
+            raise ValueError("Whhoops, something went wrong.")
+
+        log.info(f"Gettin axis for scatter plot.")
+        ax = get_axis(figsize, size, aspect, ax)
+        arrays = []
+        if not isinstance(dataarray, list):
+            dataarray = [dataarray]
+
+        for array in dataarray:
+            if condition is not None:
+                assert callable(condition)
+                no_nan = dask.array.ravel(array.where(condition(array)))
+            else:
+                no_nan = dask.array.ravel(array)
+            no_nan = dask.array.ma.masked_where(dask.array.isnan(no_nan), no_nan)
+            arrays.append(no_nan)
+
+        if transformation is not None:
+            assert callable(transformation)
+            log.info("Apply transformations.")
+            arrays = [transformation(array) for array in arrays]
+
+        for array in arrays:
+            vc = dask.dataframe.from_array(array).value_counts()
+            print(vc)
+            primitive = ax.scatter(vc.compute().index.values[1:], vc.compute().values[1:])
+
+        ax.set_title("Precipitation frequency " + title)
         ax.set_xlabel("Precipitation")
         if xticklabels is not None:
             assert len(xticklabels) == len(custom_periods)
@@ -170,20 +302,20 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
     @property
     def _data_array(self):
-        return self._h5dataset.ds.precipitation
+        return self._radolan_dataset.only_last_channel_dataset()
 
     @property
     def _winter_data_array(self):
-        return self._h5dataset.ds.precipitation.where(
-            (self._h5dataset.ds.precipitation['time.month'] <= 4) |
-            (self._h5dataset.ds.precipitation['time.month'] >= 10)
+        return self._radolan_dataset.only_last_channel_dataset().where(
+            (self._radolan_dataset.only_last_channel_dataset()['time.month'] <= 4) |
+            (self._radolan_dataset.only_last_channel_dataset()['time.month'] >= 10)
         )
 
     @property
     def _summer_data_array(self):
-        return self._h5dataset.ds.precipitation.where(
-            (self._h5dataset.ds.precipitation['time.month'] >= 5) &
-            (self._h5dataset.ds.precipitation['time.month'] <= 9)
+        return self._radolan_dataset.only_last_channel_dataset().where(
+            (self._radolan_dataset.only_last_channel_dataset()['time.month'] >= 5) &
+            (self._radolan_dataset.only_last_channel_dataset()['time.month'] <= 9)
         )
 
     def _get_data_array(self, season):

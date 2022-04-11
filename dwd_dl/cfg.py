@@ -119,7 +119,7 @@ class RadolanConfigFileContent:
     @property
     def CLASSES(self):
         # return self._CLASSES  # TODO: Create a validator for this
-        return {'0': (0, 0.5), '0.5': (0.5, 2), '2': (2, 5), '5': (5, 10), '10': (10, 30), '30': (30, np.infty)}
+        return {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
     # using weights from https://arxiv.org/abs/1706.03458
     @property
@@ -213,7 +213,7 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.1.0')
+        self._current_h5_version = version.Version('v0.1.1')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
 
         self._mode = cfg_content.MODE

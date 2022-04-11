@@ -39,6 +39,16 @@ def timestamps_with_nans_handler(nan_days, max_nans, in_channels, out_channels):
     return to_remove, not_for_mean, nan_to_num
 
 
+def only_rainy_days_handler(rainy_days: xarray.DataArray, to_remove: list):
+    rainy_days_computed = rainy_days
+    timestamps_to_remove = rainy_days_computed.time[~rainy_days]
+    for timestamp in tqdm(timestamps_to_remove):
+        datetime_timestamp = pd.Timestamp(timestamp.time.values).to_pydatetime()
+        if datetime_timestamp not in to_remove:
+            to_remove.append(datetime_timestamp)
+    return to_remove
+
+
 def timestamps_at_training_period_end_handler(ranges_list, to_remove, in_channels, out_channels):
     for date_range in ranges_list:
         range_start, range_end = date_range
@@ -120,6 +130,16 @@ class RadolanDataset(Dataset):
         log.info("Computing how many nans per day.")
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"]).precipitation.compute()
 
+        log.info("Computing if rainy or not.")
+        self.rainy_or_not = (self.ds_raw.ds.precipitation.fillna(0) > 0).any(dim=('lon', 'lat')).compute()
+        log.info("Rolling sum.")
+        self.rainy_or_not = (
+                self.rainy_or_not.rolling(
+                    time=in_channels+out_channels
+                ).sum().shift(
+                    time=-(in_channels+out_channels)) > 0
+        )
+
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(timestamps_list)
         self._sequence_timestamps = sorted(timestamps_list)
@@ -128,6 +148,9 @@ class RadolanDataset(Dataset):
         to_remove, not_for_mean, nan_to_num = timestamps_with_nans_handler(
             self.nan_days, max_nans, in_channels, out_channels
         )
+
+        log.info("Handling days for input+output without any rain")
+        to_remove = only_rainy_days_handler(self.rainy_or_not, to_remove)
 
         log.info("Handling timestamps at the end of the ranges of interest.")
         to_remove = timestamps_at_training_period_end_handler(
@@ -151,6 +174,8 @@ class RadolanDataset(Dataset):
         ]
 
         self._list_of_firsts = [row[0][0] for row in self.indices_tuple]
+
+        self._last_channel_dataset_cache = None
 
         log.info(f"{use_dask=}")
         if not use_dask:
@@ -259,6 +284,14 @@ class RadolanDataset(Dataset):
             return True
         except ValueError:
             return False
+
+    def timestamps_of_last_channel(self):
+        return [self.sorted_sequence[t[0]] for s, t in self.indices_tuple]
+
+    def only_last_channel_dataset(self):
+        if self._last_channel_dataset_cache is None:
+            self._last_channel_dataset_cache = self.ds_raw.ds.precipitation.loc[self.timestamps_of_last_channel()]
+        return self._last_channel_dataset_cache
 
 
 class RadolanSubset(RadolanDataset):

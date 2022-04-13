@@ -171,22 +171,22 @@ if __name__ == "__main__":
     ranges_list = [
         {
             'name': 'Training + Validation + Test',
-            'start': dt.date(2020, 9, 1),
+            'start': dt.date(2005, 10, 1),
             'end': dt.date(2021, 12, 31)
         },
         {
             'name': 'Training',
-            'start': dt.date(2020, 9, 1),
-            'end': dt.date(2021, 10, 31)
+            'start': dt.date(2005, 10, 1),
+            'end': dt.date(2017, 12, 31)
         },
         {
             'name': 'Validation',
-            'start': dt.date(2021, 11, 1),
-            'end': dt.date(2021, 11, 30)
+            'start': dt.date(2018, 1, 1),
+            'end': dt.date(2019, 12, 31)
         },
         {
             'name': 'Test',
-            'start': dt.date(2021, 12, 1),
+            'start': dt.date(2020, 1, 1),
             'end': dt.date(2021, 12, 31)
         }
     ]

@@ -150,7 +150,7 @@ if __name__ == "__main__":
         out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
         return out
 
-    short = False
+    short = True
     if short:
         ranges_list = [
             {

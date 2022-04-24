@@ -116,29 +116,25 @@ class RadolanDataset(Dataset):
         self.normalize = normalize
         self._image_size = image_size
 
+        self.threshold = threshold
+        self._timestamps_over_threshold = None
         # if not mode == 'vis':
         #     log.info("Computing total precipitation.")
         #     self._tot_pre = self.ds_raw.ds.sum(dim=["lon", "lat"], skipna=True).precipitation.compute()
 
-        if threshold is not None:
-            log.info("Finding timestamps where threshold is exceeded.")
-            selection = (self.ds_raw.ds.precipitation > threshold).any(dim=('lon', 'lat')).compute()
-            possible_timestamps = self.ds_raw.ds.time[selection]
-            possible_timestamps = possible_timestamps.compute()
-            self._timestamps_over_threshold = [pd.Timestamp(x.time.values).to_pydatetime() for x in possible_timestamps]
 
         log.info("Computing how many nans per day.")
         self.nan_days = self.ds_raw.ds.isnull().sum(dim=["lon", "lat"]).precipitation.compute()
 
         log.info("Computing if rainy or not.")
-        self.rainy_or_not = (self.ds_raw.ds.precipitation.fillna(0) > 0).any(dim=('lon', 'lat')).compute()
+        self.rainy_or_not = (self.ds_raw.ds.precipitation.fillna(0) > 0).any(dim=('lon', 'lat')) #.compute()
         log.info("Rolling sum.")
         self.rainy_or_not = (
                 self.rainy_or_not.rolling(
                     time=in_channels+out_channels
                 ).sum().shift(
                     time=-(in_channels+out_channels)) > 0
-        )
+        ).compute()
 
         self.sequence = sorted(timestamps_list)
         self.sorted_sequence = sorted(timestamps_list)
@@ -176,6 +172,7 @@ class RadolanDataset(Dataset):
         self._list_of_firsts = [row[0][0] for row in self.indices_tuple]
 
         self._last_channel_dataset_cache = None
+        self._last_channel_dataset_cache_class = None
 
         log.info(f"{use_dask=}")
         if not use_dask:
@@ -203,10 +200,14 @@ class RadolanDataset(Dataset):
 
     @property
     def timestamps_over_threshold(self):
-        try:
-            return self._timestamps_over_threshold
-        except AttributeError:
-            return None
+        if self.threshold is not None and self._timestamps_over_threshold is None:
+            log.info("Finding timestamps where threshold is exceeded.")
+            selection = (self.ds_raw.ds.precipitation > self.threshold).any(dim=('lon', 'lat')).compute()
+            possible_timestamps = self.ds_raw.ds.time[selection]
+            possible_timestamps = possible_timestamps.compute()
+            self._timestamps_over_threshold = [pd.Timestamp(x.time.values).to_pydatetime() for x in
+                                               possible_timestamps]
+        return self._timestamps_over_threshold
 
     # def get_total_pre(self, idx):
     #     log.debug("Getting total precipitation.")
@@ -292,6 +293,12 @@ class RadolanDataset(Dataset):
         if self._last_channel_dataset_cache is None:
             self._last_channel_dataset_cache = self.ds_raw.ds.precipitation.loc[self.timestamps_of_last_channel()]
         return self._last_channel_dataset_cache
+
+    def only_last_channel_dataset_classes(self):
+        if self._last_channel_dataset_cache_class is None:
+            self._last_channel_dataset_cache_class = self.ds_classes.ds.precipitation.loc[
+                self.timestamps_of_last_channel()]
+        return self._last_channel_dataset_cache_class
 
 
 class RadolanSubset(RadolanDataset):
@@ -600,7 +607,7 @@ class H5Dataset:
         self._date_ranges = date_ranges
         self._files_list = files_names_list_single_mode(self._date_ranges, filetype='Z', mode=mode)
         self._files_paths = [os.path.join(os.path.abspath(cfg.CFG.RADOLAN_H5), fn) for fn in self._files_list]
-        self.ds = xarray.open_mfdataset(paths=self._files_paths, chunks={'time': 40, 'lon': 256, 'lat': 256},
+        self.ds = xarray.open_mfdataset(paths=self._files_paths, # chunks={'time': -1, 'lon': 256, 'lat': 256},
                                         engine='zarr', parallel=True)
 
     def __getitem__(self, item):

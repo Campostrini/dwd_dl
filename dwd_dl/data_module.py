@@ -115,7 +115,7 @@ class RadolanLiveDataModule(RadolanDataModule):
         return sorted(self.valid_dataset.timestamps + self.train_dataset.timestamps)
 
     def prepare_data(self, stage=None, random_=False, threshold=300, mode='vis'):
-        super().setup(stage=stage, random_=random_, threshold=threshold, mode=mode)
+        super().prepare_data(stage=stage, random_=random_, threshold=threshold, mode=mode)
 
     def all_timestamps(self):
         return self.dataset.sorted_sequence

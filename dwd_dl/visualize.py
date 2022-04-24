@@ -9,9 +9,9 @@ from dwd_dl.cli import RadolanParser
 
 
 def main(args):
-    dm = data_module.RadolanLiveDataModule(args.batch_size, args.workers, args.image_size)
+    dm = data_module.RadolanLiveDataModule(args.batch_size, args.workers, args.image_size, args.dask)
     dm.prepare_data()
-    dm.setup(threshold=300)
+    dm.setup()
     unet = model.RadolanLiveEvaluator(dm, **vars(args))
     if args.model_path is not None:
         if args.model_path.endswith('.ckpt'):
@@ -20,7 +20,7 @@ def main(args):
             unet.load_state_dict(torch.load(args.model_path))
 
     unet.eval()
-    print(f"Timestamps over threshold: {dm.timestamps_over_threshold}")
+    # print(f"Timestamps over threshold: {dm.timestamps_over_threshold}")
     with torch.no_grad():
         unet.to('cuda')
         img.visualizer(unet)

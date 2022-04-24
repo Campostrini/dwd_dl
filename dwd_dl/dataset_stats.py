@@ -2,6 +2,7 @@ import datetime as dt
 import calendar
 import math
 from typing import List, Iterable
+import tracemalloc
 
 import numpy as np
 import pandas as pd
@@ -16,16 +17,17 @@ import dwd_dl.stats as stats
 from dwd_dl.utils import year_month_tuple_list
 
 if __name__ == "__main__":
+    tracemalloc.start()
     cfg.initialize2()
 
-    client = Client()
+    client = Client(memory_limit='4G')
 
     radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
     radolan_dataset = ds.RadolanDataset()
-    radolan_dataset_classes = ds.H5Dataset(cfg.CFG.date_ranges, mode='c')
+    # radolan_dataset_classes = ds.H5Dataset(cfg.CFG.date_ranges, mode='c')
 
     radolan_stat = stats.RadolanSingleStat(radolan_dataset)
-    class_counter = stats.ClassCounter(radolan_dataset_classes)
+    class_counter = stats.ClassCounter(radolan_dataset)
 
     start_year_month = dt.date(2020, 9, 1)  # attention! If mismatch with DATE_RANGES.yml it gets confusing.
     end_year_month = dt.date(2021, 12, 31)
@@ -136,7 +138,7 @@ if __name__ == "__main__":
         out += f"\n over a total of {sum([len(cp) for cp in sub_period_])} timestamps."
         return out
 
-    def rainy_classes_format(class_counter_, sub_period_, threshold=None):
+    def rainy_classes_format(class_counter_: stats.ClassCounter, sub_period_, threshold=None):
         counted_classes = class_counter_.sum_on_all_periods(class_counter.count_all_classes(
             sub_period_, threshold=threshold))
         out = f"The classes are subdivided in "
@@ -145,134 +147,147 @@ if __name__ == "__main__":
         out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
         return out
 
-    # ranges_list = [
-    #     {
-    #         'name': 'Training + Validation + Test',
-    #         'start': dt.date(2005, 10, 1),
-    #         'end': dt.date(2021, 12, 31)
-    #     },
-    #     {
-    #         'name': 'Training',
-    #         'start': dt.date(2005, 10, 1),
-    #         'end': dt.date(2017, 12, 31)
-    #     },
-    #     {
-    #         'name': 'Validation',
-    #         'start': dt.date(2018, 1, 1),
-    #         'end': dt.date(2019, 12, 31)
-    #     },
-    #     {
-    #         'name': 'Test',
-    #         'start': dt.date(2020, 1, 1),
-    #         'end': dt.date(2021, 12, 31)
-    #     }
-    # ]
+    short = False
+    if short:
+        ranges_list = [
+            {
+                'name': 'Training + Validation + Test',
+                'start': dt.date(2019, 10, 1),
+                'end': dt.date(2021, 12, 31)
+            },
+            {
+                'name': 'Training',
+                'start': dt.date(2019, 10, 1),
+                'end': dt.date(2020, 4, 30)
+            },
+            {
+                'name': 'Validation',
+                'start': dt.date(2020, 10, 1),
+                'end': dt.date(2021, 4, 30)
+            },
+            {
+                'name': 'Test',
+                'start': dt.date(2021, 10, 1),
+                'end': dt.date(2021, 12, 31)
+            }
+        ]
 
-    ranges_list = [
-        {
-            'name': 'Training + Validation + Test',
-            'start': dt.date(2005, 10, 1),
-            'end': dt.date(2021, 12, 31)
-        },
-        {
-            'name': 'Training',
-            'start': dt.date(2005, 10, 1),
-            'end': dt.date(2017, 12, 31)
-        },
-        {
-            'name': 'Validation',
-            'start': dt.date(2018, 1, 1),
-            'end': dt.date(2019, 12, 31)
-        },
-        {
-            'name': 'Test',
-            'start': dt.date(2020, 1, 1),
-            'end': dt.date(2021, 12, 31)
-        }
-    ]
+    else:
+        ranges_list = [
+            {
+                'name': 'Training + Validation + Test',
+                'start': dt.date(2005, 10, 1),
+                'end': dt.date(2021, 12, 31)
+            },
+            {
+                'name': 'Training',
+                'start': dt.date(2005, 10, 1),
+                'end': dt.date(2017, 12, 31)
+            },
+            {
+                'name': 'Validation',
+                'start': dt.date(2018, 1, 1),
+                'end': dt.date(2019, 12, 31)
+            },
+            {
+                'name': 'Test',
+                'start': dt.date(2020, 1, 1),
+                'end': dt.date(2021, 12, 31)
+            }
+        ]
 
 
     period_list_for_plot = [PeriodForPlot(**range_) for range_ in ranges_list]
 
+    scatter = True
+    if scatter:
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            for period in period_list_for_plot:
+                for sub_period_name, sub_period in period:
+                    if not sub_period:
+                        continue
+                    fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69))
+                    ax = axs
+                    custom_period = sub_period[0]
+                    for p in sub_period[1:]:
+                        custom_period = custom_period.append(p)
+                    try:
+                        tracemalloc.take_snapshot()
+                        radolan_stat.scatter(ax=ax, custom_periods=[custom_period], linewidth=2, season=sub_period_name,
+                                             bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e),
+                                             title=f"{period.name}, {sub_period_name}", combine=True)
+                        tracemalloc.take_snapshot()
+                    except Exception as exc:
+                        print(exc)
+                        continue
+                                            # transformation=lambda x: np.log(x + 0.01),
+                                            # bins=200, range=[-3, 8], condition=lambda x: x > 0,
+                                            # title=f"{period.name}, {sub_period_name}", combine=True)
+                    ratio_days_gt_zero = radolan_stat.rainy_days_ratio([custom_period], 0)
+                    ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio([custom_period], 0)
+                    ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
+                                      f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
+                            horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                    ax.set_xscale('log')
+                    rainy_days_string = rainy_timestamps_format(period, sub_period_name, [custom_period],
+                                                                threshold=0, radolan_stat_=radolan_stat)
+                    rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
+                    print(rainy_days_string)
+                    print(rainy_classes_string)
+                    fig.show()
+
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         for period in period_list_for_plot:
             for sub_period_name, sub_period in period:
                 if not sub_period:
                     continue
-                ratio_days_gt_zero = radolan_stat.rainy_days_ratio(sub_period, 0)
-                ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio(sub_period, 0)
                 custom_period = sub_period[0]
                 for p in sub_period[1:]:
                     custom_period = custom_period.append(p)
-                h, bins = radolan_stat.hist_results(custom_periods=[custom_period], linewidth=2,
-                                          bins=[0, 0.1, 1.0, 2.5, 400], combine=True)
-                # ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
-                #                   f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
-                #         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
-                rainy_days_string = rainy_timestamps_format(period, sub_period_name, sub_period,
-                                                            threshold=0, radolan_stat_=radolan_stat)
-                rainy_classes_string = rainy_classes_format(class_counter, sub_period, threshold=0)
-                print(rainy_days_string)
-                print(rainy_classes_string)
+                h, bins = radolan_stat.hist_results(custom_periods=[custom_period], season=sub_period_name,
+                                                    bins=[0, 0.1, 1.0, 2.5, 500], combine=True)
+                print(f"{period.name}, {sub_period_name}")
                 print(h, "\n", bins)
 
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        for period in period_list_for_plot:
-            for sub_period_name, sub_period in period:
-                if not sub_period:
-                    continue
-                fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69))
-                ax = axs
-                ratio_days_gt_zero = radolan_stat.rainy_days_ratio(sub_period, 0)
-                ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio(sub_period, 0)
-                custom_period = sub_period[0]
-                for p in sub_period[1:]:
-                    custom_period = custom_period.append(p)
-                radolan_stat.hist(ax=ax, custom_periods=[custom_period], linewidth=2,
-                                  #bins=np.logspace(np.log(0.01), np.log(300), num=200, base=np.e), transformation=lambda x: x + 0.01,
-                                  bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e), transformation= lambda x: x + 0.01,
-                                  title=f"{period.name}, {sub_period_name}", combine=True)
-                                  # transformation=lambda x: np.log(x + 0.01),
-                                  # bins=200, range=[-3, 8], condition=lambda x: x > 0,
-                                  # title=f"{period.name}, {sub_period_name}", combine=True)
-                ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
-                                  f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
-                        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
-                ax.set_xscale('log')
-                rainy_days_string = rainy_timestamps_format(period, sub_period_name, sub_period,
-                                                            threshold=0, radolan_stat_=radolan_stat)
-                rainy_classes_string = rainy_classes_format(class_counter, sub_period, threshold=0)
-                print(rainy_days_string)
-                print(rainy_classes_string)
-                fig.show()
 
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        for period in period_list_for_plot:
-            for sub_period_name, sub_period in period:
-                if not sub_period:
-                    continue
-                fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69))
-                ax = axs
-                ratio_days_gt_zero = radolan_stat.rainy_days_ratio(sub_period, 0)
-                ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio(sub_period, 0)
-                custom_period = sub_period[0]
-                for p in sub_period[1:]:
-                    custom_period = custom_period.append(p)
-                radolan_stat.scatter(ax=ax, custom_periods=[custom_period], linewidth=2,
-                                    bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e),
-                                    title=f"{period.name}, {sub_period_name}", combine=True)
-                                     # transformation=lambda x: np.log(x + 0.01),
-                                    # bins=200, range=[-3, 8], condition=lambda x: x > 0,
-                                    # title=f"{period.name}, {sub_period_name}", combine=True)
-                ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
-                                  f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
-                        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
-                ax.set_xscale('log')
-                rainy_days_string = rainy_timestamps_format(period, sub_period_name, sub_period,
-                                                            threshold=0, radolan_stat_=radolan_stat)
-                rainy_classes_string = rainy_classes_format(class_counter, sub_period, threshold=0)
-                print(rainy_days_string)
-                print(rainy_classes_string)
-                fig.show()
+    log_histogram = False
+    if log_histogram:
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            for period in period_list_for_plot:
+                for sub_period_name, sub_period in period:
+                    if not sub_period:
+                        continue
+                    fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69))
+                    ax = axs
+
+                    custom_period = sub_period[0]
+                    for p in sub_period[1:]:
+                        custom_period = custom_period.append(p)
+                    try:
+                        radolan_stat.hist(ax=ax, custom_periods=[custom_period], linewidth=2, season=sub_period_name,
+                                          # bins=np.logspace(np.log(0.01), np.log(300), num=200, base=np.e), transformation=lambda x: x + 0.01,
+                                          bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e), transformation= lambda x: x + 0.01,
+                                          title=f"{period.name}, {sub_period_name}", combine=True)
+                    except Exception as exc:
+                        print(exc)
+                        continue
+                                      # transformation=lambda x: np.log(x + 0.01),
+                                      # bins=200, range=[-3, 8], condition=lambda x: x > 0,
+                                      # title=f"{period.name}, {sub_period_name}", combine=True)
+
+                    ratio_days_gt_zero = radolan_stat.rainy_days_ratio([custom_period], 0)
+                    ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio([custom_period], 0)
+                    ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
+                                      f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
+                            horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                    ax.set_xscale('log')
+                    rainy_days_string = rainy_timestamps_format(period, sub_period_name, [custom_period],
+                                                                threshold=0, radolan_stat_=radolan_stat)
+                    rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
+                    print(rainy_days_string)
+                    print(rainy_classes_string)
+                    fig.show()
+
+
 
 

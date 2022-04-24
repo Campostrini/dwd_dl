@@ -1,4 +1,5 @@
 # Radolan Stat Abstract Class
+import tracemalloc
 import warnings
 from abc import ABC, abstractmethod
 import datetime as dt
@@ -160,7 +161,8 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         h_list = []
         bins_list = []
         for array in arrays:
-            h_, bins_ = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
+            # h_, bins_ = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
+            h_, bins_ = dask.array.histogram(array, bins=bins, range=range)
             bins_ = np.array(bins_)
             h_ = np.array(h_)
             h_list.append(h_)
@@ -222,8 +224,14 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         for array in arrays:
             vc = dask.dataframe.from_array(array).value_counts()
+            tracemalloc.take_snapshot()
             print(vc)
-            primitive = ax.scatter(vc.compute().index.values[1:], vc.compute().values[1:])
+            x, y = vc.index.values, vc.values
+            x = x.compute()
+            y = y.compute()
+            tracemalloc.take_snapshot()
+            primitive = ax.scatter(x[1:], y[1:])
+            del x, y
 
         ax.set_title("Precipitation frequency " + title)
         ax.set_xlabel("Precipitation")
@@ -319,7 +327,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         )
 
     def _get_data_array(self, season):
-        if season is None:
+        if season == 'all':
             return self._data_array
         elif season == "summer":
             return self._summer_data_array
@@ -339,7 +347,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             else:
                 array_for_selection = self._get_data_array(season)
                 dataarray += [
-                    array_for_selection.sel(time=slice(period.min().to_datetime64(), period.max().to_datetime64()))
+                    array_for_selection.where(array_for_selection.time.isin(period), drop=True)
                 ]
         if combine:
             out = dataarray[0]
@@ -350,6 +358,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         # TODO: implement some checks on periods so that there is at least something to plot
 
     def rainy_pixels_ratio(self, custom_periods=None, threshold=0, compute=False):
+        log.info("Computing rainiy pixels ratio.")
         th = threshold
         if custom_periods is None:
             out = [(self._data_array > th).sum() / self._data_array.size]
@@ -358,19 +367,18 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
             out = [
-                (sliced := self._data_array.sel(
-                    time=slice(
-                        period.min().to_datetime64(),
-                        period.max().to_datetime64())
+                (sliced := self._data_array.where(
+                    self._data_array.time.isin(period), drop=True
                 ) > th).sum()/sliced.size
                 for period in custom_periods
             ]
         if compute:
             out = [element.compute().values for element in out]
-
+        log.info("Done computing rainy pixels ratio.")
         return out
 
     def rainy_days_ratio(self, custom_periods=None, threshold=0, compute=False):
+        log.info("Computing rainy days ratio.")
         th = threshold
         if custom_periods is None:
             out = [(greater_zero_days := ((self._data_array > th).sum(dim=['lon', 'lat']) > th)).sum() / len(
@@ -381,16 +389,14 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
             out = [
-                (sliced := (self._data_array.sel(
-                    time=slice(
-                        period.min().to_datetime64(),
-                        period.max().to_datetime64())
+                (sliced := (self._data_array.where(
+                    self._data_array.time.isin(period), drop=True
                 ).sum(dim=['lon', 'lat']) > th)).sum()/len(sliced)
                 for period in custom_periods
             ]
         if compute:
             out = [element.compute().values for element in out]
-
+        log.info("Done computing rainy days ratio.")
         return out
 
     def number_of_days_over_threshold(self, custom_periods=None, threshold=0):
@@ -402,10 +408,8 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
             out = {
-                period.min().to_pydatetime().date(): ((self._data_array.sel(
-                    time=slice(
-                        period.min().to_datetime64(),
-                        period.max().to_datetime64())
+                period.min().to_pydatetime().date(): ((self._data_array.where(
+                    self._data_array.time.isin(period), drop=True
                 )).sum(dim=['lon', 'lat']) > th).sum()
                 for period in custom_periods
             }
@@ -432,24 +436,27 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
 
 class ClassCounter:
-    def __init__(self, h5_dataset: H5Dataset):
-        self._h5_dataset = h5_dataset
+    def __init__(self, radolan_dataset: RadolanDataset):
+        self._radolan_dataset = radolan_dataset
         self._count_class_out = {}
+        self._dataset = self._radolan_dataset.only_last_channel_dataset_classes()
 
     def count_class(self, class_index: int, custom_periods=None, threshold=None):
+        log.info(
+            f"Counting class {class_index}"
+        )
         if custom_periods is None:
-            out = {'all': ((self._h5_dataset.ds.precipitation == class_index).sum(dim=['lon', 'lat'])).sum()}
+            out = {'all': ((self._dataset == class_index).sum(dim=['lon', 'lat'])).sum()}
         else:
             assert isinstance(custom_periods, list)
             for period in custom_periods:
                 assert isinstance(period, pd.DatetimeIndex)
             out = {
-                period.min().to_pydatetime().date(): (self._h5_dataset.ds.precipitation.sel(
-                    time=slice(
-                        period.min().to_datetime64(),
-                        period.max().to_datetime64()
-                    )) == class_index).sum(dim=['lon', 'lat']).sum() for period in custom_periods
+                period.min().to_pydatetime().date(): (self._dataset.where(
+                    self._dataset.time.isin(period), drop=True
+                ) == class_index).sum(dim=['lon', 'lat']).sum() for period in custom_periods
             }
+        log.info(f"Finished counting class {class_index}")
         return {element: int(out[element].compute()) for element in out}
 
     def count_all_classes(self, custom_periods=None, threshold=None):

@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from pandas.core.indexes.datetimes import DatetimeIndex
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 from dask.distributed import Client
 import dask.config
 

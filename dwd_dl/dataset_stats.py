@@ -1,6 +1,7 @@
 import datetime as dt
 import calendar
 import math
+import os.path
 from typing import List, Iterable
 import tracemalloc
 
@@ -19,6 +20,8 @@ from dwd_dl.utils import year_month_tuple_list
 if __name__ == "__main__":
     tracemalloc.start()
     cfg.initialize2()
+
+    figures_path = os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), 'figures')
 
     client = Client(memory_limit='4G')
 
@@ -213,9 +216,10 @@ if __name__ == "__main__":
                         custom_period = custom_period.append(p)
                     try:
                         tracemalloc.take_snapshot()
+                        title = f"{period.name}, {sub_period_name}"
                         radolan_stat.scatter(ax=ax, custom_periods=[custom_period], linewidth=2, season=sub_period_name,
                                              bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e),
-                                             title=f"{period.name}, {sub_period_name}", combine=True)
+                                             title=title, combine=True)
                         tracemalloc.take_snapshot()
                     except Exception as exc:
                         print(exc)
@@ -234,7 +238,7 @@ if __name__ == "__main__":
                     rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
                     print(rainy_days_string)
                     print(rainy_classes_string)
-                    fig.show()
+                    plt.savefig(figures_path, title + ".png")
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         for period in period_list_for_plot:

@@ -240,7 +240,7 @@ if __name__ == "__main__":
                     rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
                     print(rainy_days_string)
                     print(rainy_classes_string)
-                    plt.savefig(figures_path, title + ".png")
+                    plt.savefig(os.path.join(figures_path, title + ".png"))
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         for period in period_list_for_plot:

@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     figures_path = os.path.join(os.path.abspath(cfg.CFG.RADOLAN_ROOT), 'figures')
 
-    client = Client(memory_limit='4G')
+    client = Client(memory_limit='68G')
 
     radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
     radolan_dataset = ds.RadolanDataset()

@@ -222,16 +222,30 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             log.info("Apply transformations.")
             arrays = [transformation(array) for array in arrays]
 
+
+        value_counts_dicts = []
+        log.info(f"Computing value counts for {arrays=}")
         for array in arrays:
             vc = dask.dataframe.from_array(array).value_counts()
             tracemalloc.take_snapshot()
-            print(vc)
+            log.info(vc)
             x, y = vc.index.values, vc.values
             x = x.compute()
             y = y.compute()
             tracemalloc.take_snapshot()
-            primitive = ax.scatter(x[1:], y[1:])
-            del x, y
+            value_counts_dicts.append({key: value for key, value in zip(x, y)})
+
+        value_counts = value_counts_dicts[0]
+        for vcd in value_counts_dicts[1:]:
+            for key in vcd:
+                try:
+                    value_counts[key] += vcd[key]
+                except KeyError:
+                    value_counts[key] = vcd[key]
+
+        value_counts = dict(sorted(value_counts.items()))
+
+        primitive = ax.scatter(list(value_counts.keys())[1:], list(value_counts.values())[1:])
 
         ax.set_title("Precipitation frequency " + title)
         ax.set_xlabel("Precipitation")
@@ -340,7 +354,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
         dataarray = []
         for period in custom_periods:
             if isinstance(period, list):
-                dataarray = self._data_array_selection_from_custom_periods(season, period, combine=True)
+                dataarray = self._data_array_selection_from_custom_periods(season, period, combine=combine)
             elif not isinstance(period, pd.DatetimeIndex):
                 raise ValueError(f"Don't know what to do with element of type {type(period)} in custom_periods "
                                  f"{custom_periods}.")

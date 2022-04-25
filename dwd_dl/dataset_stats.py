@@ -15,6 +15,7 @@ from dask.distributed import Client
 import dask.config
 
 from dwd_dl import cfg
+from dwd_dl import log
 import dwd_dl.dataset as ds
 import dwd_dl.stats as stats
 from dwd_dl.utils import year_month_tuple_list
@@ -59,6 +60,15 @@ if __name__ == "__main__":
 
     def exclude_months_not_in_given_tuple(list_of_date_ranges: List[DatetimeIndex], inclusion: Iterable[int]):
         return [range_ for range_ in list_of_date_ranges if range_[0].month in inclusion]
+
+    def group_by_year(list_of_date_ranges: List[DatetimeIndex]):
+        group_dict = {}
+        for range_ in list_of_date_ranges:
+            try:
+                group_dict[range_[0].year].append(range_)
+            except KeyError:
+                group_dict[range_[0].year] = range_
+        return list(group_dict.values())
 
     ym_list = year_month_tuple_list(start_year_month, end_year_month)
     ym_dict = {}
@@ -125,9 +135,12 @@ if __name__ == "__main__":
             self.date_range_winter = exclude_months_not_in_given_tuple(
                 self.date_range, PeriodForPlot.winter_months
             )
+            self.date_range_winter = group_by_year(self.date_range_winter)
             self.date_range_summer = exclude_months_not_in_given_tuple(
                 self.date_range, PeriodForPlot.summer_months
             )
+            self.date_range_summer = group_by_year(self.date_range_summer)
+            self.date_range = group_by_year(self.date_range)
             self.name = name
 
         def __iter__(self):
@@ -152,7 +165,7 @@ if __name__ == "__main__":
         out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
         return out
 
-    short = False
+    short = True
     if short:
         ranges_list = [
             {
@@ -219,9 +232,9 @@ if __name__ == "__main__":
                     try:
                         tracemalloc.take_snapshot()
                         title = f"{period.name}, {sub_period_name}"
-                        radolan_stat.scatter(ax=ax, custom_periods=[custom_period], linewidth=2, season=sub_period_name,
+                        radolan_stat.scatter(ax=ax, custom_periods=sub_period, linewidth=2, season=sub_period_name,
                                              bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e),
-                                             title=title, combine=True)
+                                             title=title, combine=False)
                         tracemalloc.take_snapshot()
                     except Exception as exc:
                         print(exc)
@@ -238,9 +251,9 @@ if __name__ == "__main__":
                     rainy_days_string = rainy_timestamps_format(period, sub_period_name, [custom_period],
                                                                 threshold=0, radolan_stat_=radolan_stat)
                     rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
-                    print(rainy_days_string)
-                    print(rainy_classes_string)
-                    plt.savefig(os.path.join(figures_path, title + ".png"))
+                    log.info(rainy_days_string)
+                    log.info(rainy_classes_string)
+                    plt.savefig(os.path.join(figures_path, title + str(dt.datetime.now()) + ".png"))
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         for period in period_list_for_plot:

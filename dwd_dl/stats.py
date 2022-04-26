@@ -159,15 +159,19 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             arrays = [transformation(array) for array in arrays]
 
         h_list = []
-        bins_list = []
+        bins_ = None
+        log.info("Computing histogram in histogram results")
         for array in arrays:
             # h_, bins_ = dask.array.histogram(array[~dask.array.ma.getmaskarray(array)], bins=bins, range=range)
             h_, bins_ = dask.array.histogram(array, bins=bins, range=range)
-            bins_ = np.array(bins_)
-            h_ = np.array(h_)
-            h_list.append(h_)
-            bins_list.append(bins_)
-        return h_list, bins_list
+            h_list.append(h_.compute())
+
+        h = h_list[0]
+        for h_ in h_list[1:]:
+            for i, elem in enumerate(h_):
+                h[i] += elem
+
+        return h, bins_.compute()
 
     def scatter(self,
                 season=None,

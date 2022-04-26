@@ -165,7 +165,7 @@ if __name__ == "__main__":
         out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
         return out
 
-    short = True
+    short = False
     if short:
         ranges_list = [
             {
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     period_list_for_plot = [PeriodForPlot(**range_) for range_ in ranges_list]
 
-    scatter = True
+    scatter = False
     if scatter:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             for period in period_list_for_plot:
@@ -237,7 +237,7 @@ if __name__ == "__main__":
                                              title=title, combine=False)
                         tracemalloc.take_snapshot()
                     except Exception as exc:
-                        print(exc)
+                        log.info(exc)
                         continue
                                             # transformation=lambda x: np.log(x + 0.01),
                                             # bins=200, range=[-3, 8], condition=lambda x: x > 0,
@@ -263,10 +263,14 @@ if __name__ == "__main__":
                 custom_period = sub_period[0]
                 for p in sub_period[1:]:
                     custom_period = custom_period.append(p)
-                h, bins = radolan_stat.hist_results(custom_periods=[custom_period], season=sub_period_name,
-                                                    bins=[0, 0.1, 1.0, 2.5, 500], combine=True)
-                print(f"{period.name}, {sub_period_name}")
-                print(h, "\n", bins)
+
+                try:
+                    h, bins = radolan_stat.hist_results(custom_periods=[custom_period], season=sub_period_name,
+                                                        bins=[0, 0.1, 1.0, 2.5, 500], combine=True)
+                except Exception as exc:
+                    log.info(exc)
+                log.info(f"{period.name=}, {sub_period_name=}")
+                log.info(f"h={str(h)} \n bins={str(bins)}")
 
 
     log_histogram = False

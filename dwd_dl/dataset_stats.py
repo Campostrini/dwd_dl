@@ -65,7 +65,7 @@ if __name__ == "__main__":
         group_dict = {}
         for range_ in list_of_date_ranges:
             try:
-                group_dict[range_[0].year].append(range_)
+                group_dict[range_[0].year] = group_dict[range_[0].year].append(range_)
             except KeyError:
                 group_dict[range_[0].year] = range_
         return list(group_dict.values())
@@ -150,6 +150,13 @@ if __name__ == "__main__":
                  ('summer', self.date_range_summer)]
             )
 
+        def __repr__(self):
+            return f""" Period For Plot with:
+            date_range={str(self.date_range)}
+            date_range_winter={str(self.date_range_winter)}
+            date_range_summer={str(self.date_range_summer)}
+            """
+
     def rainy_timestamps_format(period_, sub_period_name_, sub_period_, threshold, radolan_stat_: stats.RadolanSingleStat):
         out = f"Rainy timestamps in {period_.name} ({sub_period_name_} months) are "
         out += f"{sum(radolan_stat_.number_of_days_over_threshold(sub_period_, threshold).values())}"
@@ -214,8 +221,8 @@ if __name__ == "__main__":
             }
         ]
 
-
     period_list_for_plot = [PeriodForPlot(**range_) for range_ in ranges_list]
+    log.info(f"{period_list_for_plot=}")
 
     scatter = True
     if scatter:
@@ -266,7 +273,7 @@ if __name__ == "__main__":
 
                 try:
                     h, bins = radolan_stat.hist_results(custom_periods=sub_period, season=sub_period_name,
-                                                        bins=[0, 0.1, 1.0, 2.5, 500], combine=True)
+                                                        bins=[0, 0.1, 1.0, 2.5, 500], combine=False)
                 except Exception as exc:
                     log.info(exc)
                 log.info(f"{period.name=}, {sub_period_name=}")

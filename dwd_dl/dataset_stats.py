@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     client = Client(memory_limit='68G')
 
-    radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
+    # radolan_dataset = ds.H5Dataset(cfg.CFG.date_ranges, mode='r')
     radolan_dataset = ds.RadolanDataset()
     # radolan_dataset_classes = ds.H5Dataset(cfg.CFG.date_ranges, mode='c')
 
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     period_list_for_plot = [PeriodForPlot(**range_) for range_ in ranges_list]
 
-    scatter = False
+    scatter = True
     if scatter:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             for period in period_list_for_plot:
@@ -265,7 +265,7 @@ if __name__ == "__main__":
                     custom_period = custom_period.append(p)
 
                 try:
-                    h, bins = radolan_stat.hist_results(custom_periods=[custom_period], season=sub_period_name,
+                    h, bins = radolan_stat.hist_results(custom_periods=sub_period, season=sub_period_name,
                                                         bins=[0, 0.1, 1.0, 2.5, 500], combine=True)
                 except Exception as exc:
                     log.info(exc)

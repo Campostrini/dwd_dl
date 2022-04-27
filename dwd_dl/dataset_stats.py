@@ -317,6 +317,7 @@ if __name__ == "__main__":
                     log.info(exc)
                 log.info(f"{period.name=}, {sub_period_name=}")
                 log.info(f"h={str(h)} \n bins={str(bins)}")
+                log.info(f"{len([time for time in radolan_dataset.timestamps_of_last_channel() if time in custom_period])=}")
 
 
     log_histogram = False

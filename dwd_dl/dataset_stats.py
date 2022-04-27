@@ -4,6 +4,7 @@ import math
 import os.path
 from typing import List, Iterable
 import tracemalloc
+from math import log as ln
 
 import numpy as np
 import pandas as pd
@@ -224,24 +225,31 @@ if __name__ == "__main__":
     period_list_for_plot = [PeriodForPlot(**range_) for range_ in ranges_list]
     log.info(f"{period_list_for_plot=}")
 
+
+    only_winter = True
     scatter = True
+    linear_and_0 = True
+
+    log.info(f"{only_winter=}, {scatter=}")
     if scatter:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             for period in period_list_for_plot:
                 for sub_period_name, sub_period in period:
+                    if only_winter and not sub_period_name == 'winter':
+                        continue
                     if not sub_period:
                         continue
-                    fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69))
-                    ax = axs
+                    fig, axs = plt.subplots(2, 2, figsize=(8.27, 11.69))
+                    ax0 = axs[1, 1]
                     custom_period = sub_period[0]
                     for p in sub_period[1:]:
                         custom_period = custom_period.append(p)
                     try:
                         tracemalloc.take_snapshot()
                         title = f"{period.name}, {sub_period_name}"
-                        radolan_stat.scatter(ax=ax, custom_periods=sub_period, linewidth=2, season=sub_period_name,
-                                             bins=np.logspace(np.log(0.09), np.log(20), 50, base=np.e),
-                                             title=title, combine=False)
+                        primitive, value_counts = radolan_stat.scatter(season=sub_period_name,
+                                                                       custom_periods=sub_period, ax=ax0, combine=False,
+                                                                       title="(d)", linewidth=2)
                         tracemalloc.take_snapshot()
                     except Exception as exc:
                         log.info(exc)
@@ -251,20 +259,51 @@ if __name__ == "__main__":
                                             # title=f"{period.name}, {sub_period_name}", combine=True)
                     ratio_days_gt_zero = radolan_stat.rainy_days_ratio([custom_period], 0)
                     ratio_tiles_gt_zero = radolan_stat.rainy_pixels_ratio([custom_period], 0)
-                    ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
-                                      f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
-                            horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
-                    ax.set_xscale('log')
+                    log.info(f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n")
+                    log.info(f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%")
+                    # ax.text(0.1, 0.9, f"Perc of days > 0: {float(ratio_days_gt_zero[0].compute())*100:.1f}%\n"
+                    #                   f"Perc of tiles > 0: {float(ratio_tiles_gt_zero[0].compute())*100:.1f}%",
+                    #         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                    ax0.set_xscale('log')
                     rainy_days_string = rainy_timestamps_format(period, sub_period_name, [custom_period],
                                                                 threshold=0, radolan_stat_=radolan_stat)
                     rainy_classes_string = rainy_classes_format(class_counter, [custom_period], threshold=0)
                     log.info(rainy_days_string)
                     log.info(rainy_classes_string)
+
+                    if linear_and_0:
+                        values = list(value_counts.values())
+                        v_sum = sum(values)
+                        values = [v/v_sum for v in values]
+                        keys_raw = list(value_counts.keys())
+                        ax1 = axs[0, 0]
+                        ax1.scatter(keys_raw, values)
+                        ax1.set_title("(a)")
+                        ax1.set_xlabel("Precipitation [mm/h]")
+                        # plt.savefig(os.path.join(figures_path, title + 'linear' + str(dt.datetime.now()) + ".png"))
+
+                        ax2 = axs[0, 1]
+                        keys = [x + 0.01 for x in keys_raw]
+                        ax2.scatter(keys, values)
+                        ax2.set_title("(b)")
+                        ax2.set_xlabel("Precipitation [mm/h] +0.01")
+                        ax2.set_xscale('log')
+                        # plt.savefig(os.path.join(figures_path, title + 'log' + str(dt.datetime.now()) + ".png"))
+
+                        ax3 = axs[1, 0]
+                        keys = [ln(x + 0.01) for x in keys_raw]
+                        ax3.scatter(keys, values)
+                        ax3.set_title("(c)")
+                        ax3.set_xlabel("ln-Precipitation [ln(mm/h)]")
+                        # plt.savefig(os.path.join(figures_path, title + 'log_exponents' + str(dt.datetime.now()) + ".png"))
+                        # fig.show()
                     plt.savefig(os.path.join(figures_path, title + str(dt.datetime.now()) + ".png"))
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         for period in period_list_for_plot:
             for sub_period_name, sub_period in period:
+                if only_winter and not sub_period_name == 'winter':
+                    continue
                 if not sub_period:
                     continue
                 custom_period = sub_period[0]

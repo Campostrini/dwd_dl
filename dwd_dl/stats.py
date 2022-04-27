@@ -191,7 +191,6 @@ class RadolanSingleStat(RadolanStatAbstractClass):
                 xlim=None,
                 ylim=None,
                 xticklabels=None,
-                bins=None,
                 range=None,
                 combine=False,
                 title='',
@@ -249,17 +248,19 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         value_counts = dict(sorted(value_counts.items()))
 
-        primitive = ax.scatter(list(value_counts.keys())[1:], list(value_counts.values())[1:])
+        v_sum = sum(list(value_counts.values()))
+        values = [v/v_sum for v in list(value_counts.values())]
+        primitive = ax.scatter(list(value_counts.keys())[1:], values[1:])
 
-        ax.set_title("Precipitation frequency " + title)
-        ax.set_xlabel("Precipitation")
+        ax.set_title(title)
+        ax.set_xlabel("Precipitation [mm/h]")
         if xticklabels is not None:
             assert len(xticklabels) == len(custom_periods)
             ax.set_xticklabels(xticklabels)
 
         _update_axes(ax, xincrease, yincrease, xscale, yscale, xticks, yticks, xlim, ylim)
 
-        return primitive
+        return primitive, value_counts
 
 #    @dask.delayed
     def boxplot(

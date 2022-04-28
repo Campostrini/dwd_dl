@@ -16,4 +16,4 @@ source activate py38
 
 cd $HOME/dwd-dl-thesis/dwd_dl/
 
-python hyperparam_search.py --batch_size 150 --max_epochs 60 --save false --workers 4 --precision 'bf16' --depth 4 --test_tube_exp_name 'first_param_opt' --transformation log_sum
+python hyperparam_search.py --batch_size 150 --max_epochs 60 --save false --workers 4 --depth 4 --test_tube_exp_name 'first_param_opt' --transformation log_sum

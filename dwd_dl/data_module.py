@@ -1,7 +1,7 @@
 import datetime as dt
 
 from pytorch_lightning import LightningDataModule
-from torch.utils.data import WeightedRandomSampler, DataLoader
+from torch.utils.data import RandomSampler, DataLoader
 import numpy as np
 
 from dwd_dl.dataset import create_h5, H5Dataset, RadolanDataset as Dataset, RadolanSubset as Subset
@@ -62,7 +62,9 @@ class RadolanDataModule(LightningDataModule):
 
         return DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.num_workers,
-            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id),  # sampler=weighted_random_sampler,
+            worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id),  sampler=RandomSampler(
+                self.train_dataset,
+            ),
             pin_memory=True
         )
 

@@ -41,8 +41,8 @@ from dwd_dl.metrics import (
 class UNetLitModel(pl.LightningModule):
 
     def __init__(self, in_channels=6, out_channels=1, init_features=32, permute_output=True, softmax_output=False,
-                 conv_bias=False, depth=7, cat=False, classes=6, lr=1e-3, batch_size=6, image_size=256, num_workers=4,
-                 timestamp_string=None, transformation=None,
+                 conv_bias=False, depth=7, cat=False, classes=4, lr=1, batch_size=6, image_size=256, num_workers=4,
+                 timestamp_string=None, transformation='log_sum',
                  **kwargs):
         super().__init__()
         self.save_hyperparameters(
@@ -210,7 +210,7 @@ class UNetLitModel(pl.LightningModule):
 
         self.apply(self.initialize_weights)
 
-        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, device=self.device)
+        self._loss_weights = torch.tensor(cfg.CFG.WEIGHTS, device=self.device, dtype=torch.float)
         # self.log_softmax = nn.LogSoftmax()
         # self.loss = torch.nn.NLLLoss(weight=self._loss_weights)
         self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
@@ -251,7 +251,7 @@ class UNetLitModel(pl.LightningModule):
                             bias=conv_bias,
                         ),
                     ),
-                    (name + "norm1", nn.BatchNorm2d(num_features=features, momentum=0.01)),
+                    (name + "norm1", nn.BatchNorm2d(num_features=features,)),
                     (name + "relu1", nn.ReLU(inplace=True)),
                     (
                         name + "conv2",
@@ -263,7 +263,7 @@ class UNetLitModel(pl.LightningModule):
                             bias=conv_bias,
                         ),
                     ),
-                    (name + "norm2", nn.BatchNorm2d(num_features=features, momentum=0.01)),
+                    (name + "norm2", nn.BatchNorm2d(num_features=features,)),
                     (name + "relu2", nn.ReLU(inplace=True)),
                 ]
             )
@@ -287,7 +287,7 @@ class UNetLitModel(pl.LightningModule):
                             bias=conv_bias,
                         ),
                     ),
-                    (name + "norm1", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
+                    (name + "norm1", nn.BatchNorm2d(num_features=out_channels,)),
                     (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
                     (
                         name + "conv2",
@@ -308,10 +308,10 @@ class UNetLitModel(pl.LightningModule):
         return nn.Sequential(
             OrderedDict(
                 [
-                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels,)),
                     (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
                     (name + "maxpool1", nn.MaxPool2d(kernel_size=2, stride=2)),
-                    (name + "norm2", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "norm2", nn.BatchNorm2d(num_features=in_channels,)),
                     (name + "leakyrelu2", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
                     (
                         name + "conv1",
@@ -339,7 +339,7 @@ class UNetLitModel(pl.LightningModule):
                             mode='nearest',
                         )
                     ),
-                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels, momentum=0.01)),
+                    (name + "norm1", nn.BatchNorm2d(num_features=in_channels,)),
                     (name + "leakyrelu1", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
                     (
                         name + "conv1",
@@ -351,7 +351,7 @@ class UNetLitModel(pl.LightningModule):
                             bias=conv_bias,
                         )
                     ),
-                    (name + "norm2", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
+                    (name + "norm2", nn.BatchNorm2d(num_features=out_channels,)),
                     (name + "leakyrelu2", nn.LeakyReLU(negative_slope=0.01, inplace=True)),
                     (
                         name + "conv2",
@@ -386,7 +386,7 @@ class UNetLitModel(pl.LightningModule):
                         name + "avgpool",
                         nn.AvgPool2d(kernel_size=2, stride=2)
                     ),
-                    (name + "norm", nn.BatchNorm2d(num_features=out_channels, momentum=0.01))
+                    (name + "norm", nn.BatchNorm2d(num_features=out_channels,))
                 ]
             )
         )
@@ -414,7 +414,7 @@ class UNetLitModel(pl.LightningModule):
                             bias=conv_bias
                         )
                     ),
-                    (name + "norm", nn.BatchNorm2d(num_features=out_channels, momentum=0.01)),
+                    (name + "norm", nn.BatchNorm2d(num_features=out_channels,)),
                 ]
             )
         )
@@ -619,7 +619,7 @@ class UNetLitModel(pl.LightningModule):
         parser.add_argument(
             "--lr",
             type=float,
-            default=0.001,
+            default=1,
             help="Initial learning rate. (default: 0.001)",
         )
         parser.add_argument(

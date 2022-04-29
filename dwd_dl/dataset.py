@@ -327,6 +327,7 @@ class RadolanSubset(RadolanDataset):
             else:
                 indices = [x for x in indices if indices.index(x) not in valid_indices]
             log.debug("Done dividing.")
+            raise DeprecationWarning
         elif subset == 'train':
             log.debug("Returning indices of training.")
             indices = dataset.indices_of_training()

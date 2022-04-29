@@ -14,11 +14,12 @@ class CallbacksList:
             filename=f'{experiment_timestamp_str}' + '-{epoch:02d}-{valid_loss:.2f}',
             save_top_k=2,
             mode='min',
+            save_last=True,
         )
 
         learning_rate_monitor = LearningRateMonitor(logging_interval='step')
 
-        early_stopping = EarlyStopping(monitor="val/epoch_loss")
+        early_stopping = EarlyStopping(monitor="val/epoch_loss", patience=3)
 
         self.callback_list = [val_loss_checkpoint, learning_rate_monitor, early_stopping]
 

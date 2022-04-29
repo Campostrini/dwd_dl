@@ -124,7 +124,7 @@ class RadolanConfigFileContent:
     # using weights from https://arxiv.org/abs/1706.03458
     @property
     def WEIGHTS(self):
-        return np.array((1, 1, 2, 5, 10, 30))
+        return np.array((1/89.4, 1/8.34, 1/1.81, 1/0.42))
 
     @property
     def VSC(self):

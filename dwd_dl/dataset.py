@@ -261,6 +261,7 @@ class RadolanDataset(Dataset):
         set_timestamps_list = []
         for range_ in set_ranges:
             set_timestamps_list += range_.date_range()
+        log.info(f"{len(set_timestamps_list)=}")
         for idx, _ in enumerate(self.indices_tuple):
             seq, tru = self.indices_tuple[idx]
             if self.sorted_sequence[seq[0]] in set_timestamps_list:
@@ -309,27 +310,25 @@ class RadolanSubset(RadolanDataset):
     def __init__(self, dataset: RadolanDataset, subset, valid_cases=20, seed=42, random_=False):
         log.info("Initializing %s", self.__class__.__name__)
         assert subset in ['train', 'valid', 'all', 'test']
-        dataset_len = len(dataset)
-        indices = [i for i in range(dataset_len)]
-        log.debug(f"With {random_=} and {subset=}")
+        log.info(f"With {random_=} and {subset=}")
         if random_ and not subset == 'test':
             random.seed(seed)
-            log.debug("Seed, set.")
-            log.debug("Starting sort of indices.")
+            log.info("Seed, set.")
+            log.info("Starting sort of indices.")
             indices = sorted(dataset.indices_of_validation() + dataset.indices_of_training())
-            log.debug("Done sorting.")
-            log.debug("Picking random sample.")
+            log.info("Done sorting.")
+            log.info("Picking random sample.")
             valid_indices = random.sample(indices, k=round((valid_cases / 100) * len(indices)))
-            log.debug("Done picking random sample.")
-            log.debug("Dividing validation from training.")
+            log.info("Done picking random sample.")
+            log.info("Dividing validation from training.")
             if subset == "valid":
                 indices = [indices[i] for i in sorted(valid_indices)]
             else:
                 indices = [x for x in indices if indices.index(x) not in valid_indices]
-            log.debug("Done dividing.")
+            log.info("Done dividing.")
             raise DeprecationWarning
         elif subset == 'train':
-            log.debug("Returning indices of training.")
+            log.info("Returning indices of training.")
             indices = dataset.indices_of_training()
         elif subset == 'valid':
             log.debug("Returning indices of validation.")
@@ -337,18 +336,23 @@ class RadolanSubset(RadolanDataset):
         elif subset == 'test':
             log.debug("Returning indices of test.")
             indices = dataset.indices_of_test()
+        else:
+            raise KeyError
 
-        log.debug("Setting dataset.")
+        log.info(f"{len(indices)=}")
+        log.info(f"{len(dataset)=}")
+        log.info("Setting dataset.")
         self.dataset = dataset
-        log.debug("Setting indices.")
+        log.info("Setting indices.")
         self.indices = indices
-        log.debug("Setting timestamps from lists of firsts.")
+        log.info("Setting timestamps from lists of firsts.")
         self.timestamps = [x for n, x in enumerate(self.dataset.sorted_sequence) if n in self.dataset.list_of_firsts]
-        log.debug("Setting timestamps using indices.")
+        log.info("Setting timestamps using indices.")
         self.timestamps = [self.timestamps[self.indices[n]] for n, _ in enumerate(self.indices)]
-        log.debug("Initialization done.")
+        log.info("Initialization done.")
 
     def __getitem__(self, idx):
+        log.debug(f"Getting item {idx=}")
         return self.dataset[self.indices[idx]]
 
     def __len__(self):

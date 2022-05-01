@@ -22,7 +22,6 @@ def main(args):
     unet.eval()
     # print(f"Timestamps over threshold: {dm.timestamps_over_threshold}")
     with torch.no_grad():
-        unet.to('cuda')
         img.visualizer(unet)
 
 

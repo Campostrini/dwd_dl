@@ -234,7 +234,7 @@ class ConfusionMatrixScikit(tm.Metric):
         # tn, fp, fn, tp
         device = preds.device
         cm = sklm.confusion_matrix(
-            preds.cpu().numpy().ravel(), target.cpu().numpy().ravel(), range(len(cfg.CFG.CLASSES)), normalize='true')
+            preds.cpu().numpy().ravel(), target.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)),)  # normalize='true')
         self.numel += torch.numel(preds)
         self.confusion_matrix += torch.tensor(cm, device=device)
 

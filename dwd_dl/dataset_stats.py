@@ -173,7 +173,7 @@ if __name__ == "__main__":
         out += f"\nThe sum of all classes tiles is {sum(counted_classes.values())}"
         return out
 
-    short = False
+    short = True
     if short:
         ranges_list = [
             {
@@ -227,8 +227,8 @@ if __name__ == "__main__":
 
 
     only_winter = True
-    scatter = True
-    linear_and_0 = True
+    scatter = False
+    linear_and_0 = False
 
     log.info(f"{only_winter=}, {scatter=}")
     if scatter:

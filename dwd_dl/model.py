@@ -36,6 +36,7 @@ from dwd_dl.metrics import (
     Contingency,
     ConfusionMatrixScikit
 )
+from dwd_dl import log
 
 
 class UNetLitModel(pl.LightningModule):
@@ -496,6 +497,7 @@ class UNetLitModel(pl.LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
+        log.info("Trainig step")
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
@@ -507,6 +509,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'train/loss': loss, 'train/accuracy': train_acc})
         self.log('lr', self.lr, True)
 
+        log.info("Training Step end")
         return {'loss': loss, 'train_acc': train_acc}
 
     def training_epoch_end(self, outputs):
@@ -515,6 +518,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'train/epoch_loss': train_loss, 'train/epoch_accuracy': train_acc})
 
     def validation_step(self, batch, batch_idx):
+        log.info("Validation Step.")
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
@@ -524,13 +528,14 @@ class UNetLitModel(pl.LightningModule):
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
         metrics_out = self.metrics(*Contingency.format_input(y_pred, y_true))
-        persistence_metrics_out = self.persistence_metrics(*Contingency.format_input(x[:, -4, ...], y_true,
+        persistence_metrics_out = self.persistence_metrics(*Contingency.format_input(x[:, -5, ...], y_true,
                                                                                      persistence=True))
 
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
+        log.info("Validation Step End")
         return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
@@ -563,7 +568,7 @@ class UNetLitModel(pl.LightningModule):
         test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
         metrics_out = self.test_metrics(*Contingency.format_input(y_pred, y_true))
-        persistence_metrics_out = self.test_persistence_metrics(*Contingency.format_input(x[:, -4, ...], y_true,
+        persistence_metrics_out = self.test_persistence_metrics(*Contingency.format_input(x[:, -5, ...], y_true,
                                                                                           persistence=True))
 
         self.log_dict({'test/loss': loss, 'test/accuracy': test_acc})
@@ -656,7 +661,7 @@ class UNetLitModel(pl.LightningModule):
         parser.add_argument(
             "--transformation",
             type=str,
-            default=None,
+            default='log_sum',
             help="The transformation applied to each input. Either log or log_sum. (default: None)"
         )
         parser.add_argument(

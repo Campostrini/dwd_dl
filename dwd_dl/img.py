@@ -15,6 +15,7 @@ import panel as pn
 import dwd_dl.cfg as cfg
 import dwd_dl.utils as utils
 from dwd_dl.data_module import RadolanLiveDataModule
+from dwd_dl.model import RadolanLiveEvaluator
 
 hv.extension('bokeh')
 
@@ -111,7 +112,7 @@ def selection(
     return selection.copy()
 
 
-def visualizer(model_evaluator):
+def visualizer(model_evaluator: RadolanLiveEvaluator):
     renderer = hv.renderer('bokeh')
     renderer = renderer.instance(mode='server')
 

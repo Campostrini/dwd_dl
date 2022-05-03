@@ -5,7 +5,7 @@ from torch.utils.data import RandomSampler, DataLoader
 import numpy as np
 
 from dwd_dl.dataset import create_h5, H5Dataset, RadolanDataset as Dataset, RadolanSubset as Subset
-from dwd_dl import cfg
+from dwd_dl import cfg, log
 
 
 class RadolanDataModule(LightningDataModule):
@@ -54,12 +54,6 @@ class RadolanDataModule(LightningDataModule):
             self.client.close()
 
     def train_dataloader(self):
-        # weighted_random_sampler = WeightedRandomSampler(
-        #     weights=self.train_dataset.weights,
-        #     num_samples=len(self.train_dataset),
-        #     replacement=False
-        # )
-
         return DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, num_workers=self.num_workers,
             worker_init_fn=lambda worker_id: np.random.seed(42 + worker_id),  sampler=RandomSampler(

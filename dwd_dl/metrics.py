@@ -6,7 +6,7 @@ import sklearn.metrics as sklm
 from torchmetrics import Precision, Recall, F1, PrecisionRecallCurve, ConfusionMatrix
 
 import dwd_dl.cfg as cfg
-import dwd_dl.utils as utils
+from dwd_dl import log
 
 
 class Contingency(tm.Metric):
@@ -30,6 +30,7 @@ class Contingency(tm.Metric):
         self.false_negative += torch.sum(~preds & target)
         self.true_negative += torch.sum(~preds & ~target)
         self.numel += torch.numel(preds)
+        # log.info(f"{self.true_positive=} {self.false_positive=} {self.false_negative=} {self.true_negative=} {self.__class__.__name__} {self.class_number}")
         assert self.true_positive + self.false_positive + self.false_negative + self.true_negative == self.numel
 
     def compute(self):
@@ -234,7 +235,7 @@ class ConfusionMatrixScikit(tm.Metric):
         # tn, fp, fn, tp
         device = preds.device
         cm = sklm.confusion_matrix(
-            preds.cpu().numpy().ravel(), target.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)),)  # normalize='true')
+            target.cpu().numpy().ravel(), preds.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)),)  # normalize='true')
         self.numel += torch.numel(preds)
         self.confusion_matrix += torch.tensor(cm, device=device)
 

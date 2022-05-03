@@ -181,6 +181,8 @@ class RadolanDataset(Dataset):
             self.ds_classes = ZarrDataset(ranges, mode='c', classes=cfg.CFG.CLASSES)
             log.info("Initialization done.")
 
+        # self.tstracker = TSTracker()
+
     @property
     def list_of_firsts(self):
         return self._list_of_firsts
@@ -310,6 +312,7 @@ class RadolanSubset(RadolanDataset):
     def __init__(self, dataset: RadolanDataset, subset, valid_cases=20, seed=42, random_=False):
         log.info("Initializing %s", self.__class__.__name__)
         assert subset in ['train', 'valid', 'all', 'test']
+        self._subset = subset
         log.info(f"With {random_=} and {subset=}")
         if random_ and not subset == 'test':
             random.seed(seed)
@@ -353,7 +356,14 @@ class RadolanSubset(RadolanDataset):
 
     def __getitem__(self, idx):
         log.debug(f"Getting item {idx=}")
-        return self.dataset[self.indices[idx]]
+        real_idx = self.indices[idx]
+        # if self._subset == 'train':
+        #     self.dataset.tstracker.add_timestamp_training(self.dataset.sorted_sequence[real_idx])
+        #     self.dataset.tstracker.add_index_training(real_idx)
+        # if self._subset == 'valid':
+        #     self.dataset.tstracker.add_timestamp_validation(self.dataset.sorted_sequence[real_idx])
+        #     self.dataset.tstracker.add_index_validation(real_idx)
+        return self.dataset[real_idx]
 
     def __len__(self):
         return len(self.indices)
@@ -702,7 +712,7 @@ class PureZarrFile:
             raise TypeError(f"Item must be of type {type(dt.datetime)} but got {type(item)}.")
 
         difference = item - self.start_time
-        difference_hours = difference.seconds / 3600
+        difference_hours = difference.seconds / 3600 + difference.days*24
         if not 0 <= difference_hours <= self.max_hours_after_start:
             raise KeyError(f"Key {item} is not in this {self.__class__.__name__}")
 

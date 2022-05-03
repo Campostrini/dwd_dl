@@ -60,9 +60,6 @@ class UNetLitModel(pl.LightningModule):
         self.workers = num_workers
         self.image_size = image_size
         self.batch_size = batch_size
-        self.dataset = None
-        self.valid_dataset = None
-        self.train_dataset = None
         self.init_features = int(init_features)
         lon_lat_channels = 2
         time_of_day_channel = 1
@@ -215,6 +212,9 @@ class UNetLitModel(pl.LightningModule):
         # self.log_softmax = nn.LogSoftmax()
         # self.loss = torch.nn.NLLLoss(weight=self._loss_weights)
         self.loss = torch.nn.CrossEntropyLoss(weight=self._loss_weights)
+
+        # self._check_no_overlap_one_example = None
+        # self._count_overlaps = 0
 
     @staticmethod
     def initialize_weights(layer: nn.Module):
@@ -497,7 +497,7 @@ class UNetLitModel(pl.LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
-        log.info("Trainig step")
+        log.debug("Trainig step")
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
@@ -509,7 +509,20 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'train/loss': loss, 'train/accuracy': train_acc})
         self.log('lr', self.lr, True)
 
-        log.info("Training Step end")
+        # if self._check_no_overlap_one_example is not None:
+        #     training_to_compare = y_true.cpu().numpy()
+        #     log.info(f"{self._check_no_overlap_one_example.shape=} and {training_to_compare.shape=}")
+        #     for b in self._check_no_overlap_one_example:
+        #         for t in training_to_compare:
+        #             sum_ = (b == t).sum()
+        #             if sum_ > 256*256*0.9:
+        #                 warnings.warn(f"Sum very high {sum=}")
+        #             if sum_ == 256*256:
+        #                 if b.sum() > 40:
+        #                     self._count_overlaps += 1
+        #                     log.info(f"{b.sum()=}")
+        log.debug("Training Step end")
+        # log.info(f"{self._count_overlaps=}")
         return {'loss': loss, 'train_acc': train_acc}
 
     def training_epoch_end(self, outputs):
@@ -518,7 +531,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'train/epoch_loss': train_loss, 'train/epoch_accuracy': train_acc})
 
     def validation_step(self, batch, batch_idx):
-        log.info("Validation Step.")
+        log.debug("Validation Step.")
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
@@ -527,15 +540,17 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        metrics_out = self.metrics(*Contingency.format_input(y_pred, y_true))
-        persistence_metrics_out = self.persistence_metrics(*Contingency.format_input(x[:, -5, ...], y_true,
-                                                                                     persistence=True))
+        self.metrics.update(*Contingency.format_input(y_pred, y_true))
+        metrics_out = self.metrics.compute()
+        self.persistence_metrics.update(*Contingency.format_input(x[:, -5, ...], y_true, persistence=True))
+        persistence_metrics_out = self.persistence_metrics.compute()
 
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
-        log.info("Validation Step End")
+        log.debug("Validation Step End")
+        self._check_no_overlap_one_example = y_true.cpu().numpy()
         return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
@@ -544,7 +559,12 @@ class UNetLitModel(pl.LightningModule):
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
         self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
-        self._reset_metrics()
+        self.metrics.reset()
+        self.persistence_metrics.reset()
+        # self._reset_metrics()
+        # log.info(f"{self.trainer.datamodule.dataset.tstracker._used_indices_training=}")
+        # log.info(f"{self.trainer.datamodule.dataset.tstracker._used_indices_validation=}")
+        # self.trainer.datamodule.dataset.tstracker.reset()
         # self.logger.experiment.add_hparams(
         #     dict(self.hparams),
         #     {

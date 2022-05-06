@@ -556,7 +556,7 @@ class UNetLitModel(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         # TODO: Move to callbacks when it's available
-        log.info(f"{outputs=}")
+        # log.info(f"{outputs=}")
         val_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})

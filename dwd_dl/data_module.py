@@ -1,6 +1,6 @@
 import datetime as dt
 
-from pytorch_lightning import LightningDataModule
+import pytorch_lightning as pl
 from torch.utils.data import RandomSampler, DataLoader
 import numpy as np
 
@@ -8,7 +8,7 @@ from dwd_dl.dataset import create_h5, H5Dataset, RadolanDataset as Dataset, Rado
 from dwd_dl import cfg, log
 
 
-class RadolanDataModule(LightningDataModule):
+class RadolanDataModule(pl.LightningDataModule):
     def __init__(self, batch_size, num_workers, image_size, use_dask, client=None):
         super().__init__()
         self.dataset = None

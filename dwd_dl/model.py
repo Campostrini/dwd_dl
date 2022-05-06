@@ -540,18 +540,19 @@ class UNetLitModel(pl.LightningModule):
 
         val_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
-        self.metrics.update(*Contingency.format_input(y_pred, y_true))
-        metrics_out = self.metrics.compute()
-        self.persistence_metrics.update(*Contingency.format_input(x[:, -5, ...], y_true, persistence=True))
-        persistence_metrics_out = self.persistence_metrics.compute()
-
         self.log_dict({'val/loss': loss, 'val/accuracy': val_acc})
         self.log_dict({'hp/val_loss': loss, 'hp/val_accuracy': val_acc})
+
+        log.debug("Validation Step End")
+        return {'loss': loss, 'val_acc': val_acc, 'preds': y_pred, 'target': y_true, 'pers': x}
+
+    def validation_step_end(self, outputs):
+        self.metrics.update(*Contingency.format_input(outputs['preds'], outputs['target']))
+        metrics_out = self.metrics.compute()
+        self.persistence_metrics.update(*Contingency.format_input(outputs['pers'][:, -5, ...], outputs['target'], persistence=True))
+        persistence_metrics_out = self.persistence_metrics.compute()
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
-        log.debug("Validation Step End")
-        self._check_no_overlap_one_example = y_true.cpu().numpy()
-        return {'loss': loss, 'val_acc': val_acc}
 
     def validation_epoch_end(self, outputs):
         # TODO: Move to callbacks when it's available

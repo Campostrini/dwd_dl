@@ -272,10 +272,10 @@ if __name__ == "__main__":
                     # log.info(rainy_days_string)
                     # log.info(rainy_classes_string)
 
-            ax0.set_title("(a)")
+            ax0.set_title("(b)")
             ax0.set_xlabel("Precipitation [mm/h]")
             ax0.set_xscale('log')
-            ax3.set_title("(b)")
+            ax3.set_title("(a)")
             ax3.set_xlabel("ln-(precipitation+0.01) [ln(mm/h)]")
             plt.legend(loc="upper right")
             plt.savefig(os.path.join(figures_path, title + str(dt.datetime.now()) + ".png"))

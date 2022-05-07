@@ -695,6 +695,12 @@ class UNetLitModel(pl.LightningModule):
             help="Whether to use Dask or a pure Zarr implementation of the Radolan Datset class."
                  "It might solve multiprocessing issues."
         )
+        parser.add_argument(
+            "--model_path",
+            type=str,
+            default=None,
+            help="The path to the saved model."
+        )
         if argument_group:
             return parent_parser
         else:
@@ -795,7 +801,7 @@ class RadolanLiveEvaluator(UNetLitModel):
     def add_model_specific_args(parent_parser):
         parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
         parser.add_argument(
-            "--model-path",
+            "--model_path",
             type=str,
             default=None,
             help="The path to the saved model."

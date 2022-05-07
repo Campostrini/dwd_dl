@@ -234,8 +234,8 @@ if __name__ == "__main__":
     if scatter:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             fig, axs = plt.subplots(2, 1, figsize=(8.27, 11.69))
-            ax0 = axs[0]
-            ax3 = axs[1]
+            ax3 = axs[0]
+            ax0 = axs[1]
             for period in period_list_for_plot:
                 for sub_period_name, sub_period in period:
                     if only_winter and not sub_period_name == 'winter':
@@ -276,7 +276,7 @@ if __name__ == "__main__":
             ax0.set_xlabel("Precipitation [mm/h]")
             ax0.set_xscale('log')
             ax3.set_title("(b)")
-            ax3.set_xlabel("ln-Precipitation [ln(mm/h)]")
+            ax3.set_xlabel("ln-(precipitation+0.01) [ln(mm/h)]")
             plt.legend(loc="upper right")
             plt.savefig(os.path.join(figures_path, title + str(dt.datetime.now()) + ".png"))
 

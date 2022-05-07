@@ -169,7 +169,6 @@ class HeidkeSkillScore(Contingency):
         fp = self.false_positive
         fn = self.false_negative
         tn = self.true_negative
-        log.info(f"{tp=}, {tn=}, {fp=}, {fn=}")
         return 2 * (tp*tn + fp*fn) / ((tp + fn)*(fn + tn) + (tp + fp)*(fp + tn))
 
 

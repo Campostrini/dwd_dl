@@ -563,6 +563,7 @@ class UNetLitModel(pl.LightningModule):
         self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
         self.metrics.reset()
         self.persistence_metrics.reset()
+        log.info(f"{self.last_confusion_matrix=}")
         # self._reset_metrics()
         # log.info(f"{self.trainer.datamodule.dataset.tstracker._used_indices_training=}")
         # log.info(f"{self.trainer.datamodule.dataset.tstracker._used_indices_validation=}")
@@ -578,6 +579,7 @@ class UNetLitModel(pl.LightningModule):
     def on_validation_end(self) -> None:
         confusion_matrix_display = ConfusionMatrixDisplay(self.last_confusion_matrix)
         confusion_matrix_display.plot()
+        log.info(f"{self.last_confusion_matrix=}")
         plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT, 'confmatrix.png'))
 
     def test_step(self, batch, batch_idx):

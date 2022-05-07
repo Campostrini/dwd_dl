@@ -34,16 +34,17 @@ def normalize(counts: dict):
     return {k: counts[k]/counts_sum for k in counts}
 
 
-fig, axs = plt.subplots(3, 1, figsize=(8.27, 11.69),)
-for ax, counts, title in zip(
-        axs, (counts_training, counts_validation, counts_test), ("Training", "Validation", "Test")):
+fig, axs = plt.subplots(1, 1, figsize=(8.27, 11.69/2),)
+width = 0.25
+for counts, title, i in zip(
+        (counts_training, counts_validation, counts_test), ("Training", "Validation", "Test"), range(3)):
     counts = normalize(counts)
     log.info(f"{title=}, {counts=}")
-    ax.bar(range(len(counts)), counts.values(),)
-    ax.set_xticks(range(len(counts.keys())), list(counts.keys()))
-    ax.set_title(title)
-    ax.set_ylabel("Relative Frequency")
+    x_axis = [x +i*width for x in range(len(counts))]
+    axs.bar(x_axis, counts.values(), label=title, width=width)
+axs.set_xticks([x-width for x in x_axis], list(counts_training.keys()))
+axs.set_ylabel("Relative Frequency")
 
-ax.set_xlabel("Class Label")
-
+axs.set_xlabel("Class Label")
+plt.legend(loc="upper right")
 plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT, 'figures', 'Class Frequencies Bar.png'))

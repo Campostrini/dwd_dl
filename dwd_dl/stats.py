@@ -194,6 +194,7 @@ class RadolanSingleStat(RadolanStatAbstractClass):
                 range=None,
                 combine=False,
                 title='',
+                plot=True,
                 **kwargs
                 ):
         """Adapted from xarray
@@ -204,9 +205,9 @@ class RadolanSingleStat(RadolanStatAbstractClass):
             dataarray = self._data_array_selection_from_custom_periods(season, custom_periods, combine)
         else:
             raise ValueError("Whhoops, something went wrong.")
-
-        log.info(f"Gettin axis for scatter plot.")
-        ax = get_axis(figsize, size, aspect, ax)
+        if plot:
+            log.info(f"Gettin axis for scatter plot.")
+            ax = get_axis(figsize, size, aspect, ax)
         arrays = []
         if not isinstance(dataarray, list):
             dataarray = [dataarray]
@@ -250,10 +251,13 @@ class RadolanSingleStat(RadolanStatAbstractClass):
 
         v_sum = sum(list(value_counts.values()))
         values = [v/v_sum for v in list(value_counts.values())]
-        primitive = ax.scatter(list(value_counts.keys())[1:], values[1:])
-
-        ax.set_title(title)
-        ax.set_xlabel("Precipitation [mm/h]")
+        if plot:
+            primitive = ax.scatter(list(value_counts.keys())[1:], values[1:])
+        else:
+            primitive = None
+        if plot:
+            ax.set_title(title)
+            ax.set_xlabel("Precipitation [mm/h]")
         if xticklabels is not None:
             assert len(xticklabels) == len(custom_periods)
             ax.set_xticklabels(xticklabels)

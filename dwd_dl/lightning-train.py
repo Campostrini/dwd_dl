@@ -25,7 +25,7 @@ def main(args):
     print(f"{args.dask=}")
     dm = data_module.RadolanDataModule(args.batch_size, args.workers, args.image_size, args.dask, client=client)
     logger = TestTubeLogger(
-        os.path.join(cfg.CFG.RADOLAN_ROOT, 'tt_logs'),
+        os.path.join(cfg.CFG.RADOLAN_RAW, 'tt_logs'),
         experiment_timestamp_str,
         create_git_tag=True,
     )

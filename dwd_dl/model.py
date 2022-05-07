@@ -580,7 +580,7 @@ class UNetLitModel(pl.LightningModule):
         confusion_matrix_display = ConfusionMatrixDisplay(self.last_confusion_matrix)
         confusion_matrix_display.plot()
         log.info(f"{self.last_confusion_matrix=}")
-        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT, 'confmatrix.png'))
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, 'confmatrix.png'))
 
     def test_step(self, batch, batch_idx):
         x, y_true = batch

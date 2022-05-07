@@ -268,6 +268,10 @@ class Config:
         return root
 
     @property
+    def RADOLAN_ROOT_RAW(self):
+        return self._RADOLAN_ROOT
+
+    @property
     def RADOLAN_RAW(self):
         return os.path.join(self.RADOLAN_ROOT, 'Raw')
 
@@ -435,7 +439,7 @@ class Config:
         return self._files_list
 
     def create_checkpoint_dir(self):
-        checkpoint_dir = os.path.join(self.RADOLAN_ROOT, 'Models')
+        checkpoint_dir = os.path.join(self.RADOLAN_ROOT_RAW, 'Models')
         os.makedirs(checkpoint_dir, exist_ok=True)
         return checkpoint_dir
 

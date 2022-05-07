@@ -22,8 +22,8 @@ class Contingency(tm.Metric):
 
     def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
         # preds, target = self.format_input(preds, target, self.persistence_as_metric)
-        preds = self.class_number, device=preds.device == preds
-        target = self.class_number, device=target.device == target
+        preds = self.class_number == preds
+        target = self.class_number == target
         assert preds.shape == target.shape
         self.true_positive += torch.sum(preds & target)
         self.false_positive += torch.sum(preds & ~target)
@@ -169,6 +169,7 @@ class HeidkeSkillScore(Contingency):
         fp = self.false_positive
         fn = self.false_negative
         tn = self.true_negative
+        log.info(f"{tp=}, {tn=}, {fp=}, {fn=}")
         return 2 * (tp*tn + fp*fn) / ((tp + fn)*(fn + tn) + (tp + fp)*(fp + tn))
 
 

@@ -723,7 +723,7 @@ class PureZarrFile:
         if not isinstance(item, dt.datetime):
             return False
         difference = item - self.start_time
-        difference_hours = difference.seconds / 3600
+        difference_hours = difference.seconds / 3600 + difference.days*24
         if not 0 <= difference_hours <= self.max_hours_after_start:
             return False
         return True

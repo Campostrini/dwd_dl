@@ -52,5 +52,5 @@ if __name__ == "__main__":
     parser = model.UNetLitModel.add_model_specific_args(parser)
     # parser = VideoProducer.add_video_specific_argparse_args(parser)
     args = parser.parse_args()
-    dl.cfg.initialize2()
+    dl.cfg.initialize2(skip_move=False)
     main(args)

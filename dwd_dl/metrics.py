@@ -30,7 +30,7 @@ class Contingency(tm.Metric):
         self.false_negative += torch.sum(~preds & target)
         self.true_negative += torch.sum(~preds & ~target)
         self.numel += torch.numel(preds)
-        # log.info(f"{self.true_positive=} {self.false_positive=} {self.false_negative=} {self.true_negative=} {self.__class__.__name__} {self.class_number}")
+        log.info(f"{self.true_positive=} {self.false_positive=} {self.false_negative=} {self.true_negative=} {self.__class__.__name__} {self.class_number}")
         assert self.true_positive + self.false_positive + self.false_negative + self.true_negative == self.numel
 
     def compute(self):
@@ -266,6 +266,6 @@ class NormalizedConfusionMatrix(tm.Metric):
 
     def compute(self):
         self.add_state("normalized_confusion_matrix", default=torch.tensor(
-            [[element/sum(row) for element in row] for row in self.confusion_matrix], dtype=torch.double
+            [[element/row.sum() for element in row] for row in self.confusion_matrix], dtype=torch.double
         ), dist_reduce_fx='mean')
         return self.normalized_confusion_matrix

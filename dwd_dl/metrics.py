@@ -235,9 +235,37 @@ class ConfusionMatrixScikit(tm.Metric):
         # tn, fp, fn, tp
         device = preds.device
         cm = sklm.confusion_matrix(
-            target.cpu().numpy().ravel(), preds.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)), normalize='true')
+            target.cpu().numpy().ravel(), preds.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)))
         self.numel += torch.numel(preds)
         self.confusion_matrix += torch.tensor(cm, device=device)
 
     def compute(self):
         return self.confusion_matrix
+
+
+class NormalizedConfusionMatrix(tm.Metric):
+    def __init__(self, persistence_as_metric=False):
+        super().__init__()
+        self.persistence_as_metric = persistence_as_metric
+        self.add_state("confusion_matrix", default=torch.zeros(
+            (len(cfg.CFG.CLASSES), len(cfg.CFG.CLASSES)), dtype=torch.double), dist_reduce_fx="sum")
+        self.add_state("numel", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("normalized_confusion_matrix", default=torch.zeros(
+            (len(cfg.CFG.CLASSES), len(cfg.CFG.CLASSES)), dtype=torch.double), dist_reduce_fx="sum"
+        )
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        # preds, target = Contingency.format_input(preds, target, self.persistence_as_metric)
+        assert preds.shape == target.shape
+        # tn, fp, fn, tp
+        device = preds.device
+        cm = sklm.confusion_matrix(
+            target.cpu().numpy().ravel(), preds.cpu().numpy().ravel(), labels=range(len(cfg.CFG.CLASSES)))
+        self.numel += torch.numel(preds)
+        self.confusion_matrix += torch.tensor(cm, device=device)
+
+    def compute(self):
+        self.add_state("normalized_confusion_matrix", default=torch.tensor(
+            [[element/sum(row) for element in row] for row in self.confusion_matrix], dtype=torch.double
+        ), dist_reduce_fx='mean')
+        return self.normalized_confusion_matrix

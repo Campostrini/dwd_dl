@@ -14,6 +14,10 @@ import yaml
 
 import dwd_dl.cfg as cfg
 
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
 
 class URLValidator(Validator):
     """ Custom url validator """

@@ -34,7 +34,8 @@ from dwd_dl.metrics import (
     Recall,
     F1,
     Contingency,
-    ConfusionMatrixScikit
+    ConfusionMatrixScikit,
+    NormalizedConfusionMatrix
 )
 from dwd_dl import log
 
@@ -89,7 +90,7 @@ class UNetLitModel(pl.LightningModule):
             self._transform = transform
 
         self.lr = lr
-        self.cel_weights = torch.tensor([1/95, 1/4, 1/1, 1/0.7])
+        self.cel_weights = torch.tensor([0.253, 27.1, 124.6, 541.3])
         sizes = [self.init_features * 2 ** n for n in range(self._depth)]
 
         self._metrics_to_include = [
@@ -560,6 +561,7 @@ class UNetLitModel(pl.LightningModule):
         val_acc = float(sum([batch['val_acc'] for batch in outputs])) / len(outputs)
         self.log_dict({'val/epoch_loss': val_loss, 'val/epoch_accuracy': val_acc})
         self.last_confusion_matrix = self.metrics['ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
+        self.last_normalized_confusion_matrix = self.metrics['NormalizedConfusionMatrix'].normalized_confusion_matrix.cpu().numpy()
         self.metrics.reset()
         self.persistence_metrics.reset()
         log.info(f"{self.last_confusion_matrix=}")
@@ -579,7 +581,11 @@ class UNetLitModel(pl.LightningModule):
         confusion_matrix_display = ConfusionMatrixDisplay(self.last_confusion_matrix)
         confusion_matrix_display.plot()
         log.info(f"{self.last_confusion_matrix=}")
-        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, 'confmatrix.png'))
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, f'confmatrix_{dt.datetime.now()}.png'))
+        normalized_confusion_matrix_display = ConfusionMatrixDisplay(self.last_normalized_confusion_matrix)
+        normalized_confusion_matrix_display.plot()
+        log.info(f"{self.last_normalized_confusion_matrix=}")
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, f'normlized_confmatrix_{dt.datetime.now()}.png'))
 
     def test_step(self, batch, batch_idx):
         x, y_true = batch
@@ -605,6 +611,16 @@ class UNetLitModel(pl.LightningModule):
     def test_epoch_end(self, outputs):
         test_loss = float(sum([batch['loss'] for batch in outputs]) / len(outputs))
         test_acc = float(sum([batch['test_acc'] for batch in outputs])) / len(outputs)
+        self.last_confusion_matrix = self.test_metrics['test/ConfusionMatrixScikit'].confusion_matrix.cpu().numpy()
+        self.last_normalized_confusion_matrix = self.test_metrics['test/NormalizedConfusionMatrix'].normalized_confusion_matrix.cpu().numpy()
+        confusion_matrix_display = ConfusionMatrixDisplay(self.last_confusion_matrix)
+        confusion_matrix_display.plot()
+        log.info(f"{self.last_confusion_matrix=}")
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, f'confmatrix_test_{dt.datetime.now()}.png'))
+        normalized_confusion_matrix_display = ConfusionMatrixDisplay(self.last_normalized_confusion_matrix)
+        normalized_confusion_matrix_display.plot()
+        log.info(f"{self.last_normalized_confusion_matrix=}")
+        plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, f'normlized_confmatrix_test_{dt.datetime.now()}.png'))
         self.log_dict({'test/epoch_loss': test_loss, 'test/epoch_accuracy': test_acc})
 
     def predict_step(self, batch, batch_idx, **kwargs):
@@ -733,6 +749,9 @@ class UNetLitModel(pl.LightningModule):
             mc.add_metrics({
                 f'{test_prefix}{ConfusionMatrixScikit.__name__}': ConfusionMatrixScikit(),
             })
+            mc.add_metrics({
+                f'{test_prefix}{NormalizedConfusionMatrix.__name__}': NormalizedConfusionMatrix()
+            })
         mc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}': metric(
                 self._classes, average=average
@@ -754,6 +773,9 @@ class UNetLitModel(pl.LightningModule):
             })
             pmc.add_metrics({
                 f'{test_prefix}{ConfusionMatrixScikit.__name__}/persistence': ConfusionMatrixScikit(True),
+            })
+            pmc.add_metrics({
+                f'{test_prefix}{NormalizedConfusionMatrix.__name__}/persistence': NormalizedConfusionMatrix(True),
             })
         pmc.add_metrics({
             f'{test_prefix}{metric.__name__}{average}/persistence': metric(
@@ -797,16 +819,16 @@ class RadolanLiveEvaluator(UNetLitModel):
         x, y, y_true = x[:, ::5], torch.argmax(y, dim=1), y_true[:, ::5]
         return x.cpu().numpy(), y.cpu().numpy(), y_true.cpu().numpy()
 
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
-        parser.add_argument(
-            "--model_path",
-            type=str,
-            default=None,
-            help="The path to the saved model."
-        )
-        return parent_parser
+    # @staticmethod
+    # def add_model_specific_args(parent_parser):
+    #     parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
+    #     parser.add_argument(
+    #         "--model_path",
+    #         type=str,
+    #         default=None,
+    #         help="The path to the saved model."
+    #     )
+    #     return parent_parser
 
     def forward(self, x):
         return super().forward(x)

@@ -501,7 +501,7 @@ class UNetLitModel(pl.LightningModule):
         log.debug("Trainig step")
         x, y_true = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
-        y_pred = self(x)
+        y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)
 
@@ -535,8 +535,9 @@ class UNetLitModel(pl.LightningModule):
         log.debug("Validation Step.")
         x, y_true = batch
         x_pers = x.detach().clone()
+        x_pers = torch.nan_to_num(x_pers)
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
-        y_pred = self(x)
+        y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)
 
@@ -591,8 +592,9 @@ class UNetLitModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y_true = batch
         x_pers = x.detach().clone()
+        x_pers = torch.nan_to_num(x_pers)
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
-        y_pred = self(x)
+        y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)
 

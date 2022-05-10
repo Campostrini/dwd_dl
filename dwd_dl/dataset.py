@@ -229,10 +229,12 @@ class RadolanDataset(Dataset):
         item_tensors = {'seq': [], 'tru': []}
         for sub_period, indices in zip(item_tensors, (seq, tru)):
             for t in indices:
-                if sub_period == 'seq' and cfg.CFG.MODE == 'r':
+                if sub_period == 'seq':
                     data = self.ds_raw[self.sorted_sequence[t]]
+                    log.debug(f"In raw.")
                 else:
                     data = self.ds_classes[self.sorted_sequence[t]]
+                    log.debug(f"In classes.")
                 item_tensors[sub_period].append(data)
             item_tensors[sub_period] = torch.from_numpy(
                 np.concatenate(item_tensors[sub_period], axis=0).astype(np.float32)

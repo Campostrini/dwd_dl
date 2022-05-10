@@ -30,7 +30,7 @@ class Contingency(tm.Metric):
         self.false_negative += torch.sum(~preds & target)
         self.true_negative += torch.sum(~preds & ~target)
         self.numel += torch.numel(preds)
-        log.info(f"{self.true_positive=} {self.false_positive=} {self.false_negative=} {self.true_negative=} {self.__class__.__name__} {self.class_number}")
+        log.debug(f"{self.true_positive=} {self.false_positive=} {self.false_negative=} {self.true_negative=} {self.__class__.__name__} {self.class_number}")
         assert self.true_positive + self.false_positive + self.false_negative + self.true_negative == self.numel
 
     def compute(self):
@@ -43,6 +43,7 @@ class Contingency(tm.Metric):
         else:
             if len(preds.shape) == 3:
                 preds = torch.unsqueeze(preds, dim=1)  # to go from N, 256, 256 to N, 1, 256, 256 for persistence
+                log.debug(f"{preds=}")
                 if preds.is_floating_point():
                     device = preds.device
                     preds = torch.cat(
@@ -50,8 +51,10 @@ class Contingency(tm.Metric):
                          (preds < cfg.CFG.CLASSES[class_name][1]) for class_name in cfg.CFG.CLASSES],
                         dim=1)
                     zeros = torch.zeros(size=(*preds.shape[:1], 1, *preds.shape[2:]), device=device)
+                    log.debug(f"{preds=} after zeros")
                     for n in range(preds.shape[1]):
                         zeros += n * torch.unsqueeze(preds[:, n, ...], dim=1)
+                    log.debug(f"{preds=} after range {preds.shape[1]}")
                     preds = zeros.to(dtype=torch.int).to(device=device)
         return preds, target
 

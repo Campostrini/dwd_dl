@@ -534,6 +534,7 @@ class UNetLitModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         log.debug("Validation Step.")
         x, y_true = batch
+        x_pers = x.detach().clone()
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
@@ -543,7 +544,7 @@ class UNetLitModel(pl.LightningModule):
 
         self.metrics.update(*Contingency.format_input(y_pred, y_true))
         metrics_out = self.metrics.compute()
-        self.persistence_metrics.update(*Contingency.format_input(x[:, -5, ...], y_true, persistence=True))
+        self.persistence_metrics.update(*Contingency.format_input(x_pers[:, -5, ...], y_true, persistence=True))
         persistence_metrics_out = self.persistence_metrics.compute()
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
@@ -589,6 +590,7 @@ class UNetLitModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y_true = batch
+        x_pers = x.detach().clone()
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(x)
 
@@ -597,7 +599,8 @@ class UNetLitModel(pl.LightningModule):
         test_acc = torch.sum(y_true == torch.argmax(y_pred, dim=1)).item() / torch.numel(y_true)
 
         self.test_metrics.update(*Contingency.format_input(y_pred, y_true))
-        self.test_persistence_metrics.update(*Contingency.format_input(x[:, -5, ...], y_true,
+        log.debug(x_pers[:, -5, ...])
+        self.test_persistence_metrics.update(*Contingency.format_input(x_pers[:, -5, ...], y_true,
                                                                        persistence=True))
         metrics_out = self.test_metrics.compute()
         persistence_metrics_out = self.test_persistence_metrics.compute()

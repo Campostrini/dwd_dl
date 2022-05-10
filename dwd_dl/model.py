@@ -607,7 +607,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
         log.info(f"{metrics_out=}")
-        log.inf(f"{persistence_metrics_out=}")
+        log.info(f"{persistence_metrics_out=}")
         return {'loss': loss, 'test_acc': test_acc}
 
     def test_epoch_end(self, outputs):

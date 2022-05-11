@@ -108,6 +108,9 @@ class UNetLitModel(pl.LightningModule):
             CriticalSuccessIndex,
             Bias,
             HeidkeSkillScore,
+            Precision,
+            Recall,
+            F1,
         ]
         self._multiclass_metrics = [
             F1, Precision, Recall
@@ -822,20 +825,27 @@ class RadolanLiveEvaluator(UNetLitModel):
     def on_timestamp(self, timestamp):
         x, y_true = self.dm.dataset.from_timestamp(timestamp)
         x, y_true = torch.unsqueeze(x, 0), torch.unsqueeze(y_true, 0)
+        x_pers = x.detach().clone()
         y = self(x)
-        x, y, y_true = x[:, ::5], torch.argmax(y, dim=1), y_true[:, ::5]
+        x, y, y_true = x_pers[:, ::5], torch.argmax(y, dim=1), y_true[:, ::5]
         return x.cpu().numpy(), y.cpu().numpy(), y_true.cpu().numpy()
 
-    # @staticmethod
-    # def add_model_specific_args(parent_parser):
-    #     parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
-    #     parser.add_argument(
-    #         "--model_path",
-    #         type=str,
-    #         default=None,
-    #         help="The path to the saved model."
-    #     )
-    #     return parent_parser
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = super(RadolanLiveEvaluator, RadolanLiveEvaluator).add_model_specific_args(parent_parser)
+        parser.add_argument(
+            "--timestamp1",
+            type=str,
+            default=None,
+            help="Timestamp1 for producing a scene."
+        )
+        parser.add_argument(
+            "--timestamp2",
+            type=str,
+            default=None,
+            help="Timestamp2 for producing a scene."
+        )
+        return parent_parser
 
     def forward(self, x):
         return super().forward(x)

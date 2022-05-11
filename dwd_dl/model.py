@@ -35,7 +35,10 @@ from dwd_dl.metrics import (
     F1,
     Contingency,
     ConfusionMatrixScikit,
-    NormalizedConfusionMatrix
+    NormalizedConfusionMatrix,
+    PrecisionCustom,
+    RecallCustom,
+    F1Custom
 )
 from dwd_dl import log
 
@@ -108,9 +111,9 @@ class UNetLitModel(pl.LightningModule):
             CriticalSuccessIndex,
             Bias,
             HeidkeSkillScore,
-            Precision,
-            Recall,
-            F1,
+            PrecisionCustom,
+            RecallCustom,
+            F1Custom,
         ]
         self._multiclass_metrics = [
             F1, Precision, Recall

@@ -163,6 +163,32 @@ class Bias(Contingency):
         return (self.true_positive + self.false_positive) / (self.true_positive + self.false_negative)
 
 
+class PrecisionCustom(Contingency):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def compute(self):
+        return self.true_positive / (self.true_positive + self.false_positive)
+
+
+class RecallCustom(Contingency):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def compute(self):
+        return self.true_positive / (self.true_positive + self.false_negative)
+
+
+class F1Custom(Contingency):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def compute(self):
+        precision = self.true_positive / (self.true_positive + self.false_positive)
+        recall = self.true_positive / (self.true_positive + self.false_negative)
+        return 2 * (precision * recall) / (precision + recall)
+
+
 class HeidkeSkillScore(Contingency):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

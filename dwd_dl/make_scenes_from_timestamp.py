@@ -10,8 +10,11 @@ import dwd_dl.img as img
 from dwd_dl.cli import RadolanParser
 
 import matplotlib.pyplot as plt
+from matplotlib import colors
 import matplotlib
+from mpl_toolkits.axes_grid1 import ImageGrid, make_axes_locatable
 matplotlib.use('WebAgg')
+import cmasher as cmr
 
 
 def main(args):
@@ -33,15 +36,44 @@ def main(args):
         series2 = unet.on_timestamp(
             timestamp=dt.datetime.strptime(args.timestamp2, dl.cfg.CFG.TIMESTAMP_DATE_FORMAT))
         for series, timestamp in zip((series1, series2), (args.timestamp1, args.timestamp2)):
-            fig, ax = plt.subplots(2, 6)
+            fig = plt.figure(figsize=(11.69, 8.27))
+            grid = ImageGrid(fig, 111,
+                             nrows_ncols=(2, 3),
+                             axes_pad=0.15,
+                             share_all=True,
+                             cbar_location="right",
+                             cbar_mode="single",
+                             cbar_size="7%",
+                             cbar_pad=0.15)
+            cmap = cmr.get_sub_cmap('coolwarm_r', 0.6, 1)
             for images in series[0]:
-                for axs, image in zip(ax[0], images):
-                    axs.imshow(image)
+                for axs, image in zip(grid, images):
+                    im = axs.imshow(image, cmap=cmap, vmin=0, vmax=20)
 
-            ax[1, 2].imshow(series[1][0][0])
-            ax[1, 3].imshow(series[2][0][0])
+            axs.cax.colorbar(im)
+            axs.cax.toggle_label(True)
 
-            plt.savefig('/home/stefano/Desktop/image.png')
+            plt.savefig(f'/home/stefano/Desktop/image_{timestamp}_input.png')
+
+            cm = matplotlib.cm.get_cmap('coolwarm')
+            cmap = colors.ListedColormap([cm(0.4), cm(0.3), cm(0.2), cm(0.1)])
+            bounds = [-0.5, 0.5, 1.5, 2.5, 3.5]
+            norm = colors.BoundaryNorm(bounds, cmap.N)
+            fig = plt.figure(figsize=(11.69, 8.27))
+            grid = ImageGrid(fig, 111,
+                             nrows_ncols=(1, 2),
+                             axes_pad=0.15,
+                             share_all=True,
+                             cbar_location="right",
+                             cbar_mode="single",
+                             cbar_size="7%",
+                             cbar_pad=0.15)
+            grid[0].imshow(series[1][0][0], cmap=cmap, vmin=-0.5, vmax=3.5)
+            im = grid[1].imshow(series[2][0][0], cmap=cmap, vmin=-0.5, vmax=3.5)
+            cbar = grid[1].cax.colorbar(im, cmap=cmap, boundaries=bounds, norm=norm)
+            cbar.set_ticks([0, 1, 2, 3])
+            cbar.set_ticklabels(['0', '0.1', '1', '2.5'])
+            plt.savefig(f'/home/stefano/Desktop/image_{timestamp}_output.png')
 
 
 if __name__ == "__main__":

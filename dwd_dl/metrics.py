@@ -197,21 +197,30 @@ def modified_metric(cls):
 # @modified_metric
 class Precision(Precision):
     def __init__(self, *args, **kwargs):
-        kwargs.pop('persistence_as_metric')
+        try:
+            kwargs.pop('persistence_as_metric')
+        except KeyError:
+            pass
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
 # @modified_metric
 class Recall(Recall):
     def __init__(self, *args, **kwargs):
-        kwargs.pop('persistence_as_metric')
+        try:
+            kwargs.pop('persistence_as_metric')
+        except KeyError:
+            pass
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 
 # @modified_metric
 class F1(F1):
     def __init__(self, *args, **kwargs):
-        kwargs.pop('persistence_as_metric')
+        try:
+            kwargs.pop('persistence_as_metric')
+        except KeyError:
+            pass
         super().__init__(*args, **kwargs, mdmc_average='samplewise')
 
 

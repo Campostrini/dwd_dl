@@ -239,8 +239,13 @@ class RadolanDataset(Dataset):
             item_tensors[sub_period] = torch.from_numpy(
                 np.concatenate(item_tensors[sub_period], axis=0).astype(np.float32)
             )
+        true_for_pers_index = seq[-1]
+        data_true_for_pers = [self.ds_classes[self.sorted_sequence[true_for_pers_index]]]
+        tensor = torch.from_numpy(
+                np.concatenate(data_true_for_pers, axis=0).astype(np.float32)
+            )
 
-        return item_tensors['seq'], item_tensors['tru']
+        return item_tensors['seq'], item_tensors['tru'], tensor
 
     def indices_of_training(self):
         return self.indices_of('training')

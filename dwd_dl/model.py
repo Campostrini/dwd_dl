@@ -505,7 +505,7 @@ class UNetLitModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         log.debug("Trainig step")
-        x, y_true = batch
+        x, y_true, _ = batch
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(torch.nan_to_num(x))
 
@@ -539,10 +539,11 @@ class UNetLitModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         log.debug("Validation Step.")
-        x, y_true = batch
+        x, y_true, y_pers = batch
         x_pers = x.detach().clone()
         x_pers = torch.nan_to_num(x_pers)
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
+        y_pers = y_pers[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)
@@ -551,7 +552,7 @@ class UNetLitModel(pl.LightningModule):
 
         self.metrics.update(*Contingency.format_input(y_pred, y_true))
         metrics_out = self.metrics.compute()
-        self.persistence_metrics.update(*Contingency.format_input(x_pers[:, -5, ...], y_true, persistence=True))
+        self.persistence_metrics.update(y_pers, y_true)
         persistence_metrics_out = self.persistence_metrics.compute()
         self.log_dict(metrics_out)
         self.log_dict(persistence_metrics_out)
@@ -596,10 +597,11 @@ class UNetLitModel(pl.LightningModule):
         plt.savefig(os.path.join(cfg.CFG.RADOLAN_ROOT_RAW, f'normlized_confmatrix_{dt.datetime.now()}.png'))
 
     def test_step(self, batch, batch_idx):
-        x, y_true = batch
+        x, y_true, y_pers = batch
         x_pers = x.detach().clone()
         x_pers = torch.nan_to_num(x_pers)
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
+        y_pers = y_pers[:, ::5, ...].to(dtype=torch.long)
         y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)
@@ -608,8 +610,7 @@ class UNetLitModel(pl.LightningModule):
 
         self.test_metrics.update(*Contingency.format_input(y_pred, y_true))
         log.debug(x_pers[:, -5, ...])
-        self.test_persistence_metrics.update(*Contingency.format_input(x_pers[:, -5, ...], y_true,
-                                                                       persistence=True))
+        self.test_persistence_metrics.update(y_pers, y_true)
         metrics_out = self.test_metrics.compute()
         persistence_metrics_out = self.test_persistence_metrics.compute()
 
@@ -637,7 +638,7 @@ class UNetLitModel(pl.LightningModule):
         self.log_dict({'test/epoch_loss': test_loss, 'test/epoch_accuracy': test_acc})
 
     def predict_step(self, batch, batch_idx, **kwargs):
-        x, y_true = batch
+        x, y_true, _ = batch
         return self(x)
 
     def configure_optimizers(self):

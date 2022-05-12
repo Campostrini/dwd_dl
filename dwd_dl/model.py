@@ -506,7 +506,9 @@ class UNetLitModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         log.debug("Trainig step")
         x, y_true, _ = batch
+        log.info(f"{y_true.shape=}")
         y_true = y_true[:, ::5, ...].to(dtype=torch.long)
+        log.info(f"{y_true.shape=}")
         y_pred = self(torch.nan_to_num(x))
 
         loss = self.loss(y_pred, y_true)

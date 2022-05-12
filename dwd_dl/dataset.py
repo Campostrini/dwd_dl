@@ -244,6 +244,8 @@ class RadolanDataset(Dataset):
         tensor = torch.from_numpy(
                 np.concatenate(data_true_for_pers, axis=0).astype(np.float32)
             )
+        for index in seq:
+            assert index not in tru
 
         return item_tensors['seq'], item_tensors['tru'], tensor
 

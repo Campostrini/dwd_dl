@@ -14,6 +14,10 @@ import yaml
 
 import dwd_dl.cfg as cfg
 
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
 
 class URLValidator(Validator):
     """ Custom url validator """
@@ -131,14 +135,14 @@ def validate_config(data):
     yamale.validate(schema, data)
 
 
-def load_date_ranges(path=None):
+def load_ranges(path):
     if not path:
         path = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
     data = yamale.make_data(path=path)
     return data
 
 
-def validate_date_ranges(data):
+def validate_ranges(data):
     schema = yamale.make_schema(cfg.path_to_resources_folder(filename='DATE_RANGES_SCHEMA.yml'))
     yamale.validate(schema, data)
 

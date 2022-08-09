@@ -62,7 +62,7 @@ def main(device, verbose, batch_size, workers,
                 for step, data in enumerate(loaders[phase]):
 
                     x, y_true = data
-                    y_true = y_true[:, ::4, ...].to(dtype=torch.long)
+                    y_true = y_true[:, ::5, ...].to(dtype=torch.long)
                     x, y_true = x.to(device), y_true.to(device)
 
                     optimizer.zero_grad()
@@ -179,7 +179,8 @@ def data_loaders(batch_size, workers, **kwargs):
 
 
 def datasets(image_size):
-    create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
+    create_h5(mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES, normal_ranges=cfg.CFG.date_ranges,
+              video_ranges=cfg.CFG.video_ranges, path_to_folder=cfg.CFG.RADOLAN_H5)
     f = H5Dataset(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES)
     dataset = Dataset(
         h5file_handle=f,

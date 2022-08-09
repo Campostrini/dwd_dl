@@ -1,8 +1,8 @@
 """Module for checking requirements and downloading the radar data.
 
 """
+import distutils.dir_util
 import gzip
-import hashlib
 import inspect
 import os
 import shutil
@@ -11,16 +11,21 @@ import requests
 import itertools
 import warnings
 import datetime as dt
+import re
 import tempfile
 import sys
 import tarfile
+from distutils.dir_util import copy_tree
+from distutils.errors import DistutilsFileError
+
 import numpy as np
 import wradlib as wrl
 from osgeo import osr
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from packaging import version
 from typing import List
 
+from dwd_dl import log
 import dwd_dl as dl
 import dwd_dl.utils as utils
 import dwd_dl.yaml_utils as yu
@@ -50,6 +55,7 @@ class RadolanConfigFileContent:
             VSC: bool,
             VIDEO: dict,
     ):
+        log.info("Initializing %s", self.__class__.__name__)
         self._BASE_URL = BASE_URL
         self._RADOLAN_ROOT = RADOLAN_ROOT
         self._RANGES_DATE_FORMAT = RANGES_DATE_FORMAT
@@ -115,6 +121,11 @@ class RadolanConfigFileContent:
         # return self._CLASSES  # TODO: Create a validator for this
         return {'0': (0, 0.1), '0.1': (0.1, 1), '1': (1, 2.5), '2.5': (2.5, np.infty)}
 
+    # using weights from https://arxiv.org/abs/1706.03458
+    @property
+    def WEIGHTS(self):
+        return np.array((1/89.4, 1/8.34, 1/1.81, 1/0.42))
+
     @property
     def VSC(self):
         return self._VSC
@@ -146,6 +157,7 @@ class Config:
 
     def __init__(self, cfg_content: RadolanConfigFileContent, inside_initialize: bool = False):
         check_date_format(cfg_content)
+        self._cfg_content = cfg_content
         self._RANGES_DATE_FORMAT = cfg_content.RANGES_DATE_FORMAT
         self._TIMESTAMP_DATE_FORMAT = cfg_content.TIMESTAMP_DATE_FORMAT
 
@@ -158,8 +170,42 @@ class Config:
         check_config_min_max_dates(self._MIN_START_DATE, self._MAX_END_DATE)
 
         self._DATE_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'DATE_RANGES.yml')
+        self._VIDEO_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'VIDEO_RANGES.yml')
+        self._TEST_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'), 'TEST_SET_RANGES.yml')
+        self._VALIDATION_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'),
+                                                             'VALIDATION_SET_RANGES.yml')
+        self._TRAINING_SET_RANGES_FILE_PATH = os.path.join(os.path.expanduser('~/.radolan_config'),
+                                                           'TRAINING_SET_RANGES.yml')
+
         self._date_ranges = None
         self._files_list = None
+        self._video_ranges = None
+        self._test_set_ranges = None
+        self._validation_set_ranges = None
+        self._training_set_ranges = None
+
+        self._ranges_path_dict = {
+            'video_ranges':
+                {'path': self.VIDEO_RANGES_FILE_PATH,
+                 'template_file_name': 'VIDEO_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'VIDEO_RANGES.yml'},
+            'date_ranges':
+                {'path': self.DATE_RANGES_FILE_PATH,
+                 'template_file_name': 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'DATE_RANGES.yml'},
+            'test_set_ranges':
+                {'path': self.TEST_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'TEST_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'TEST_SET_RANGES.yml'},
+            'valid_set_ranges':
+                {'path': self.VALIDATION_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'VALIDATION_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'VALIDATION_SET_RANGES.yml'},
+            'train_set_ranges':
+                {'path': self.TRAINING_SET_RANGES_FILE_PATH,
+                 'template_file_name': 'TRAINING_SET_RANGES_TEMPLATE_DONT_MODIFY.yml',
+                 'file_name': 'TRAINING_SET_RANGES.yml'},
+        }
 
         self._NW_CORNER_LON_LAT = np.array(cfg_content.NW_CORNER_LON_LAT)
         self._NW_CORNER_INDICES = coords_finder(*self._NW_CORNER_LON_LAT, distances_output=False)
@@ -167,7 +213,7 @@ class Config:
         self._height = cfg_content.HEIGHT
         self._width = cfg_content.WIDTH
 
-        self._current_h5_version = version.Version('v0.0.3')
+        self._current_h5_version = version.Version('v0.1.1')
         self._h5_version = version.Version(cfg_content.H5_VERSION)
 
         self._mode = cfg_content.MODE
@@ -210,23 +256,28 @@ class Config:
 
     @property
     def RADOLAN_ROOT(self):
+        if self.VSC:
+            root = os.environ["DATA"]
+            try:
+                root = os.environ["LOCAL"]
+            except KeyError:
+                pass
+            root = os.path.join(root, 'Radolan')
+        else:
+            root = self._RADOLAN_ROOT
+        return root
+
+    @property
+    def RADOLAN_ROOT_RAW(self):
         return self._RADOLAN_ROOT
 
     @property
     def RADOLAN_RAW(self):
-        if self.VSC:
-            root = os.environ['BINFL']
-        else:
-            root = self.RADOLAN_ROOT
-        return os.path.join(root, 'Raw')
+        return os.path.join(self.RADOLAN_ROOT, 'Raw')
 
     @property
     def RADOLAN_H5(self):
-        if self.VSC:
-            root = os.environ['BINFL']
-        else:
-            root = self.RADOLAN_ROOT
-        return os.path.join(root, 'H5')
+        return os.path.join(self.RADOLAN_ROOT, 'H5')
 
     @property
     def MIN_START_DATE(self):
@@ -239,6 +290,22 @@ class Config:
     @property
     def DATE_RANGES_FILE_PATH(self):
         return self._DATE_RANGES_FILE_PATH
+
+    @property
+    def TEST_SET_RANGES_FILE_PATH(self):
+        return self._TEST_SET_RANGES_FILE_PATH
+
+    @property
+    def VALIDATION_SET_RANGES_FILE_PATH(self):
+        return self._VALIDATION_SET_RANGES_FILE_PATH
+
+    @property
+    def TRAINING_SET_RANGES_FILE_PATH(self):
+        return self._TRAINING_SET_RANGES_FILE_PATH
+
+    @property
+    def VIDEO_RANGES_FILE_PATH(self):
+        return self._VIDEO_RANGES_FILE_PATH
 
     @property
     def BASE_URL(self):
@@ -288,6 +355,23 @@ class Config:
     def VIDEO_END(self):
         return self._VIDE_END
 
+    # This is a tentative implementation of
+    # https://towardsdatascience.com/handling-class-imbalanced-data-using-a-loss-specifically-made-for-it-6e58fd65ffab
+    @property
+    def SAMPLES_PER_CLASS(self):
+        return np.array([39567524425, 155115168, 25789215, 2150782, 192035, 16471])
+
+    def effective_number_of_samples(self, beta):
+        return (1.0 - np.power(beta, self.SAMPLES_PER_CLASS))/(1.0 - beta)
+
+    def effective_weights(self, beta):
+        return 1 / self.effective_number_of_samples(beta=beta)
+    # The implementation ends here
+
+    @property
+    def WEIGHTS(self):
+        return self._cfg_content.WEIGHTS
+
     @property
     def date_ranges(self):
         if self._date_ranges is None:
@@ -295,20 +379,83 @@ class Config:
         return self._date_ranges
 
     @property
-    def timestamps_list(self):
+    def video_ranges(self):
+        if self._video_ranges is None:
+            self._video_ranges = read_ranges(self.VIDEO_RANGES_FILE_PATH)
+        return self._video_ranges
+
+    @property
+    def test_set_ranges(self):
+        if self._test_set_ranges is None:
+            self._test_set_ranges = read_ranges(self.TEST_SET_RANGES_FILE_PATH)
+        return self._test_set_ranges
+
+    @property
+    def validation_set_ranges(self):
+        if self._validation_set_ranges is None:
+            self._validation_set_ranges = read_ranges(self.VALIDATION_SET_RANGES_FILE_PATH)
+        return self._validation_set_ranges
+
+    @property
+    def training_set_ranges(self):
+        if self._training_set_ranges is None:
+            self._training_set_ranges = read_ranges(self.TRAINING_SET_RANGES_FILE_PATH)
+        return self._training_set_ranges
+
+    @property
+    def date_timestamps_list(self):
+        return self._timestamps_list(self.date_ranges)
+
+    @property
+    def video_timestamps_list(self):
+        return self._timestamps_list(self.video_ranges)
+
+    @property
+    def test_set_timestamps_list(self):
+        return self._timestamps_list(self.test_set_ranges)
+
+    @property
+    def validation_set_timestamps_list(self):
+        return self._timestamps_list(self.validation_set_ranges)
+
+    @property
+    def training_set_timestamps_list(self):
+        return self._timestamps_list(self.training_set_ranges)
+
+    @staticmethod
+    def _timestamps_list(ranges):
         timestamp_list = []
-        for date_range in self.date_ranges:
-            format_cache = date_range.date_format
-            date_range.switch_date_format(format_='timestamp_date_format')
-            timestamp_list.extend([x for x in date_range.str_date_range()])
-            date_range.switch_date_format(format_=format_cache)
+        for date_range in tqdm(ranges):
+            timestamp_list.extend(date_range.date_range())
         return timestamp_list
 
     @property
     def files_list(self):
         if self._files_list is None:
-            self._files_list = RadolanFilesList(date_ranges=self.date_ranges)
+            date_ranges_files_list = RadolanFilesList(date_ranges=self.date_ranges)
+            video_ranges_files_list = RadolanFilesList(date_ranges=self.video_ranges)
+            self._files_list = date_ranges_files_list + video_ranges_files_list
+            self._files_list.remove_duplicates()
         return self._files_list
+
+    def create_checkpoint_dir(self):
+        checkpoint_dir = os.path.join(self.RADOLAN_ROOT_RAW, 'Models')
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        return checkpoint_dir
+
+    def create_checkpoint_path_with_name(self, experiment_timestamp_str):
+        checkpoint_name = self._create_raw_checkpoint_name(experiment_timestamp_str)
+        checkpoint_dir = self.create_checkpoint_dir()
+        checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
+        return checkpoint_path
+
+    @staticmethod
+    def _create_raw_checkpoint_name(experiment_timestamp_str):
+        """Change prefix if you want to change the checkpoint name.
+
+        """
+        prefix = ''
+        return prefix + f"{experiment_timestamp_str}.ckpt"
 
     @property
     def coordinates_array(self):
@@ -324,27 +471,150 @@ class Config:
                 os.makedirs(dir_)
 
     def make_date_ranges(self):
-        if not os.path.isfile(self.DATE_RANGES_FILE_PATH):
-            date_ranges_template_file_name = 'DATE_RANGES_TEMPLATE_DONT_MODIFY.yml'
-            date_ranges_template_file_path = path_to_resources_folder(date_ranges_template_file_name)
-            shutil.copy2(date_ranges_template_file_path, self.DATE_RANGES_FILE_PATH, follow_symlinks=False)
-            print(f"Created DATE_RANGES.yml in {self.DATE_RANGES_FILE_PATH}.")
+        self._make_single_range(self._ranges_path_dict['date_ranges'])
+
+    def make_video_ranges(self):
+        self._make_single_range(self._ranges_path_dict['video_ranges'])
+
+    def make_all_ranges(self):
+        for range_ in self._ranges_path_dict:
+            self._make_single_range(range_dict=self._ranges_path_dict[range_])
+
+    @staticmethod
+    def _make_single_range(range_dict):
+        if not os.path.isfile(range_dict['path']):
+            template_file_path = path_to_resources_folder(range_dict['template_file_name'])
+            shutil.copy2(template_file_path, range_dict['path'], follow_symlinks=False)
+            log.info("Created %s in %s.", range_dict['file_name'], range_dict['path'])
         else:
-            print('{} already exists. Just edit it!'.format(self.DATE_RANGES_FILE_PATH))
+            log.info("%s already exists. Just edit it!", range_dict['path'])
 
     def check_downloaded_files(self):
         # compare with existing
         missing_files = RadolanFilesList(files_list=[file for file in self.files_list if not file.exists()])
         if not missing_files:
-            print("No missing files!")
+            log.info("No missing files.")
         else:
-            print(f"{len(missing_files)} missing files!")
-
+            log.info("%d missing files.", len(missing_files))
         return missing_files
 
     def download_missing_files(self):
         missing_files = self.check_downloaded_files()
+        self.missing_files_message(missing_files)
 
+        if missing_files:
+            with tempfile.TemporaryDirectory() as td:
+                log.info("Creating temporary directory.")
+                if os.path.isdir(os.path.abspath(td)):
+                    log.info('Temporary directory created at: %s', os.path.abspath(td))
+                else:
+                    raise OSError("The temporary directory was not created.")
+
+                download_files_to_directory(
+                    os.path.abspath(td),
+                    missing_files.download_list,
+                )
+
+                listdir = os.listdir(td)
+                for file in listdir:
+                    if file.endswith('.tar.gz'):
+                        with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
+                            log.info("Extracting all in %s.", file)
+                            tf.extractall(self.RADOLAN_RAW)
+                            log.info('Done extracting.')
+                    elif file.endswith('.gz'):
+                        with gzip.open(
+                                os.path.join(td, file), 'rb'
+                        ) as f_in, open(
+                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
+                        ) as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+
+            with tempfile.TemporaryDirectory() as td:
+                log.info("Extracting compressed day files.")
+                for file in tqdm(os.listdir(self.RADOLAN_RAW)):
+                    if file.endswith('.gz'):
+                        shutil.move(os.path.join(self.RADOLAN_RAW, file), os.path.join(os.path.abspath(td), file))
+                for file in tqdm(os.listdir(os.path.join(os.path.abspath(td)))):
+                    if file.endswith('.gz'):
+                        with gzip.open(
+                            os.path.join(os.path.abspath(td), file), 'rb'
+                        ) as f_in, open(
+                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
+                        ) as f_out:
+                            shutil.copyfileobj(f_in, f_out, -1)
+                log.info("Done extracting.")
+
+    @staticmethod
+    def missing_files_for_dataset_file(dataset_file: ds.DatasetFile, verbose: bool = True):
+        rfl = RadolanFilesList(date_ranges=MonthDateRange(*dataset_file.ym_tuple))
+        return RadolanFilesList(files_list=[file for file in rfl if not file.exists()])
+
+    @staticmethod
+    def download_and_create_dataset_files_correctly(dataset_file: ds.DatasetFile, path_to_folder, verbose: bool = True):
+        log.info("Processing %s . ", dataset_file)
+        missing_files = Config.missing_files_for_dataset_file(dataset_file, verbose=verbose)
+        if not missing_files:
+            log.info("No missing files for dataset_file %s", dataset_file)
+            with tempfile.TemporaryDirectory() as td:
+                log.info('Creating temporary directory.')
+                if os.path.isdir(os.path.abspath(td)):
+                    log.info(f'Temporary Directory created: {os.path.abspath(td)}')
+                else:
+                    raise OSError("The temporary directory was not created.")
+
+                path_to_raw = os.path.join(CFG.RADOLAN_RAW, str(dataset_file.year), str(dataset_file.month))
+
+                log.info("Copying files from %s to %s.", path_to_raw, td)
+                copy_tree(path_to_raw, td)
+                log.info("Done copying files from %s to %s.", path_to_raw, td)
+                ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
+                             path_to_folder=path_to_folder, path_to_raw=td)
+        else:
+            log.info("Some missing files for dataset_file %s", dataset_file)
+            with tempfile.TemporaryDirectory() as td:
+                log.info('Creating temporary directory.')
+                if os.path.isdir(os.path.abspath(td)):
+                    log.info(f'Temporary Directory created: {os.path.abspath(td)}')
+                else:
+                    raise OSError("The temporary directory was not created.")
+
+                download_files_to_directory(
+                    os.path.abspath(td),
+                    missing_files.download_list,
+                )
+                while True:
+                    listdir = os.listdir(td)
+                    if any([file.endswith(('.tar.gz', '.gz')) for file in listdir]):
+                        for file in listdir:
+                            if file.endswith('.tar.gz'):
+                                with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
+                                    log.info('Extracting all in %s', file)
+                                    tf.extractall(td)
+                                    log.info('Done extracting.')
+                                os.remove(os.path.join(td, file))
+                            elif file.endswith('.gz'):
+                                with gzip.open(
+                                        os.path.join(td, file), 'rb'
+                                ) as f_in, open(
+                                    os.path.join(td, file.replace('.gz', '')), 'wb'
+                                ) as f_out:
+                                    shutil.copyfileobj(f_in, f_out)
+                                os.remove(os.path.join(td, file))
+                        continue
+                    else:
+                        for file in listdir:
+                            file_path = path_from_file_name(file_name=file)
+                            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                            shutil.copy2(os.path.join(td, file), file_path)
+                        break
+
+                ds.create_h5(mode=dataset_file.mode, normal_ranges=MonthDateRange(*dataset_file.ym_tuple),
+                             path_to_folder=path_to_folder, path_to_raw=td)
+
+
+    @staticmethod
+    def missing_files_message(missing_files):
         if not missing_files:
             input_message = "Nothing to download. "
         else:
@@ -360,49 +630,37 @@ class Config:
                 break
             sys.exit()
 
-        if missing_files:
-            with tempfile.TemporaryDirectory() as td:
-                print('Creating Temporary Directory')
-                if os.path.isdir(os.path.abspath(td)):
-                    print(f'Temporary Directory created: {os.path.abspath(td)}')
-                else:
-                    raise OSError("The temporary directory was not created.")
+    def validate_all_ranges(self):
+        for range_list_1, range_list_2 in itertools.combinations(
+                (self.training_set_ranges, self.validation_set_ranges, self.test_set_ranges), 2
+        ):
+            for date_range_1 in range_list_1:
+                for date_range_2 in range_list_2:
+                    assert date_range_1.end < date_range_2.start or date_range_1.start > date_range_2.end
 
-                download_files_to_directory(
-                    os.path.abspath(td),
-                    missing_files.download_list,
-                )
+        for range_list in (self.training_set_ranges, self.validation_set_ranges, self.test_set_ranges):
+            for date_range in range_list:
+                found = False
+                for date_range_all in self.date_ranges:
+                    if date_range.start >= date_range_all.start and date_range.end <= date_range_all.end:
+                        found = True
+                if not found:
+                    raise ValueError(f"{date_range} not found in {date_range_all}")
 
-                listdir = os.listdir(td)
-                for file in listdir:
-                    if file.endswith('.tar.gz'):
-                        with tarfile.open(os.path.join(td, file), 'r:gz') as tf:
-                            print(f'Extracting all in {file}.')
-                            tf.extractall(self.RADOLAN_RAW)
-                            print('All extracted.')
-                    elif file.endswith('.gz'):
-                        with gzip.open(
-                                os.path.join(td, file), 'rb'
-                        ) as f_in, open(
-                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
-                        ) as f_out:
-                            shutil.copyfileobj(f_in, f_out)
-
-                for file in os.listdir(self.RADOLAN_RAW):
-                    if file.endswith('.gz'):
-                        with gzip.open(
-                            os.path.join(self.RADOLAN_RAW, file), 'rb'
-                        ) as f_in, open(
-                            os.path.join(self.RADOLAN_RAW, file.replace('.gz', '')), 'wb'
-                        ) as f_out:
-                            shutil.copyfileobj(f_in, f_out)
-                        os.remove(os.path.join(self.RADOLAN_RAW, file))
+    def try_move_local(self):
+        if not os.path.isdir("/local/"):
+            return
+        try:
+            os.makedirs("/local/Radolan/H5/", exist_ok=True)
+            log.info("Found local. Try copy.")
+            distutils.dir_util.copy_tree(self.RADOLAN_H5, "/local/Radolan/H5/", verbose=1)
+        except (OSError, DistutilsFileError):
+            return
+        os.environ["LOCAL"] = "/local"
+        log.info("Copy complete. $LOCAL set to '/local'")
 
     def get_timestamps_hash(self):
-        string_for_md5 = ''
-        for file in self.files_list:
-            string_for_md5 += file.date.strftime(self.TIMESTAMP_DATE_FORMAT)
-        return hashlib.md5(string_for_md5.encode()).hexdigest()
+        raise DeprecationWarning
 
     def check_h5_file(self):
         raise NotImplementedError
@@ -459,6 +717,9 @@ class RadolanFilesList:
     def __len__(self):
         return len(self.files_list)
 
+    def __bool__(self):
+        return bool(self.files_list)
+
     def remove_duplicates(self):
         self.files_list = list(dict.fromkeys(self.files_list))
 
@@ -466,14 +727,14 @@ class RadolanFilesList:
     def download_list(self):
         if not self._download_list:
             download_list = []
-            print("Computing download list.")
+            log.info("Computing download list.")
             for file in self.files_list:
                 if file.date not in download_list:
                     download_file = DownloadFile(file.year, file.month, file.date, CFG.BASE_URL)
                     download_list.append(download_file)
-                    print(f"Added {download_file} to the download list.")
+                    log.info(f"Added %s to the download list.", download_file)
             self._download_list = download_list
-            print("Done")
+            log.info("Done computing download list.")
         else:
             download_list = self._download_list
         return download_list
@@ -486,7 +747,7 @@ class RadolanFilesList:
 
         total_size = 0
 
-        print("Computing download size.")
+        log.info("Computing download size.")
         for file in self.download_list:
             total_size += file.size
 
@@ -512,7 +773,7 @@ class RadolanFile:
         return self.date.month
 
     def get_relevant_file_to_download(self):
-        print(f"Getting relevant file to download for {self.year} - {self.month} - {self.date}")
+        log.info("Getting relevant file to download for %d - %d - %s", self.year, self.month, self.date)
         return get_download_url(self.year, self.month, self.date, base_url=CFG.BASE_URL)
 
     def get_file_name(self):
@@ -531,12 +792,67 @@ class RadolanFile:
         return hash(self.file_name)
 
     def exists(self):
-        return os.path.isfile(os.path.join(CFG.RADOLAN_RAW, self.file_name))
+        if not os.path.isfile(path_from_file_name(self.file_name)):
+            try:
+                for file_name in binary_file_name_approx_generator(self.date):
+                    file_path = path_from_file_name(file_name)
+                    if os.path.isfile(file_path):
+                        return True
+            except OverflowError:
+                log.debug("File %s not found even with approximation loop. Sorry.", self.file_name)
+                return False
+        return True
+
+
+def path_from_file_name(file_name):
+    p = re.compile('raa01-rw_10000-(\d{10})-dwd---bin')
+    m = p.match(file_name)
+    timestamp_string = m.groups()[0]
+    timestamp = dt.datetime.strptime(timestamp_string, CFG.TIMESTAMP_DATE_FORMAT)
+    return os.path.join(CFG.RADOLAN_RAW, str(timestamp.year), str(timestamp.month), file_name)
+
+
+def find_raw_file(time_stamp, custom_path=None, verbose=False):
+
+    def find_with_approx_loop(path, time_stamp_):
+        try:
+            for fname in binary_file_name_approx_generator(time_stamp_):
+                fpath = os.path.join(path, file_name)
+                if os.path.isfile(fpath):
+                    log.debug("Found file %s. Using this for timestamp: %s", fname, time_stamp_)
+                    return fpath
+        except OverflowError:
+            log.debug("Couldn't find file in %s", path)
+        return None
+
+    file_name = binary_file_name(time_stamp)
+    rw_file_path = None
+
+    if custom_path:
+        custom_path_file_name = os.path.join(custom_path, file_name)
+        if not os.path.isfile(custom_path_file_name):
+            log.debug("File %s not found. Starting approximation loop.", file_name)
+            rw_file_path = find_with_approx_loop(custom_path, time_stamp)
+        else:
+            rw_file_path = custom_path_file_name
+
+    if custom_path is None or rw_file_path is None:
+        raw_file_path = path_from_file_name(file_name)
+        if not os.path.isfile(raw_file_path):
+            log.debug("File %s not found. Starting approximation loop.", file_name)
+            rw_file_path = find_with_approx_loop(os.path.dirname(path_from_file_name(file_name)), time_stamp)
+        else:
+            rw_file_path = raw_file_path
+
+    if rw_file_path is None:
+        raise FileNotFoundError(f"Couldn't find file {file_name}.")
+
+    return rw_file_path
 
 
 def get_download_size(url):
     r = requests.head(url)
-    print(f"Getting download size for: {url}")
+    log.debug("Getting download size for: %s .", url)
     return int(r.headers['Content-Length'])
 
 
@@ -551,11 +867,49 @@ def initialize(inside_initialize=True, skip_download=False):
     radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
     CFG = radolan_configurator
     CFG.check_and_make_dir_structures()
-    CFG.make_date_ranges()
+    CFG.make_all_ranges()
     check_ranges_overlap(CFG.date_ranges)
+    check_ranges_overlap(CFG.training_set_ranges)
+    check_ranges_overlap(CFG.validation_set_ranges)
+    check_ranges_overlap(CFG.test_set_ranges)
+    check_ranges_overlap(CFG.video_ranges)
+    CFG.validate_all_ranges()
     if not skip_download:
-        if ds.check_h5_missing_or_corrupt(CFG.date_ranges, classes=CFG.CLASSES, mode=CFG.MODE):
+        if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
+                ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
             CFG.download_missing_files()
+    os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
+    return CFG
+
+
+def initialize2(inside_initialize=True, skip_download=False, skip_move=True):
+    global CFG
+    if CFG is not None and not isinstance(CFG, Config):  # The condition after and is redundant. For readability.
+        raise TypeError(
+            "Expected type {} but got {} of type {}. CFG was tampered with.".format(type(Config), CFG, type(CFG))
+        )
+    cfg_content = read_or_make_config_file()
+    radolan_configurator = Config(cfg_content, inside_initialize=inside_initialize)
+    CFG = radolan_configurator
+    CFG.check_and_make_dir_structures()
+    CFG.make_all_ranges()
+    check_ranges_overlap(CFG.date_ranges)
+    check_ranges_overlap(CFG.training_set_ranges)
+    check_ranges_overlap(CFG.validation_set_ranges)
+    check_ranges_overlap(CFG.test_set_ranges)
+    check_ranges_overlap(CFG.video_ranges)
+    CFG.validate_all_ranges()
+    if not skip_download:
+        if (ds.check_datasets_missing(CFG.date_ranges, classes=CFG.CLASSES) or
+                ds.check_datasets_missing(CFG.video_ranges, classes=CFG.CLASSES)):
+            for dataset_file in ds.DatasetFilesCollection(CFG.date_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
+                CFG.download_and_create_dataset_files_correctly(
+                    dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
+            for dataset_file in ds.DatasetFilesCollection(CFG.video_ranges).missing_files(CFG.RADOLAN_H5, 'both'):
+                CFG.download_and_create_dataset_files_correctly(
+                    dataset_file, path_to_folder=CFG.RADOLAN_H5, verbose=False)
+    if not skip_move:
+        CFG.try_move_local()
     os.environ['WRADLIB_DATA'] = CFG.RADOLAN_RAW
     return CFG
 
@@ -703,7 +1057,7 @@ class DownloadFile:
             return self.contains_date(other)
 
     def __str__(self):
-        return f"<DownloadFile named: {self.file_name} of size: {self.size}.>"
+        return f"<DownloadFile named: {self.file_name} of size: {self.size / 1024 / 1024:.1f} MB.>"
 
 
 def get_monthly_file_name(year, month, date, with_name_discrepancy=False):
@@ -729,13 +1083,12 @@ def get_download_file_name(year, month, date: dt.datetime):
         return binary_file_name(date, extension='.gz')
 
 
-def read_ranges(date_ranges_path):
-    print('Reading date ranges.')
-
-    date_ranges_data = yu.load_date_ranges(date_ranges_path)
-    yu.validate_date_ranges(date_ranges_data)
+def read_ranges(ranges_path):
+    log.info('Reading ranges at %s', ranges_path)
+    date_ranges_data = yu.load_ranges(ranges_path)
+    yu.validate_ranges(date_ranges_data)
     date_ranges = [DateRange(start_date, end_date) for start_date, end_date in date_ranges_data[0][0]]
-    print('Finished reading.')
+    log.info('Finished reading ranges.')
 
     return date_ranges
 
@@ -743,7 +1096,7 @@ def read_ranges(date_ranges_path):
 def check_ranges_overlap(ranges_list):
     for first_date_range, second_date_range in itertools.combinations(ranges_list, 2):
         if not first_date_range.end < second_date_range.start:  # all other conditions follow since start < end always.
-            raise ValueError("There is an overlap in date ranges. {} {} and {} {}.".format(
+            raise ValueError("There is an overlap or wrong order in date ranges. {} {} and {} {}.".format(
                 first_date_range.start, first_date_range.end, second_date_range.start, second_date_range.end
             ))
 
@@ -788,7 +1141,7 @@ class DateRange:
         return self._date_format
 
     def date_range(self, include_end=True):
-        return daterange(self.start, self.end, include_end=include_end)
+        return list(daterange(self.start, self.end, include_end=include_end))
 
     def str_date_range(self, include_end=True):
         assert self._date_format is not None
@@ -798,32 +1151,9 @@ class DateRange:
 class MonthDateRange(DateRange):
     def __init__(self, year: int, month: int):
         start_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50)
-        year, month = utils.next_year_month(year, month)
-        end_date = dt.datetime(year=year, month=month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
+        next_year, next_month = utils.next_year_month(year, month)
+        end_date = dt.datetime(year=next_year, month=next_month, day=1, hour=0, minute=50) - dt.timedelta(hours=1)
         super().__init__(start_date=start_date, end_date=end_date)
-
-
-class TrainingPeriod:
-    def __init__(self, date_ranges_path):
-        self._path = date_ranges_path
-        self.ranges_list = read_ranges(date_ranges_path)
-        self._file_names_list = []
-        for range_element in self.ranges_list:
-            self._file_names_list += list(used_files(range_element.start, range_element.end))
-
-    @property
-    def path(self):
-        return self._path
-
-    @property
-    def file_names_list(self):
-        return self._file_names_list
-
-    def __iter__(self):
-        return iter(self.ranges_list)
-
-    def __len__(self):
-        return len(self.ranges_list)
 
 
 def file_is_available(url):
@@ -869,7 +1199,7 @@ def download_files_to_directory(dirpath, downloadable_list: List[DownloadFile]):
         raise OSError('Invalid Path.')
 
     for file in downloadable_list:
-        print(f'Downloading file {file.file_name}')
+        log.info('Downloading file %s', file.file_name)
         r = requests.get(file.url)
         with open(os.path.join(os.path.abspath(dirpath), file.file_name), 'wb') as fd:
             for chunk in r.iter_content(chunk_size=128):
@@ -1067,12 +1397,11 @@ def coords_finder(lon, lat, distances_output=False, verbose=False):
 
     """
     proj_stereo = wrl.georef.create_osr("dwd-radolan")
-    if verbose:
-        print(proj_stereo)
+    log.debug("%s", proj_stereo)
     proj_wgs = osr.SpatialReference()
     proj_wgs.ImportFromEPSG(4326)
-    if verbose:
-        print(proj_wgs)
+
+    log.debug("%s", proj_wgs)
     coords_ll = np.array([lon, lat])
     radolan_grid_xy = wrl.georef.get_radolan_grid(900, 900)
     coords_xy = wrl.georef.reproject(coords_ll, projection_source=proj_wgs, projection_target=proj_stereo)

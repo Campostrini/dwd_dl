@@ -5,6 +5,7 @@
 import datetime as dt
 import os
 from typing import List
+import calendar
 
 import torch
 from torch.utils.data import DataLoader
@@ -76,8 +77,7 @@ class ModelEvaluator:
             self._device = device
         else:
             self._device = 'cpu'
-        self._true_dataset = ds.RadolanDataset(h5file_handle=h5file_handle, date_ranges_path=date_ranges_path,
-                                               image_size=256, in_channels=6, out_channels=1)
+        self._true_dataset = ds.RadolanDataset(image_size=256, in_channels=6, out_channels=1)
 
         def worker_init(worker_id):
             np.random.seed(42 + worker_id)
@@ -138,7 +138,7 @@ class ModelEvaluator:
         x, y_true = x.to(device), y_true.to(device)
         y = model(x)
 
-        x, y, y_true = x[:, ::4], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[:, ::4]
+        x, y, y_true = x[:, ::5], torch.squeeze(torch.topk(y, 1, dim=2).indices, dim=0), y_true[:, ::5]
         x, y, y_true = x.cpu().detach().numpy(), y.cpu().detach().numpy(), y_true.cpu().detach().numpy()
 
         return x, y, y_true
@@ -169,6 +169,7 @@ class ModelEvaluator:
 
 def get_images_arrays(dates_list: List[dt.datetime], path_to_saved_model, eval_or_train='eval', batch_size=None):
     import dwd_dl.dataset as ds
+    raise NotImplementedError
 
     with ds.h5dataset_context_wrapper(cfg.CFG.date_ranges, mode=cfg.CFG.MODE, classes=cfg.CFG.CLASSES) as f:
         evaluator = ModelEvaluator(
@@ -254,7 +255,7 @@ def incremental_mean(mean, sequence_n, elements_in_image, mean_at_timestamp):
     )
 
 
-def square_select(time_stamp, height=None, width=None, plot=False):
+def square_select(time_stamp, height=None, width=None, plot=False, custom_path=None):
     import dwd_dl.img as img
     """Returns the square selection of an area with NW_CORNER set
 
@@ -270,6 +271,8 @@ def square_select(time_stamp, height=None, width=None, plot=False):
         is a valid reason.)
     plot : bool, optional
         Whether the result should be plotted or not.
+    custom_path : str, optional
+        Gets passed on to img.selection.
 
     Returns
     -------
@@ -283,7 +286,7 @@ def square_select(time_stamp, height=None, width=None, plot=False):
     if not width:
         width = cfg.CFG.WIDTH
 
-    out = img.selection(time_stamp, plot=False).RW[
+    out = img.selection(time_stamp, plot=False, custom_path=custom_path).RW[
           cfg.CFG.NW_CORNER_INDICES[0] - height:cfg.CFG.NW_CORNER_INDICES[0],
           cfg.CFG.NW_CORNER_INDICES[1]:cfg.CFG.NW_CORNER_INDICES[1] + width
           ]
@@ -318,6 +321,8 @@ def next_year_month(year, month):
 
 def ym_tuples(date_ranges):
     year_month_tuples = []
+    if not isinstance(date_ranges, list):
+        date_ranges = [date_ranges]
     for date_range in date_ranges:
         year_month_tuples.extend(
             ym for ym in year_month_tuple_list(date_range.start, date_range.end) if ym not in year_month_tuples
@@ -325,10 +330,19 @@ def ym_tuples(date_ranges):
     return year_month_tuples
 
 
-def normalized_time_of_day_from_string(timestamp_string):
-    minute = int(timestamp_string[-2:])
-    hour = int(timestamp_string[-4:-2])
+def normalized_time_of_day(timestamp: dt.datetime):
+    minute = timestamp.minute
+    hour = timestamp.hour
     hour_minute = hour + (minute / 60)
     hours_in_day = 24
     half_day = hours_in_day / 2
     return (hour_minute - half_day) / half_day
+
+
+def normalized_day_of_year(timestamp: dt.datetime):
+    def days_in_year(year):
+        return 365 + calendar.isleap(year)
+
+    total_days = days_in_year(timestamp.year)
+    day_of_year = timestamp.timetuple().tm_yday
+    return (day_of_year - total_days/2) / (total_days/2)

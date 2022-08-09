@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH -J download
+#SBATCH -J stats
 #SBATCH -N 1
 #SBATCH --qos mem_0096
 #SBATCH --partition mem_0096
@@ -10,12 +10,10 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=stefano.campostrini@studenti.unitn.it
 #SBATCH --time=06:00:00
-#SBATCH --output=/home/fs71666/csaw2629/.out/download_%j.out
+#SBATCH --output=/home/fs71666/csaw2629/.out/dataset_stats_%j.out
 
 source activate py38
 
 cd $HOME/dwd-dl-thesis/dwd_dl/
 
-python download.py <<EOF
-y
-EOF
+python dataset_stats.py

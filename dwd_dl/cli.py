@@ -10,6 +10,58 @@ class RadolanParser(argparse.ArgumentParser):
         super().__init__(
             description="Training U-Net model for segmentation of RADOLAN precipitation images"
         )
+        self.add_arguments(self)
+
+    @staticmethod
+    def add_arguments(parent_parser, argument_group=False):
+        if argument_group:
+            parser = parent_parser.add_argument_group("Radolan Parser")
+        else:
+            parser = parent_parser
+        parser.add_argument(
+            "--device",
+            type=str,
+            default="cuda:0",
+            help="device for training (default: cuda:0)",
+        )
+        parser.add_argument(
+            "--workers",
+            type=int,
+            default=4,
+            help="number of workers for data loading (default: 4)",
+        )
+        parser.add_argument(
+            "--weights", type=str, default="./weights", help="folder to save weights"
+        )
+        parser.add_argument(
+            "--logs", type=str, default="./logs", help="folder to save logs"
+        )
+        parser.add_argument(
+            "--images", type=str, default="../Radolan", help="root folder with images"
+        )
+        parser.add_argument(
+            "--save",
+            type=bool,
+            default=False,
+            help="Save the Unet at the end of training. Path is RADOLAN_PATH/Models/RUN-TIMESTAMP"
+        )
+        parser.add_argument(
+            "--verbose",
+            type=bool,
+            default=False,
+            help="Verbose setting. Either true or false."
+        )
+        if argument_group:
+            return parent_parser
+        else:
+            return parser
+
+
+class DeprecatedRadolanParser(argparse.ArgumentParser):
+    def __init__(self):
+        super().__init__(
+            description="OldArgparseArguments"
+        )
 
         self.add_argument(
             "--batch-size",
@@ -17,14 +69,12 @@ class RadolanParser(argparse.ArgumentParser):
             default=6,
             help="input batch size for training (default: 6)",
         )
-
         self.add_argument(
             "--epochs",
             type=int,
             default=100,
             help="number of epochs to train (default: 100)",
         )
-
         self.add_argument(
             "--lr",
             type=float,
@@ -101,3 +151,4 @@ class RadolanParser(argparse.ArgumentParser):
             default='no_name.h5',
             help='Name for the h5 file.'
         )
+

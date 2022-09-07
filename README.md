@@ -48,16 +48,16 @@ To install this package first clone it in a local repository with git
 git clone https://github.com/Campostrini/dwd_dl.git
 ```
 
-Create a conda environment and install the requirements. This could fail due to the pytorch installation being heavily dependent on your machine.
+Create a conda environment and install the requirements. This could fail due to the pytorch installation being heavily dependent on your machine
 ```
 conda env create -n meteo -f requirements.yml
 ```
-and activate the environment
+and activate the environment:
 ```
 conda activate meteo
 ```
 
-Alternatively you can use docker by building an image using the Dockerfile.
+Alternatively, you can use docker by building an image using the Dockerfile.
 
 To use a CUDA device with docker follow [this guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) or [this guide](https://blog.roboflow.com/nvidia-docker-vscode-pytorch/#installing-docker-for-machine-learning)
 
@@ -113,6 +113,25 @@ nvidia-smi
 ```
 
 ## Training
+
+When you first run the training routine, a new hidden directory will be created with a RADOLAN_FCFG.yml file. It contains various configuration settings. 
+
+```
+python /home/dwd_dl/dwd_dl/lightning-train.py
+```
+
+`CTRL+C` to stop.
+
+Navigate to `~/.radolan_config` and edit the `RADOLAN_CFG.yml`
+
+The script also produces 5 files of the kind `*_RANGES.yml`. These contain the date ranges for the training, validation and test set. Modify them as you please. Beware that all the ranges should not fall outside the ranges in `DATE_RANGES.yml`. The ranges should be a list of lists in `.yml` format. Overlapping ranges will throw Exceptions.
+```
+- - YYYY-MM-DD hh:mm:ss
+  - YYYY-MM-DD hh:mm:ss
+```
+Extrema are included and you should only use timestamps with `mm:ss` set to `50:00` as that is what the RADOLAN routine outputs.
+
+`VIDEO_RANGES.yml` contains the ranges used for a video of prediction output vs. ground truth if it's requested by the user.
 
 ## Weights
 

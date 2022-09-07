@@ -112,7 +112,10 @@ Look at the `nvidia-smi` output to see if everything is running correctly
 nvidia-smi
 ```
 
+If you're not running it inside docker, add the project directory to `PYTHONPATH`.
+
 ## Training
+It is assumed one is using docker.
 
 When you first run the training routine, a new hidden directory will be created with a RADOLAN_FCFG.yml file. It contains various configuration settings. 
 
@@ -132,6 +135,23 @@ The script also produces 5 files of the kind `*_RANGES.yml`. These contain the d
 Extrema are included and you should only use timestamps with `mm:ss` set to `50:00` as that is what the RADOLAN routine outputs.
 
 `VIDEO_RANGES.yml` contains the ranges used for a video of prediction output vs. ground truth if it's requested by the user.
+
+For the various options run
+```
+python /home/dwd_dl/dwd_dl/lightning-train.py --help
+```
+## Logging
+
+If you want to enable logging with `tensorboard` you have to use the `--lgos` options when training. Additionally publish the `6006` port to the host with the `-p` flag when invoking `docker run`.
+
+```
+docker run -v $HOME/dwd_dl/:/home/dwd_dl/ --gpus all -t -d meteo_image -p 6006:6006
+```
+So that, after opening a terminal in the docker container where the logs are stored, you can run
+```
+tensorboard --logdir=/path/to/logdir/
+```
+and access the tensorboard dashboard on your browser at `localhost:6006`.
 
 ## Weights
 

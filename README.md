@@ -142,16 +142,18 @@ python /home/dwd_dl/dwd_dl/lightning-train.py --help
 ```
 ## Logging
 
-If you want to enable logging with `tensorboard` you have to use the `--lgos` options when training. Additionally publish the `6006` port to the host with the `-p` flag when invoking `docker run`.
+Logs are automatically saved in `~/Radolan/tt_logs/`. To visualize them publish the `6006` port to the host with the `-p` flag when invoking `docker run`.
 
 ```
 docker run -v $HOME/dwd_dl/:/home/dwd_dl/ --gpus all -t -d meteo_image -p 6006:6006
 ```
 So that, after opening a terminal in the docker container where the logs are stored, you can run
 ```
-tensorboard --logdir=/path/to/logdir/
+tensorboard --logdir=/path/to/tt_logs/
 ```
 and access the tensorboard dashboard on your browser at `localhost:6006`.
+
+If you're accessing tensorboard running on docker on a remote machine use `--host 0.0.0.0`.
 
 ## Weights
 

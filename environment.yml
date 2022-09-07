@@ -1,4 +1,4 @@
-name: py38
+name: meteo
 channels:
   - pytorch-lts
   - conda-forge
@@ -226,4 +226,5 @@ dependencies:
   - zstd=1.4.9=haebb681_0
   - pip:
     - yamale==4.0.4
-prefix: /root/miniconda3/envs/py38
+    - test-tube==0.7.5
+prefix: /root/miniconda3/envs/meteo

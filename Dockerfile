@@ -40,4 +40,6 @@ RUN conda init
 
 RUN bash /root/.bashrc
 
+EXPOSE 6006
+
 SHELL ["conda", "run", "-n", "py38", "/bin/bash", "-c"]

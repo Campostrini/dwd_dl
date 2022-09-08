@@ -138,7 +138,10 @@ def visualizer(model_evaluator: RadolanLiveEvaluator, address=None, port=0):
 
     from tornado.ioloop import IOLoop
     loop = IOLoop.current()
-    loop.start()
+    try:
+        loop.start()
+    except RuntimeError:
+        pass
 
     server.start()
     server.show('/')

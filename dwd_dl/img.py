@@ -144,4 +144,4 @@ def visualizer(model_evaluator: RadolanLiveEvaluator, address=None, port=0):
         pass
 
     server.start()
-    server.show('/')
+    #server.show('/')

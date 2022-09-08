@@ -857,7 +857,7 @@ class RadolanLiveEvaluator(UNetLitModel):
         parser.add_argument(
             "--port",
             type=int,
-            default=8888,
+            default=7777,
             help='The port number on which the panel will be served.'
         )
         return parent_parser

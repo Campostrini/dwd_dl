@@ -4,6 +4,10 @@
 
 This project is inspired by the Google-Research paper ["Machine Learning for Precipitation Nowcasting from Radar Images"](https://arxiv.org/abs/1912.12132) and the relative blog post ["Using Machine Learning to "Nowcast" Precipitation in High Resolution"](https://ai.googleblog.com/2020/01/using-machine-learning-to-nowcast.html)
 
+![Case1](assets/2002091950.png)
+![Case2](assets/2103110150.png)
+*6 inputs 1 output, ground truth in the lower right corner in each image. Prediction in the lower left corner. 4 classes, mm/h.*
+
 ## Description
 
 This is a U-Net for quasi-image prediction. The architecture, based on the paper mentioned above, incorporates long-range and short-range skip connections, convolutions and batch-normalization.
@@ -145,7 +149,7 @@ python /home/dwd_dl/dwd_dl/lightning-train.py --help
 Logs are automatically saved in `~/Radolan/tt_logs/`. To visualize them publish the `6006` port to the host with the `-p` flag when invoking `docker run`.
 
 ```
-docker run -v $HOME/dwd_dl/:/home/dwd_dl/ --gpus all -t -d meteo_image -p 6006:6006
+docker run -v $HOME/dwd_dl/:/home/dwd_dl/ --gpus all -p 6006:6006 -t -d meteo_image
 ```
 So that, after opening a terminal in the docker container where the logs are stored, you can run
 ```
@@ -155,9 +159,31 @@ and access the tensorboard dashboard on your browser at `localhost:6006`.
 
 If you're accessing tensorboard running on docker on a remote machine use `--host 0.0.0.0`.
 
-## Weights
+## Weights and Visualization
 
-## Inference
+To use the weights you have to clone the weights repository
+
+```
+git clone https://github.com/Campostrini/dwd_dl_weights.git
+```
+Install `git lfs` following [this guide](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) and the run
+```
+git lfs pull
+```
+to download the weights.
+
+Now you can run the container, remember to bind the volume with the weights
+```
+docker run -v $HOME/dwd_dl/:/home/dwd_dl/ -v $HOME/dwd_dl_weights/:/home/weights/ --gpus all -p 7777:7777 -t -d meteo_image 
+```
+access it
+```
+docker exec -it <container_name> /bin/bash
+```
+and run the visualizer
+```
+python /home/dwd_dl/dwd_dl/visualize.py --model_path /home/weights/2205101547-epoch\=09-valid_loss\=0.00.ckpt --address 0.0.0.0
+```
 
 ## Weaknesses
 

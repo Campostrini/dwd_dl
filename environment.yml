@@ -227,4 +227,5 @@ dependencies:
   - pip:
     - yamale==4.0.4
     - test-tube==0.7.5
+    - nest-asyncio==1.5.1
 prefix: /root/miniconda3/envs/meteo

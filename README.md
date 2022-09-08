@@ -4,7 +4,11 @@
 
 This project is inspired by the Google-Research paper ["Machine Learning for Precipitation Nowcasting from Radar Images"](https://arxiv.org/abs/1912.12132) and the relative blog post ["Using Machine Learning to "Nowcast" Precipitation in High Resolution"](https://ai.googleblog.com/2020/01/using-machine-learning-to-nowcast.html)
 
+### 2020-02-09 19:50
 ![Case1](assets/2002091950.png)
+----
+----
+### 2021-03-11 01:50
 ![Case2](assets/2103110150.png)
 *6 inputs 1 output, ground truth in the lower right corner in each image. Prediction in the lower left corner. 4 classes, mm/h.*
 

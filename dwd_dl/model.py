@@ -848,6 +848,18 @@ class RadolanLiveEvaluator(UNetLitModel):
             default=None,
             help="Timestamp2 for producing a scene."
         )
+        parser.add_argument(
+            "--address",
+            type=str,
+            default=None,
+            help='IP address to serve panel viz. Use 0.0.0.0 to access from ssh tunnel.'
+        )
+        parser.add_argument(
+            "--port",
+            type=int,
+            default=8888,
+            help='The port number on which the panel will be served.'
+        )
         return parent_parser
 
     def forward(self, x):

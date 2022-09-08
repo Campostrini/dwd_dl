@@ -112,7 +112,7 @@ def selection(
     return selection.copy()
 
 
-def visualizer(model_evaluator: RadolanLiveEvaluator):
+def visualizer(model_evaluator: RadolanLiveEvaluator, address=None, port=0):
     renderer = hv.renderer('bokeh')
     renderer = renderer.instance(mode='server')
 
@@ -134,7 +134,7 @@ def visualizer(model_evaluator: RadolanLiveEvaluator):
     timestamps = model_evaluator.legal_timestamps
     dmap = hv.DynamicMap(evaluate_on_timestamp, kdims='Timestamp').redim.values(Timestamp=timestamps)
     dmap.opts(framewise=True)
-    server = pn.serve(dmap, start=False, show=True)
+    server = pn.serve(dmap, start=False, show=True, address=address, port=port)
 
     from tornado.ioloop import IOLoop
     loop = IOLoop.current()

@@ -22,7 +22,7 @@ def main(args):
     unet.eval()
     # print(f"Timestamps over threshold: {dm.timestamps_over_threshold}")
     with torch.no_grad():
-        img.visualizer(unet)
+        img.visualizer(unet, args.address, args.port)
 
 
 if __name__ == "__main__":

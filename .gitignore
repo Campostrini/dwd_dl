@@ -146,3 +146,5 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 /dwd_dl/dask-worker-space/
+dask-worker-space/global.lock
+dask-worker-space/purge.lock

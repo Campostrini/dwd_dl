@@ -136,6 +136,8 @@ def visualizer(model_evaluator: RadolanLiveEvaluator, address=None, port=0):
     dmap.opts(framewise=True)
     server = pn.serve(dmap, start=False, show=True, address=address, port=port)
 
+    import nest_asyncio
+    nest_asyncio.apply()
     from tornado.ioloop import IOLoop
     loop = IOLoop.instance().start()
     #loop.start()

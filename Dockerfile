@@ -41,6 +41,6 @@ RUN conda init
 RUN bash /root/.bashrc
 
 EXPOSE 6006
-EXPOSE 8888
+EXPOSE 7777
 
 SHELL ["conda", "run", "-n", "py38", "/bin/bash", "-c"]

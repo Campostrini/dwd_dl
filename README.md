@@ -165,7 +165,17 @@ If you're accessing tensorboard running on docker on a remote machine use `--hos
 
 ## Weights and Visualization
 
-To use the weights you have to clone the weights repository
+The model weights described in the thesis were obtained by training only in winter (October-April). Training, Validation and Testing were divided as follows:
+
+|          | Training | Validation | Testing |
+| ---------| :--------: | :----------: | :-------: |
+|  Start | 1.10.05  | 1.1.18 | 1.1.20 |
+| End    | 31.12.17 | 31.12.19 | 31.12.21 |
+
+Make sure you a directory was created at `~/.radolan_config/`.
+To adopt the same training, validation and testing ranges use the script `dwd_dl/resources/adopt_complete_winter.sh` in the project's repository.
+
+To use the weights you have to clone the weights repo from github and download them with `git lfs`.
 
 ```
 git clone https://github.com/Campostrini/dwd_dl_weights.git
@@ -189,6 +199,24 @@ and run the visualizer
 python /home/dwd_dl/dwd_dl/visualize.py --model_path /home/weights/2205101547-epoch\=09-valid_loss\=0.00.ckpt --address 0.0.0.0
 ```
 
-## Weaknesses
+## Weaknesses and Possible Improvements
+
+The model can architecturally be drastically improved. Much of the architecture was taken from ["Machine Learning for Precipitation Nowcasting from Radar Images"](https://arxiv.org/abs/1912.12132) and the relative blog post ["Using Machine Learning to "Nowcast" Precipitation in High Resolution"](https://ai.googleblog.com/2020/01/using-machine-learning-to-nowcast.html). Some choices they made don't seem canonical and the code is not openly available. Further, GANs and RRNs seem to have had more success recently compared to UNet when it comes to weather prediction.
+
+In the training process a bottleneck is probably present in retrieving files from disk even with dask.
+
+16-bit precision will make training drastically faster. Although cross entropy with weights seems to have some issues with the types of the weights. I found this to be machine-dependent though.
+
+Assessing the performance with other time-frames and other variables is just a matter of adding them, this will probably have a positive result on the final precipitation prediction.
+
+Weights seem to steer the model to over-prediction of higher precipitation classes.
 
 ## TODO
+
+- [ ] Simplify installation procedure
+- [ ] Add Extensive Tests
+- [ ] Add Further documentation
+- [ ] General refactoring
+- [ ] Solve probable bottleneck
+- [ ] Solve concurrency issues with dask and multiple pytorch workers
+- [ ] Create simple Flask server for deployment
